@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowUp, Sparkles } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
+import { GradientBorder } from "@/components/ui/gradient-border";
 
 export function CanvasChatInput() {
   const { openFullscreen } = useAICompanion();
@@ -18,10 +19,11 @@ export function CanvasChatInput() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-xl space-y-4">
+    <div className="w-full space-y-4">
+      <GradientBorder className="rounded-xl bg-white">
       <form
         onSubmit={handleSubmit}
-        className="ai-glow-border flex items-center gap-3 rounded-xl bg-background px-4 py-3"
+        className="flex items-center gap-3 px-4 py-3"
       >
         <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
         <input
@@ -44,6 +46,7 @@ export function CanvasChatInput() {
           <ArrowUp className="h-4 w-4" />
         </button>
       </form>
+      </GradientBorder>
 
       {/* Starter prompts hidden — focus on setup CTAs first */}
     </div>
