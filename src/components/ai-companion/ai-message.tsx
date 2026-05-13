@@ -3,32 +3,13 @@
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlanCard } from "@/components/patterns/plan-card";
-import { ChatChoices } from "./chat-choices";
-import { useAICompanion } from "@/contexts/ai-companion-context";
 import type { ChatMessage } from "@/contexts/ai-companion-context";
 
 export function AIMessage({ message }: { message: ChatMessage }) {
-  const { submitChoice } = useAICompanion();
   const isUser = message.role === "user";
 
-  if (message.toolCall?.type === "choices") {
-    return (
-      <div className="px-4 py-3">
-        <ChatChoices
-          question={message.toolCall.question}
-          subtitle={message.toolCall.subtitle}
-          step={message.toolCall.step}
-          totalSteps={message.toolCall.totalSteps}
-          options={message.toolCall.options}
-          multiSelect={message.toolCall.multiSelect}
-          onSubmit={(selected) =>
-            submitChoice(message.id, message.toolCall!.field, selected)
-          }
-        />
-      </div>
-    );
-  }
-
+  // toolCall messages render docked at the bottom, not inline
+  if (message.toolCall) return null;
   if (!message.content && !message.artifact) return null;
 
   return (

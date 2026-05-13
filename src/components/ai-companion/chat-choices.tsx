@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Circle, CircleCheck, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useRef, useEffect, type FormEvent } from "react";
+import { Circle, CircleCheck, Pencil, ChevronLeft, ChevronRight, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ChoiceOption {
@@ -19,7 +19,7 @@ interface ChatChoicesProps {
   options: ChoiceOption[];
   multiSelect?: boolean;
   onSubmit: (selected: string[]) => void;
-  onSkip?: () => void;
+  onFreeText: (text: string) => void;
 }
 
 export function ChatChoices({
@@ -30,9 +30,18 @@ export function ChatChoices({
   options,
   multiSelect = false,
   onSubmit,
-  onSkip,
+  onFreeText,
 }: ChatChoicesProps) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [freeTextMode, setFreeTextMode] = useState(false);
+  const [freeText, setFreeText] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (freeTextMode && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [freeTextMode]);
 
   function handleSelect(id: string) {
     if (selected) return;
@@ -40,6 +49,15 @@ export function ChatChoices({
     if (!multiSelect) {
       setTimeout(() => onSubmit([id]), 250);
     }
+  }
+
+  function handleFreeTextSubmit(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = freeText.trim();
+    if (!trimmed) return;
+    onFreeText(trimmed);
+    setFreeText("");
+    setFreeTextMode(false);
   }
 
   return (
@@ -64,58 +82,81 @@ export function ChatChoices({
             </span>
             <ChevronRight className="h-3.5 w-3.5 text-[#394859]" />
           </div>
-          {onSkip && (
-            <button
-              onClick={onSkip}
-              className="shrink-0 rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-sm text-[#8492A6] hover:text-[#394859] transition-colors"
-            >
-              Skip
-            </button>
-          )}
         </div>
 
         {/* Options */}
-        {options.map((option) => {
-          const isSelected = selected === option.id;
-          return (
+        {!freeTextMode && (
+          <>
+            {options.map((option) => {
+              const isSelected = selected === option.id;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => handleSelect(option.id)}
+                  disabled={selected !== null}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-[20px] border px-4 py-3 text-left transition-all",
+                    isSelected
+                      ? "border-[#2C9FDD]/30 bg-[#2C9FDD]/[0.06]"
+                      : "border-[#E0E8F2] bg-white hover:bg-[#F9FAFB]",
+                    selected !== null && !isSelected && "opacity-50"
+                  )}
+                >
+                  {isSelected ? (
+                    <CircleCheck className="h-[18px] w-[18px] shrink-0 text-[#2C9FDD]" />
+                  ) : (
+                    <Circle className="h-[18px] w-[18px] shrink-0 text-[#8492A6]" />
+                  )}
+                  <span className="flex-1 text-sm text-[#394859] leading-[22px] min-w-0">
+                    {option.label}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Something else */}
             <button
-              key={option.id}
-              onClick={() => handleSelect(option.id)}
+              onClick={() => setFreeTextMode(true)}
               disabled={selected !== null}
               className={cn(
-                "flex w-full items-center gap-2 rounded-[20px] border px-4 py-3 text-left transition-all",
-                isSelected
-                  ? "border-[#2C9FDD]/30 bg-[#2C9FDD]/[0.06]"
-                  : "border-[#E0E8F2] bg-white hover:bg-[#F9FAFB]",
-                selected !== null && !isSelected && "opacity-50"
+                "flex w-full items-center gap-1.5 rounded-[20px] border border-[#E0E8F2] px-4 py-3 text-left transition-all",
+                selected !== null ? "opacity-50" : "hover:bg-[#F9FAFB]"
               )}
             >
-              {isSelected ? (
-                <CircleCheck className="h-[18px] w-[18px] shrink-0 text-[#2C9FDD]" />
-              ) : (
-                <Circle className="h-[18px] w-[18px] shrink-0 text-[#8492A6]" />
-              )}
-              <span className="flex-1 text-sm text-[#394859] leading-[22px] min-w-0">
-                {option.label}
+              <Pencil className="h-3.5 w-3.5 shrink-0 text-[#8492A6]" />
+              <span className="text-sm text-[#8492A6] leading-[22px]">
+                Something else
               </span>
             </button>
-          );
-        })}
+          </>
+        )}
 
-        {/* Something else */}
-        <button
-          onClick={() => {}}
-          disabled={selected !== null}
-          className={cn(
-            "flex w-full items-center gap-1.5 rounded-[20px] border border-[#E0E8F2] px-4 py-3 text-left transition-all",
-            selected !== null ? "opacity-50" : "hover:bg-[#F9FAFB]"
-          )}
-        >
-          <Pencil className="h-3.5 w-3.5 shrink-0 text-[#8492A6]" />
-          <span className="text-sm text-[#8492A6] leading-[22px]">
-            Something else
-          </span>
-        </button>
+        {/* Free text input mode */}
+        {freeTextMode && (
+          <form onSubmit={handleFreeTextSubmit} className="flex items-center gap-2 rounded-[20px] border border-[#E0E8F2] px-4 py-3">
+            <Pencil className="h-3.5 w-3.5 shrink-0 text-[#8492A6]" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              placeholder="Describe what you're looking for..."
+              className="flex-1 bg-transparent text-sm text-[#394859] outline-none placeholder:text-[#8492A6]"
+            />
+            <button
+              type="submit"
+              disabled={!freeText.trim()}
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors",
+                freeText.trim()
+                  ? "bg-[#394859] text-white"
+                  : "bg-[#E0E8F2] text-[#8492A6]"
+              )}
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

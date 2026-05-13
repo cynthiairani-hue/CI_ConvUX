@@ -1,15 +1,23 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { X, Maximize2, ArrowLeftRight } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
+import { ChatChoices } from "./chat-choices";
 
 export function AIDockedPanel() {
-  const { messages, sendMessage, expand, close, toggleDockSide } =
+  const { messages, sendMessage, submitChoice, expand, close, toggleDockSide } =
     useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const activeToolCall = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].toolCall) return messages[i];
+    }
+    return null;
+  }, [messages]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -53,9 +61,29 @@ export function AIDockedPanel() {
       </div>
 
       <div className="border-t px-4 py-3">
-        <div className="rounded-lg border px-3 py-2">
-          <AIInput onSend={sendMessage} />
-        </div>
+        {activeToolCall?.toolCall ? (
+          <ChatChoices
+            key={activeToolCall.id}
+            question={activeToolCall.toolCall.question}
+            subtitle={activeToolCall.toolCall.subtitle}
+            step={activeToolCall.toolCall.step}
+            totalSteps={activeToolCall.toolCall.totalSteps}
+            options={activeToolCall.toolCall.options}
+            multiSelect={activeToolCall.toolCall.multiSelect}
+            onSubmit={(selected) =>
+              submitChoice(
+                activeToolCall.id,
+                activeToolCall.toolCall!.field,
+                selected
+              )
+            }
+            onFreeText={(text) => sendMessage(text)}
+          />
+        ) : (
+          <div className="rounded-lg border px-3 py-2">
+            <AIInput onSend={sendMessage} />
+          </div>
+        )}
       </div>
     </aside>
   );
