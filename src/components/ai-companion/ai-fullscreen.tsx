@@ -27,7 +27,7 @@ export function AIFullscreen() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <header className="flex h-14 items-center justify-between border-b px-6">
+      <header className="flex h-14 items-center justify-between px-6">
         <span className="text-sm font-semibold">AI Companion</span>
         <div className="flex items-center gap-1">
           <button
@@ -55,7 +55,7 @@ export function AIFullscreen() {
         </div>
       </div>
 
-      <div className="border-t">
+      <div>
         <div className="mx-auto max-w-2xl px-4 py-4">
           {activeToolCall?.toolCall ? (
             <ChatChoices

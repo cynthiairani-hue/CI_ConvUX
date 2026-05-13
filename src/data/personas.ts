@@ -22,6 +22,20 @@ export const personas: Persona[] = [
     verticalLabel: "Agency Marketer",
     initials: "CI",
   },
+  {
+    id: "marcus-patel",
+    name: "Marcus Patel",
+    vertical: "b2c",
+    verticalLabel: "VP Marketing",
+    initials: "MP",
+  },
+  {
+    id: "jordan-reyes",
+    name: "Jordan Reyes",
+    vertical: "b2c",
+    verticalLabel: "Client Lead",
+    initials: "JR",
+  },
 ];
 
 export const universalTasks: GettingStartedTask[] = [
@@ -68,4 +82,6 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
   "cynthia-b2c": universalTasks,
   "cynthia-b2b": universalTasks,
   "cynthia-agency": universalTasks,
+  "marcus-patel": universalTasks,
+  "jordan-reyes": universalTasks,
 };

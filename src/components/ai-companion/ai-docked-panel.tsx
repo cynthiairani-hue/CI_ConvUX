@@ -27,7 +27,7 @@ export function AIDockedPanel() {
 
   return (
     <aside className="flex h-screen w-80 flex-col border-l bg-background">
-      <header className="flex h-14 items-center justify-between border-b px-4">
+      <header className="flex h-14 items-center justify-between px-4">
         <span className="text-sm font-semibold">AI Companion</span>
         <div className="flex items-center gap-0.5">
           <button
@@ -60,7 +60,7 @@ export function AIDockedPanel() {
         ))}
       </div>
 
-      <div className="border-t px-4 py-3">
+      <div className="px-4 py-3">
         {activeToolCall?.toolCall ? (
           <ChatChoices
             key={activeToolCall.id}

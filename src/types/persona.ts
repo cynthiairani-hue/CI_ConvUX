@@ -1,4 +1,4 @@
-export type PersonaId = "cynthia-b2c" | "cynthia-b2b" | "cynthia-agency";
+export type PersonaId = "cynthia-b2c" | "cynthia-b2b" | "cynthia-agency" | "marcus-patel" | "jordan-reyes";
 
 export type Vertical = "b2c" | "b2b" | "agency";
 

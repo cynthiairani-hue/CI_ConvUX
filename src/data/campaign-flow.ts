@@ -5,7 +5,6 @@ export interface CampaignIntent {
   objective?: string;
   audience?: string;
   budget?: string;
-  creative?: string;
 }
 
 export interface ChoiceTool {
@@ -19,25 +18,35 @@ export interface ChoiceTool {
 
 const objectiveChoices: ChoiceOption[] = [
   {
-    id: "retarget",
-    label: "Retarget existing visitors",
-    detail: "Bring back people who browsed but didn't convert",
+    id: "awareness",
+    label: "Awareness",
+    detail: "Reach more viewers to grow your brand",
+  },
+  {
+    id: "traffic",
+    label: "Traffic",
+    detail: "Increase web traffic",
+  },
+  {
+    id: "leads",
+    label: "Leads",
+    detail: "Generate qualified leads",
+  },
+  {
+    id: "sales",
+    label: "Sales",
+    detail: "Increase your sales",
     recommended: true,
   },
   {
-    id: "prospect",
-    label: "Prospect for new customers",
-    detail: "Reach new audiences who look like your best buyers",
+    id: "retargeting",
+    label: "Retargeting",
+    detail: "Reconnect with your audience using existing data",
   },
   {
-    id: "abm",
-    label: "Account-based targeting",
-    detail: "Reach decision-makers at specific target companies",
-  },
-  {
-    id: "awareness",
-    label: "Build brand awareness",
-    detail: "Broad reach to increase brand recognition",
+    id: "app-promotion",
+    label: "App promotion",
+    detail: "Drive app installs and in-app revenue",
   },
 ];
 
@@ -77,24 +86,23 @@ const budgetChoices: ChoiceOption[] = [
   { id: "custom", label: "Custom amount" },
 ];
 
-// Simulates AI reasoning: parse the user message for what's already been said
 export function parseIntent(message: string): CampaignIntent {
   const lower = message.toLowerCase();
   const intent: CampaignIntent = {};
 
-  // Objective detection
-  if (lower.includes("retarget") || lower.includes("re-target") || lower.includes("cart abandon"))
-    intent.objective = "retarget";
-  else if (lower.includes("prospect") || lower.includes("new customer") || lower.includes("acquire"))
-    intent.objective = "prospect";
-  else if (lower.includes("account") || lower.includes("abm") || lower.includes("decision-maker"))
-    intent.objective = "abm";
-  else if (lower.includes("awareness") || lower.includes("brand"))
+  if (lower.includes("awareness") || lower.includes("brand"))
     intent.objective = "awareness";
-  else if (lower.includes("demo") || lower.includes("trial") || lower.includes("lead gen"))
-    intent.objective = "demand-gen";
+  else if (lower.includes("traffic") || lower.includes("visit"))
+    intent.objective = "traffic";
+  else if (lower.includes("lead") || lower.includes("qualified"))
+    intent.objective = "leads";
+  else if (lower.includes("sale") || lower.includes("revenue") || lower.includes("convert"))
+    intent.objective = "sales";
+  else if (lower.includes("retarget") || lower.includes("re-target") || lower.includes("cart abandon"))
+    intent.objective = "retargeting";
+  else if (lower.includes("app") || lower.includes("install"))
+    intent.objective = "app-promotion";
 
-  // Audience detection
   if (lower.includes("cart abandon")) intent.audience = "cart-abandoners";
   else if (lower.includes("site visitor") || lower.includes("website visitor"))
     intent.audience = "site-visitors";
@@ -102,20 +110,12 @@ export function parseIntent(message: string): CampaignIntent {
   else if (lower.includes("account list") || lower.includes("icp"))
     intent.audience = "account-list";
 
-  // Budget detection
   const budgetMatch = lower.match(/\$\s?([\d,]+)/);
   if (budgetMatch) intent.budget = budgetMatch[1].replace(",", "");
-
-  // Creative detection
-  if (lower.includes("product") || lower.includes("catalog"))
-    intent.creative = "catalog";
-  else if (lower.includes("case stud")) intent.creative = "case-study";
-  else if (lower.includes("generat")) intent.creative = "ai-generated";
 
   return intent;
 }
 
-// Merges new signals into existing intent
 export function mergeIntent(
   existing: CampaignIntent,
   update: CampaignIntent
@@ -132,7 +132,7 @@ export function getNextChoiceTool(
     return {
       field: "objective",
       question: "What's the goal for this campaign?",
-      subtitle: "Most marketers like you start with:",
+      subtitle: "This determines how we optimize your spend:",
       step: 1,
       totalSteps: TOTAL_STEPS,
       options: objectiveChoices,
@@ -161,7 +161,6 @@ export function getNextChoiceTool(
   return null;
 }
 
-// Resolves a choice selection back to a readable value for the intent
 export function resolveChoice(
   field: keyof CampaignIntent,
   selectedIds: string[]
@@ -169,16 +168,16 @@ export function resolveChoice(
   return selectedIds[0] || "";
 }
 
-// Generates the acknowledgment text when the AI has enough info
 export function getAcknowledgment(intent: CampaignIntent): string {
   const parts: string[] = [];
   if (intent.objective) {
     const labels: Record<string, string> = {
-      retarget: "retargeting",
-      prospect: "prospecting",
-      abm: "account-based",
       awareness: "brand awareness",
-      "demand-gen": "demand gen",
+      traffic: "traffic",
+      leads: "lead generation",
+      sales: "sales",
+      retargeting: "retargeting",
+      "app-promotion": "app promotion",
     };
     parts.push(labels[intent.objective] || intent.objective);
   }
@@ -196,58 +195,79 @@ export function getAcknowledgment(intent: CampaignIntent): string {
     if (!isNaN(num)) parts.push(`$${num.toLocaleString()}/month`);
   }
   return parts.length > 0
-    ? `Got it — ${parts.join(", ")}. Building your plan now.`
-    : "Building your campaign plan now.";
+    ? `Got it — ${parts.join(", ")}. Building your media plan now.`
+    : "Building your media plan now.";
 }
 
-// Builds the Plan Card from the collected intent
+interface ObjectiveConfig {
+  name: string;
+  value: string;
+  rationale: string;
+  channels: string;
+  channelsRationale: string;
+  conversionEvent: string;
+}
+
+const objectiveMap: Record<string, ObjectiveConfig> = {
+  awareness: {
+    name: "Brand Awareness Campaign",
+    value: "Reach more viewers to grow your brand",
+    rationale: "Awareness campaigns establish brand recognition before direct-response efforts. Optimized for reach and frequency, not clicks.",
+    channels: "Video (40%) + Display (35%) + Social (25%)",
+    channelsRationale: "Video drives the strongest brand recall. Display provides broad reach at efficient CPMs. Social adds engagement.",
+    conversionEvent: "Video views, impressions, brand lift",
+  },
+  traffic: {
+    name: "Traffic Campaign",
+    value: "Drive qualified visitors to your site",
+    rationale: "Traffic campaigns fill the top of your funnel. Optimized for click-through rate and cost per visit.",
+    channels: "Display (40%) + Social (35%) + Native (25%)",
+    channelsRationale: "Display drives broad reach at low CPC. Social targets interest-based audiences. Native blends into content for higher engagement.",
+    conversionEvent: "Page views, session duration, bounce rate",
+  },
+  leads: {
+    name: "Lead Generation Campaign",
+    value: "Generate qualified leads for your pipeline",
+    rationale: "Lead gen campaigns optimize for form fills and demo requests. Quality over quantity — a smaller number of qualified leads outperforms a larger number of unqualified ones.",
+    channels: "LinkedIn (40%) + Display retargeting (30%) + Search (30%)",
+    channelsRationale: "LinkedIn reaches professional buyers by title and company. Retargeting captures warm intent. Search captures active demand.",
+    conversionEvent: "Form submissions, demo requests, content downloads",
+  },
+  sales: {
+    name: "Sales Campaign",
+    value: "Increase your sales and revenue",
+    rationale: "Sales campaigns optimize for purchases and revenue. Multi-touch attribution tracks the full path from ad to conversion.",
+    channels: "Display retargeting (40%) + Social (35%) + Search (25%)",
+    channelsRationale: "Retargeting converts high-intent visitors. Social reaches buyers mid-funnel. Search captures purchase-ready demand.",
+    conversionEvent: "Purchases, revenue, ROAS",
+  },
+  retargeting: {
+    name: "Retargeting Campaign",
+    value: "Reconnect with your audience using existing data",
+    rationale: "Retargeting converts at 3-5x the rate of cold traffic. Starting here maximizes early ROI while you build prospecting audiences.",
+    channels: "Display retargeting (60%) + Social retargeting (40%)",
+    channelsRationale: "Display retargeting captures high-intent visitors across the web. Social retargeting reinforces on platforms where users spend time.",
+    conversionEvent: "Conversions, return visits, cart completions",
+  },
+  "app-promotion": {
+    name: "App Promotion Campaign",
+    value: "Drive app installs and in-app revenue",
+    rationale: "App campaigns optimize for installs and post-install events. Deep linking ensures users land in the right in-app experience.",
+    channels: "Mobile display (40%) + Social (35%) + App store ads (25%)",
+    channelsRationale: "Mobile display reaches users in-app. Social targets based on interests and behavior. App store ads capture high-intent searchers.",
+    conversionEvent: "Installs, in-app purchases, app opens",
+  },
+};
+
+const audienceMap: Record<string, string> = {
+  "cart-abandoners": "Cart abandoners (last 14 days)",
+  "site-visitors": "Recent site visitors (last 30 days)",
+  lookalike: "Lookalike from top customers by LTV",
+  "account-list": "Target account list — matched to identity graph",
+};
+
 export function buildPlanFromIntent(intent: CampaignIntent): CampaignPlan {
-  const objectiveMap: Record<string, { name: string; value: string; rationale: string; channels: string; channelsRationale: string }> = {
-    retarget: {
-      name: "Retargeting Campaign",
-      value: "Retarget recent visitors and drive conversions",
-      rationale: "Retargeting converts at 3-5x the rate of cold traffic. Starting here maximizes early ROI while you build prospecting audiences.",
-      channels: "Display retargeting (60%) + Social retargeting (40%)",
-      channelsRationale: "Display retargeting captures high-intent visitors across the web. Social retargeting reinforces on platforms where users spend time.",
-    },
-    prospect: {
-      name: "Prospecting Campaign",
-      value: "Acquire new customers via prospecting",
-      rationale: "Prospecting builds your funnel with new audiences. Lookalike models find users who resemble your best customers.",
-      channels: "Social prospecting (50%) + Display (30%) + Video (20%)",
-      channelsRationale: "Social platforms have the richest targeting for cold audiences. Display adds reach. Video builds awareness at efficient CPMs.",
-    },
-    abm: {
-      name: "Account-Based Campaign",
-      value: "Reach decision-makers at target accounts",
-      rationale: "Account-based campaigns focus spend on high-value companies. Multi-channel touchpoints increase account engagement by 2.5x.",
-      channels: "Account-based display (40%) + LinkedIn (35%) + Retargeting (25%)",
-      channelsRationale: "LinkedIn captures professional intent. Display maintains awareness across the buying committee. Retargeting re-engages after site visits.",
-    },
-    awareness: {
-      name: "Brand Awareness Campaign",
-      value: "Build brand awareness and top-of-funnel reach",
-      rationale: "Awareness campaigns establish brand recognition before direct-response efforts. Optimized for reach and frequency, not clicks.",
-      channels: "Video (40%) + Display (35%) + Social (25%)",
-      channelsRationale: "Video drives the strongest brand recall. Display provides broad reach at efficient CPMs. Social adds engagement.",
-    },
-    "demand-gen": {
-      name: "Demand Gen Campaign",
-      value: "Generate demo requests and trial signups",
-      rationale: "Demo requests have the highest pipeline conversion rate (35-45%). Optimizing for demos rather than MQLs shortens the sales cycle.",
-      channels: "LinkedIn (40%) + Display retargeting (30%) + Search (30%)",
-      channelsRationale: "LinkedIn reaches professional buyers. Retargeting captures intent. Search captures active demand.",
-    },
-  };
-
-  const audienceMap: Record<string, string> = {
-    "cart-abandoners": "Cart abandoners (last 14 days)",
-    "site-visitors": "Recent site visitors (last 30 days)",
-    lookalike: "Lookalike from top customers by LTV",
-    "account-list": "Target account list — matched to identity graph",
-  };
-
-  const obj = objectiveMap[intent.objective || "retarget"] || objectiveMap.retarget;
+  const obj = objectiveMap[intent.objective || "sales"] || objectiveMap.sales;
   const budgetNum = parseInt(intent.budget || "0");
   const budgetStr = budgetNum > 0 ? `$${budgetNum.toLocaleString()}/month` : "Not yet set";
 
@@ -267,9 +287,9 @@ export function buildPlanFromIntent(intent: CampaignIntent): CampaignPlan {
         label: "Audience",
         value: intent.audience
           ? audienceMap[intent.audience] || "Custom audience"
-          : "Not yet defined — connect a data source to build audience",
+          : "Not yet defined — connect a data source or upload a list",
         rationale: "Audience quality is the single biggest lever for campaign performance. Higher-intent segments convert at 3-5x the rate of broad targeting.",
-        readiness: intent.audience ? "ready" : "limited",
+        readiness: intent.audience ? "limited" : "blocked",
         editable: true,
       },
       budget: {
@@ -286,17 +306,32 @@ export function buildPlanFromIntent(intent: CampaignIntent): CampaignPlan {
         readiness: "ready",
         editable: true,
       },
+      schedule: {
+        label: "Schedule",
+        value: "Not set — define start and end dates",
+        rationale: "Campaign schedule controls pacing and budget allocation. Always-on campaigns pace daily; fixed flights concentrate spend within the window.",
+        readiness: "limited",
+        editable: true,
+      },
+      destination: {
+        label: "Destination URL",
+        value: "Not set — where should clicks land?",
+        rationale: "Landing page relevance directly impacts conversion rate and quality score. Match the landing page to the campaign objective.",
+        readiness: "limited",
+        editable: true,
+      },
       creative: {
         label: "Creative",
-        value: intent.creative
-          ? intent.creative === "catalog"
-            ? "Dynamic product ads from catalog"
-            : intent.creative === "case-study"
-              ? "Case study-led creative"
-              : "AI-generated variations"
-          : "No assets yet — will generate from connected data",
+        value: "No assets yet — upload or connect to generate",
         rationale: "Multiple creative variations enable A/B testing. I'll rotate top performers and pause underperformers automatically.",
-        readiness: intent.creative ? "ready" : "limited",
+        readiness: "limited",
+        editable: true,
+      },
+      conversion: {
+        label: "Conversion events",
+        value: obj.conversionEvent,
+        rationale: "Conversion events tell the optimization engine what to optimize for. Choose events that align with your business objective, not vanity metrics.",
+        readiness: "limited",
         editable: true,
       },
       tracking: {

@@ -98,9 +98,7 @@ export function ChatChoices({
                     "flex w-full items-center gap-2 rounded-[20px] px-4 py-3 text-left transition-all",
                     isSelected
                       ? "bg-[#2C9FDD]/[0.06]"
-                      : option.recommended
-                        ? "bg-[#FFF4E0] border border-[#C57C00]"
-                        : "hover:bg-[#F9FAFB]",
+                      : "hover:bg-[#F9FAFB]",
                     selected !== null && !isSelected && "opacity-50"
                   )}
                 >

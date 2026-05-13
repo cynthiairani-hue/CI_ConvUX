@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { useLayout } from "@/contexts/layout-context";
+import { useCampaign } from "@/contexts/campaign-context";
+import { usePersona } from "@/contexts/persona-context";
 import { navItems } from "@/data/navigation";
 import { LeftRailNavItem } from "./left-rail-nav-item";
 import { PersonaSwitcher } from "@/components/persona/persona-switcher";
@@ -12,6 +14,10 @@ import { cn } from "@/lib/utils";
 export function LeftRail() {
   const { leftRailCollapsed, toggleLeftRail } = useLayout();
   const pathname = usePathname();
+  const { getPendingForPersona } = useCampaign();
+  const { activePersona } = usePersona();
+
+  const pendingCount = getPendingForPersona(activePersona.id).length;
 
   return (
     <aside
@@ -50,7 +56,7 @@ export function LeftRail() {
             icon={item.icon}
             label={item.label}
             href={item.href}
-            badge={item.badge}
+            badge={item.id === "approvals" ? pendingCount : item.badge}
             isActive={pathname.startsWith(item.href)}
             isCollapsed={leftRailCollapsed}
           />

@@ -26,7 +26,6 @@ export const navItems: NavItem[] = [
     label: "Approvals",
     href: "/approvals",
     icon: CheckSquare,
-    badge: 3,
   },
   { id: "settings", label: "Settings", href: "/settings", icon: Settings },
 ];

@@ -21,6 +21,7 @@ import {
 } from "@/data/campaign-flow";
 import type { CampaignPlan } from "@/types/campaign";
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
+import { useCampaign } from "./campaign-context";
 
 export type AICompanionState = "resting" | "fullscreen" | "docked";
 export type DockSide = "right" | "left";
@@ -67,6 +68,7 @@ function nextId() {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
+  const { setActivePlan } = useCampaign();
   const [state, setState] = useState<AICompanionState>("resting");
   const [dockSide, setDockSide] = useState<DockSide>("right");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -110,6 +112,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       } else {
         // AI has enough — build the Plan Card
         const plan = buildPlanFromIntent(intent);
+        setActivePlan(plan);
         const ackMsg: ChatMessage = {
           id: nextId(),
           role: "assistant",
@@ -119,7 +122,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           id: nextId(),
           role: "assistant",
           content:
-            "Here's your campaign plan. Each section shows its readiness state — review the details, edit anything inline, and activate when ready.",
+            "Here's your media plan. Each section shows its readiness state — review the details, edit anything, and send for approval when ready.",
           artifact: plan,
         };
         setMessages((prev) => [
@@ -130,7 +133,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setCampaignIntent(null);
       }
     },
-    []
+    [setActivePlan]
   );
 
   const sendMessage = useCallback(

@@ -13,13 +13,13 @@ export default function AppLayout({
   return (
     <PersonaProvider>
       <LayoutProvider>
-        <AICompanionProvider>
-          <CampaignProvider>
+        <CampaignProvider>
+          <AICompanionProvider>
             <TooltipProvider delayDuration={0}>
               <AppShell>{children}</AppShell>
             </TooltipProvider>
-          </CampaignProvider>
-        </AICompanionProvider>
+          </AICompanionProvider>
+        </CampaignProvider>
       </LayoutProvider>
     </PersonaProvider>
   );

@@ -24,4 +24,6 @@ export const starterPrompts: Record<PersonaId, StarterPrompt[]> = {
   "cynthia-b2c": universalPrompts,
   "cynthia-b2b": universalPrompts,
   "cynthia-agency": universalPrompts,
+  "marcus-patel": universalPrompts,
+  "jordan-reyes": universalPrompts,
 };
