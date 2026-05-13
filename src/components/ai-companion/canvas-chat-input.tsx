@@ -3,17 +3,11 @@
 import { useState, type FormEvent } from "react";
 import { ArrowUp, Sparkles } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import { usePersona } from "@/contexts/persona-context";
-import { starterPrompts } from "@/data/starter-prompts";
-import { StarterPromptButton } from "./starter-prompt-button";
 import { cn } from "@/lib/utils";
 
 export function CanvasChatInput() {
   const { openFullscreen } = useAICompanion();
-  const { activePersona } = usePersona();
   const [value, setValue] = useState("");
-
-  const prompts = starterPrompts[activePersona.id];
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
