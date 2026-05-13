@@ -2,6 +2,7 @@
 
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PlanCard } from "@/components/patterns/plan-card";
 import type { ChatMessage } from "@/contexts/ai-companion-context";
 
 export function AIMessage({ message }: { message: ChatMessage }) {
@@ -21,13 +22,18 @@ export function AIMessage({ message }: { message: ChatMessage }) {
       )}
       <div
         className={cn(
-          "max-w-[80%] text-sm leading-relaxed",
+          "max-w-[80%]",
           isUser
-            ? "rounded-2xl rounded-tr-sm bg-foreground px-4 py-2.5 text-background"
-            : "text-foreground"
+            ? "rounded-2xl rounded-tr-sm bg-foreground px-4 py-2.5 text-sm leading-relaxed text-background"
+            : "text-sm leading-relaxed text-foreground"
         )}
       >
         {message.content}
+        {message.artifact && (
+          <div className="mt-3">
+            <PlanCard plan={message.artifact} />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -24,119 +24,48 @@ export const personas: Persona[] = [
   },
 ];
 
+export const universalTasks: GettingStartedTask[] = [
+  {
+    id: "first-campaign",
+    title: "Build your first campaign",
+    description:
+      "Launch a retargeting, prospecting, or account-based campaign — the AI will guide you through setup.",
+    cta: "Create campaign",
+    status: "not-started",
+    priority: "essential",
+  },
+  {
+    id: "connect-data",
+    title: "Connect a data source",
+    description:
+      "Link your store, CRM, or analytics platform to unlock audience building and conversion tracking.",
+    cta: "Connect data",
+    status: "not-started",
+    priority: "optional",
+  },
+  {
+    id: "build-audience",
+    title: "Build an audience",
+    description:
+      "Create a retargeting, lookalike, or account-based audience from your data.",
+    cta: "Build audience",
+    status: "not-started",
+    priority: "optional",
+  },
+  {
+    id: "set-budget",
+    title: "Set your budget",
+    description:
+      "Define your monthly ad spend so we can pace and optimize across channels.",
+    cta: "Set budget",
+    status: "not-started",
+    priority: "optional",
+  },
+];
+
+// Legacy per-persona tasks kept for dev persona switcher compatibility
 export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
-  "cynthia-b2c": [
-    {
-      id: "first-campaign",
-      title: "Build your first campaign",
-      description:
-        "Launch a retargeting or prospecting campaign to start reaching your customers.",
-      cta: "Create campaign",
-      status: "not-started",
-      priority: "essential",
-    },
-    {
-      id: "define-audience",
-      title: "Define your audience",
-      description:
-        "Upload your customer list or let us build a lookalike from your store visitors.",
-      cta: "Build audience",
-      status: "not-started",
-      priority: "optional",
-    },
-    {
-      id: "connect-store",
-      title: "Connect your store",
-      description:
-        "Link your Shopify, WooCommerce, or BigCommerce store so we can pull product data and track conversions.",
-      cta: "Connect store",
-      status: "not-started",
-      priority: "optional",
-    },
-    {
-      id: "set-budget",
-      title: "Set your budget",
-      description:
-        "Tell us your monthly ad spend so we can optimize across channels.",
-      cta: "Set budget",
-      status: "not-started",
-      priority: "optional",
-    },
-  ],
-  "cynthia-b2b": [
-    {
-      id: "first-campaign",
-      title: "Build your first campaign",
-      description:
-        "Launch an account-based or demand gen campaign to drive demos and trial signups.",
-      cta: "Create campaign",
-      status: "not-started",
-      priority: "essential",
-    },
-    {
-      id: "target-accounts",
-      title: "Define your target accounts",
-      description:
-        "Upload your ICP list or let us build an account-based audience from your CRM data.",
-      cta: "Add accounts",
-      status: "not-started",
-      priority: "optional",
-    },
-    {
-      id: "connect-crm",
-      title: "Connect your CRM",
-      description:
-        "Link Salesforce, HubSpot, or your CRM to sync leads and track pipeline attribution.",
-      cta: "Connect CRM",
-      status: "not-started",
-      priority: "optional",
-    },
-    {
-      id: "set-budget",
-      title: "Set your budget",
-      description:
-        "Tell us your quarterly ad budget so we can pace spend across your pipeline goals.",
-      cta: "Set budget",
-      status: "not-started",
-      priority: "optional",
-    },
-  ],
-  "cynthia-agency": [
-    {
-      id: "first-campaign",
-      title: "Build a campaign for your client",
-      description:
-        "Launch a campaign on behalf of a client across display, social, and retargeting channels.",
-      cta: "Create campaign",
-      status: "not-started",
-      priority: "essential",
-    },
-    {
-      id: "add-client",
-      title: "Add your first client",
-      description:
-        "Create a client account to manage their campaigns, budgets, and reporting in one place.",
-      cta: "Add client",
-      status: "not-started",
-      priority: "optional",
-    },
-    {
-      id: "connect-data",
-      title: "Connect client data sources",
-      description:
-        "Link your client's store, CRM, or analytics to pull in performance data.",
-      cta: "Connect data",
-      status: "not-started",
-      priority: "optional",
-    },
-    {
-      id: "set-budget",
-      title: "Set client budgets",
-      description:
-        "Configure budget caps and pacing rules per client to stay within their spend targets.",
-      cta: "Set budgets",
-      status: "not-started",
-      priority: "optional",
-    },
-  ],
+  "cynthia-b2c": universalTasks,
+  "cynthia-b2b": universalTasks,
+  "cynthia-agency": universalTasks,
 };

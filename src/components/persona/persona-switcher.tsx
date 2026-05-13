@@ -67,7 +67,7 @@ export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
           )}
         >
           <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-            Switch vertical
+            Demo personas
           </p>
           {personas.map((persona) => (
             <button
