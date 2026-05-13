@@ -1,75 +1,68 @@
 "use client";
 
-import { useState } from "react";
 import { usePersona } from "@/contexts/persona-context";
 import { gettingStartedTasks } from "@/data/personas";
 import { CanvasChatInput } from "@/components/ai-companion/canvas-chat-input";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import { Check, ArrowRight, ChevronDown } from "lucide-react";
+import {
+  Store,
+  Megaphone,
+  Users,
+  DollarSign,
+  Database,
+  Building2,
+  UserPlus,
+  Target,
+  FolderOpen,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GettingStartedTask } from "@/types/persona";
+import type { LucideIcon } from "lucide-react";
 
-function TaskRow({
-  task,
-  isExpanded,
-  onToggle,
-}: {
-  task: GettingStartedTask;
-  isExpanded: boolean;
-  onToggle: () => void;
-}) {
-  const isComplete = task.status === "complete";
+const taskIcons: Record<string, LucideIcon> = {
+  "connect-store": Store,
+  "first-campaign": Megaphone,
+  "define-audience": Users,
+  "set-budget": DollarSign,
+  "connect-crm": Database,
+  "target-accounts": Target,
+  "add-client": UserPlus,
+  "connect-data": FolderOpen,
+};
+
+function PrimaryTaskCard({ task }: { task: GettingStartedTask }) {
+  const Icon = taskIcons[task.id] || Building2;
 
   return (
-    <div>
-      <button
-        onClick={onToggle}
-        className={cn(
-          "flex w-full items-center gap-3 px-6 py-3 text-left transition-colors hover:bg-accent/30",
-          isExpanded && "bg-accent/20"
-        )}
-      >
-        <div
-          className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2",
-            isComplete
-              ? "border-emerald-500 bg-emerald-500"
-              : isExpanded
-                ? "border-foreground/40"
-                : "border-border"
-          )}
-        >
-          {isComplete && <Check className="h-3.5 w-3.5 text-white" />}
-        </div>
-        <span
-          className={cn(
-            "flex-1 text-sm font-medium",
-            isComplete && "text-muted-foreground line-through"
-          )}
-        >
-          {task.title}
-        </span>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 text-muted-foreground transition-transform",
-            isExpanded && "rotate-180"
-          )}
-        />
-      </button>
+    <div className="flex flex-col rounded-xl border bg-card p-6 transition-colors hover:border-foreground/20">
+      <div className="mb-4 flex h-32 items-center justify-center rounded-lg bg-muted/50">
+        <Icon className="h-10 w-10 text-muted-foreground/50" strokeWidth={1.5} />
+      </div>
+      <h3 className="text-sm font-semibold text-foreground">{task.title}</h3>
+      <p className="mt-1 flex-1 text-sm text-muted-foreground">
+        {task.description}
+      </p>
+      <div className="mt-4">
+        <button className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90">
+          {task.cta}
+        </button>
+      </div>
+    </div>
+  );
+}
 
-      {isExpanded && (
-        <div className="px-6 pb-5 pl-15">
-          <div className="ml-9">
-            <p className="text-sm text-muted-foreground">{task.description}</p>
-            {!isComplete && (
-              <button className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90">
-                {task.cta}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+function SecondaryTaskCard({ task }: { task: GettingStartedTask }) {
+  const Icon = taskIcons[task.id] || Building2;
+
+  return (
+    <div className="flex flex-col items-start gap-2 rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20">
+      <h3 className="text-sm font-medium text-foreground">{task.title}</h3>
+      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <button className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent">
+        {task.cta}
+      </button>
     </div>
   );
 }
@@ -80,86 +73,42 @@ export function DashboardView() {
   const tasks = gettingStartedTasks[activePersona.id];
   const essentialTasks = tasks.filter((t) => t.priority === "essential");
   const optionalTasks = tasks.filter((t) => t.priority === "optional");
-  const completedCount = tasks.filter((t) => t.status === "complete").length;
-
-  const firstIncomplete = tasks.find((t) => t.status !== "complete");
-  const [expandedId, setExpandedId] = useState<string | null>(
-    firstIncomplete?.id ?? null
-  );
-
-  function toggleTask(id: string) {
-    setExpandedId((prev) => (prev === id ? null : id));
-  }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-8 py-10">
+    <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Welcome to FuseIQ
+          Good to see you. Let&apos;s get started.
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Use this personalized guide to get your{" "}
-          {activePersona.verticalLabel.toLowerCase()} campaigns up and running.
-        </p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border bg-card">
-        <div className="flex items-center justify-between px-6 py-4">
-          <h2 className="text-sm font-semibold text-foreground">
-            Setup guide
-          </h2>
-          <div className="flex items-center gap-3">
-            <div className="h-1.5 w-24 rounded-full bg-muted">
-              <div
-                className="h-1.5 rounded-full bg-foreground transition-all"
-                style={{
-                  width: `${(completedCount / tasks.length) * 100}%`,
-                }}
-              />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground">
-              {completedCount} of {tasks.length} done
-            </span>
-          </div>
-        </div>
+      {state === "resting" && <CanvasChatInput />}
 
-        <div className="border-t">
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <div className={cn(
+          "grid gap-px bg-border",
+          essentialTasks.length === 2 ? "grid-cols-2" : "grid-cols-1"
+        )}>
           {essentialTasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              isExpanded={expandedId === task.id}
-              onToggle={() => toggleTask(task.id)}
-            />
+            <div key={task.id} className="bg-card">
+              <PrimaryTaskCard task={task} />
+            </div>
           ))}
         </div>
 
         {optionalTasks.length > 0 && (
-          <>
-            <div className="border-t px-6 py-2">
-              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Nice to have
-              </span>
-            </div>
-            <div>
-              {optionalTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  isExpanded={expandedId === task.id}
-                  onToggle={() => toggleTask(task.id)}
-                />
-              ))}
-            </div>
-          </>
+          <div className={cn(
+            "grid gap-px border-t bg-border",
+            optionalTasks.length >= 3 ? "grid-cols-3" : `grid-cols-${optionalTasks.length}`
+          )}>
+            {optionalTasks.map((task) => (
+              <div key={task.id} className="bg-card">
+                <SecondaryTaskCard task={task} />
+              </div>
+            ))}
+          </div>
         )}
       </div>
-
-      {state === "resting" && (
-        <div className="pt-2">
-          <CanvasChatInput />
-        </div>
-      )}
     </div>
   );
 }
