@@ -95,10 +95,12 @@ export function ChatChoices({
                   onClick={() => handleSelect(option.id)}
                   disabled={selected !== null}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-[20px] border px-4 py-3 text-left transition-all",
+                    "flex w-full items-center gap-2 rounded-[20px] px-4 py-3 text-left transition-all",
                     isSelected
-                      ? "border-[#2C9FDD]/30 bg-[#2C9FDD]/[0.06]"
-                      : "border-[#E0E8F2] bg-white hover:bg-[#F9FAFB]",
+                      ? "bg-[#2C9FDD]/[0.06]"
+                      : option.recommended
+                        ? "bg-[#FFF4E0] border border-[#C57C00]"
+                        : "hover:bg-[#F9FAFB]",
                     selected !== null && !isSelected && "opacity-50"
                   )}
                 >
@@ -119,7 +121,7 @@ export function ChatChoices({
               onClick={() => setFreeTextMode(true)}
               disabled={selected !== null}
               className={cn(
-                "flex w-full items-center gap-1.5 rounded-[20px] border border-[#E0E8F2] px-4 py-3 text-left transition-all",
+                "flex w-full items-center gap-1.5 rounded-[20px] px-4 py-3 text-left transition-all",
                 selected !== null ? "opacity-50" : "hover:bg-[#F9FAFB]"
               )}
             >
@@ -133,7 +135,7 @@ export function ChatChoices({
 
         {/* Free text input mode */}
         {freeTextMode && (
-          <form onSubmit={handleFreeTextSubmit} className="flex items-center gap-2 rounded-[20px] border border-[#E0E8F2] px-4 py-3">
+          <form onSubmit={handleFreeTextSubmit} className="flex items-center gap-2 rounded-[20px] px-4 py-3">
             <Pencil className="h-3.5 w-3.5 shrink-0 text-[#8492A6]" />
             <input
               ref={inputRef}
