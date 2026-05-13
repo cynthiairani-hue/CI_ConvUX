@@ -34,7 +34,7 @@ function PrimaryTaskCard({ task }: { task: GettingStartedTask }) {
   const Icon = taskIcons[task.id] || Building2;
 
   return (
-    <div className="flex flex-col rounded-xl border bg-card p-6 transition-colors hover:border-foreground/20">
+    <div className="flex flex-col rounded-xl bg-background p-6 transition-shadow hover:shadow-sm">
       <div className="mb-4 flex h-32 items-center justify-center rounded-lg bg-muted/50">
         <Icon className="h-10 w-10 text-muted-foreground/50" strokeWidth={1.5} />
       </div>
@@ -55,7 +55,7 @@ function SecondaryTaskCard({ task }: { task: GettingStartedTask }) {
   const Icon = taskIcons[task.id] || Building2;
 
   return (
-    <div className="flex flex-col items-start gap-2 rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20">
+    <div className="flex flex-col items-start gap-2 rounded-xl bg-background p-4 transition-shadow hover:shadow-sm">
       <h3 className="text-sm font-medium text-foreground">{task.title}</h3>
       <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
         <Icon className="h-4 w-4 text-muted-foreground" />
@@ -84,27 +84,23 @@ export function DashboardView() {
 
       {state === "resting" && <CanvasChatInput />}
 
-      <div className="overflow-hidden rounded-xl border bg-card">
+      <div className="overflow-hidden rounded-xl bg-muted/60 p-3 space-y-3">
         <div className={cn(
-          "grid gap-px bg-border",
+          "grid gap-3",
           essentialTasks.length === 2 ? "grid-cols-2" : "grid-cols-1"
         )}>
           {essentialTasks.map((task) => (
-            <div key={task.id} className="bg-card">
-              <PrimaryTaskCard task={task} />
-            </div>
+            <PrimaryTaskCard key={task.id} task={task} />
           ))}
         </div>
 
         {optionalTasks.length > 0 && (
           <div className={cn(
-            "grid gap-px border-t bg-border",
+            "grid gap-3",
             optionalTasks.length >= 3 ? "grid-cols-3" : `grid-cols-${optionalTasks.length}`
           )}>
             {optionalTasks.map((task) => (
-              <div key={task.id} className="bg-card">
-                <SecondaryTaskCard task={task} />
-              </div>
+              <SecondaryTaskCard key={task.id} task={task} />
             ))}
           </div>
         )}

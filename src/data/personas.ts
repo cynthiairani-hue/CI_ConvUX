@@ -27,15 +27,6 @@ export const personas: Persona[] = [
 export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
   "cynthia-b2c": [
     {
-      id: "connect-store",
-      title: "Connect your store",
-      description:
-        "Link your Shopify, WooCommerce, or BigCommerce store so we can pull product data and track conversions.",
-      cta: "Connect store",
-      status: "not-started",
-      priority: "essential",
-    },
-    {
       id: "first-campaign",
       title: "Build your first campaign",
       description:
@@ -54,6 +45,15 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
       priority: "optional",
     },
     {
+      id: "connect-store",
+      title: "Connect your store",
+      description:
+        "Link your Shopify, WooCommerce, or BigCommerce store so we can pull product data and track conversions.",
+      cta: "Connect store",
+      status: "not-started",
+      priority: "optional",
+    },
+    {
       id: "set-budget",
       title: "Set your budget",
       description:
@@ -64,15 +64,6 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
     },
   ],
   "cynthia-b2b": [
-    {
-      id: "connect-crm",
-      title: "Connect your CRM",
-      description:
-        "Link Salesforce, HubSpot, or your CRM to sync leads and track pipeline attribution.",
-      cta: "Connect CRM",
-      status: "not-started",
-      priority: "essential",
-    },
     {
       id: "first-campaign",
       title: "Build your first campaign",
@@ -92,6 +83,15 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
       priority: "optional",
     },
     {
+      id: "connect-crm",
+      title: "Connect your CRM",
+      description:
+        "Link Salesforce, HubSpot, or your CRM to sync leads and track pipeline attribution.",
+      cta: "Connect CRM",
+      status: "not-started",
+      priority: "optional",
+    },
+    {
       id: "set-budget",
       title: "Set your budget",
       description:
@@ -103,15 +103,6 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
   ],
   "cynthia-agency": [
     {
-      id: "add-client",
-      title: "Add your first client",
-      description:
-        "Create a client account to manage their campaigns, budgets, and reporting in one place.",
-      cta: "Add client",
-      status: "not-started",
-      priority: "essential",
-    },
-    {
       id: "first-campaign",
       title: "Build a campaign for your client",
       description:
@@ -119,6 +110,15 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
       cta: "Create campaign",
       status: "not-started",
       priority: "essential",
+    },
+    {
+      id: "add-client",
+      title: "Add your first client",
+      description:
+        "Create a client account to manage their campaigns, budgets, and reporting in one place.",
+      cta: "Add client",
+      status: "not-started",
+      priority: "optional",
     },
     {
       id: "connect-data",
