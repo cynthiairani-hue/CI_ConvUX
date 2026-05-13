@@ -41,12 +41,12 @@ export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
         </Avatar>
         {!collapsed && (
           <>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">
-                Acting as
-              </p>
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-foreground">
                 {activePersona.name}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {activePersona.verticalLabel}
               </p>
             </div>
             <ChevronDown
@@ -67,7 +67,7 @@ export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
           )}
         >
           <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-            Switch persona
+            Switch vertical
           </p>
           {personas.map((persona) => (
             <button
@@ -89,7 +89,7 @@ export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{persona.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {persona.role}
+                  {persona.verticalLabel}
                 </p>
               </div>
             </button>

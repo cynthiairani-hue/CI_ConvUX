@@ -1,59 +1,65 @@
 import { PersonaId } from "@/types/persona";
 
 const responses: Record<PersonaId, Record<string, string>> = {
-  "sarah-chen": {
+  "cynthia-b2c": {
     campaign:
-      "Drafting a campaign plan now. I'll need your objective, target audience, and budget range. Based on your recent performance, I'd recommend starting with a $3K budget over 30 days targeting your highest-converting segments.",
-    performance:
-      "Your top campaign — 'Lead with the proof' — is outperforming by 2x on CTR. Confidence is moderate with 14 days of data. The Display channel is driving 68% of impressions but only 41% of conversions. Recommend shifting 20% of Display budget to Retargeting.",
+      "I'll draft a retargeting campaign plan. First, I need your store URL so I can pull product data and recent visitor segments. Based on typical D2C patterns, I'd recommend starting with cart abandoners — they convert at 3-5x the rate of cold traffic.",
+    store:
+      "I can connect to Shopify, WooCommerce, or BigCommerce. Once linked, I'll pull your product catalog, recent orders, and visitor data to build your first audience automatically. Which platform are you on?",
+    customer:
+      "The fastest path to new customers: I'll build a lookalike audience from your top 20% of buyers by LTV. Typically reaches 300-500K addressable users. I'll need your customer list or store connection first — want to start there?",
     budget:
-      "Based on the last 30 days: Retargeting has the strongest ROI at 5.1x, followed by Paid Social at 3.8x. Display is at 2.1x. Shifting $1,200 from Display to Retargeting would improve blended ROI by an estimated 0.4x. Want me to draft that change?",
+      "For a D2C retargeting campaign, I'd recommend starting with $2-3K/month split across display retargeting (60%) and social prospecting (40%). At that spend level, expect 8-12x ROAS on retargeting and 2-3x on prospecting. Want me to draft a budget plan?",
     audience:
-      "Your current seed audience has 3,200 records — enough for a strong lookalike model. The highest-performing segment is 'Trial users, 25-34, urban.' Want me to build a new audience based on that segment?",
+      "Your seed audience needs at least 1,000 records for a strong lookalike model. I can build segments from your store data: cart abandoners, repeat buyers, high-LTV customers, or browse-but-didn't-buy visitors. Which segment matters most right now?",
   },
-  "marcus-patel": {
-    team: "This quarter, the team launched 14 campaigns across 3 channels. Average ROI is 4.2x, up from 3.9x last quarter. Sarah's retargeting campaigns are the top performers. Two campaigns are underperforming — I can flag them for review.",
-    pipeline:
-      "Marketing-sourced pipeline is at $342K, tracking 18.7% above target. 62% of budget is utilized with 5 weeks remaining in the quarter. At current pace, you'll finish at approximately 89% budget utilization.",
-    budget:
-      "Channel-level recommendation: increase Retargeting allocation by 15% (highest ROI at 5.1x), hold Paid Social steady, and reduce Display by 10%. Net impact: estimated +$28K pipeline over the remaining quarter.",
-    review:
-      "Preparing a leadership review deck. Key highlights: 4.2x blended ROI, $342K pipeline, 94% team velocity. Two areas of concern: Display channel efficiency declining, and creative refresh needed on the Lumen Organics account.",
-  },
-  "jordan-reyes": {
+  "cynthia-b2b": {
     campaign:
-      "Your Lumen Organics account has 6 active campaigns. The top performer is 'Organic Wellness Q2' with a 6.8% engagement rate. Two campaigns launched this month are still in learning phase — I'd recommend waiting 48 hours before making changes.",
-    performance:
-      "This month's highlights: 892K total reach (+22.1%), 5.12% engagement rate (+1.1%), and $6,680 spent of your $15,000 budget. Your retargeting campaigns are converting at 2.3x your account average.",
-    reach:
-      "To expand reach, I'd recommend: 1) Building a lookalike audience from your top converters (estimated +340K addressable users), 2) Testing a Paid Social campaign on the 25-34 demographic, 3) Increasing Display frequency cap from 3 to 5 per week.",
+      "I'll draft a demand gen campaign plan. For B2B, I'd recommend starting with a LinkedIn + display retargeting combo targeting your ICP. What's your primary conversion event — demo requests, free trial signups, or content downloads?",
+    crm: "I can connect to Salesforce, HubSpot, or Marketo. Once linked, I'll sync your lead stages and build attribution from first touch to closed-won. This lets me optimize campaigns against pipeline, not just clicks. Which CRM are you using?",
+    account:
+      "For account-based targeting, I'll need your ICP list — company names, domains, or firmographic criteria. I can match against our identity graph to reach decision-makers at those accounts across display, social, and email. Upload a list or describe your ICP?",
+    budget:
+      "For B2B demand gen, I'd recommend $5-8K/month split across account-based display (40%), LinkedIn (35%), and retargeting (25%). Expect 60-90 day attribution cycles. I'll pace spend against your pipeline targets. What's your quarterly pipeline goal?",
+    pipeline:
+      "I can show pipeline attribution once your CRM is connected. The key metrics I'll track: marketing-sourced pipeline, influenced pipeline, average deal velocity, and cost per MQL. Want to connect your CRM to get started?",
+  },
+  "cynthia-agency": {
+    client:
+      "I'll set up a new client account. I need the client name, their vertical (D2C, B2B, or services), and their monthly budget cap. Each client gets isolated campaigns, audiences, and reporting — you can switch between them from the left nav.",
+    campaign:
+      "Which client is this campaign for? Once you select a client, I'll pull their brand assets, audience data, and historical performance to inform the campaign plan. If this is a new client, we'll need to set up their account first.",
     report:
-      "Pulling your monthly performance report. It'll include: campaign-level metrics, channel breakdown, audience performance, budget utilization, and my recommendations for next month. I'll have it ready in a moment.",
+      "I can generate a cross-client performance report showing: spend vs. budget by client, top-performing campaigns, channel mix, and month-over-month trends. Want a summary dashboard or a detailed per-client breakdown?",
+    budget:
+      "I'll set up budget guardrails for your client. I need: monthly spend cap, channel allocation preferences, and pacing rules (even daily spend vs. front-loaded). I'll alert you at 80% utilization and pause campaigns at cap. Which client?",
+    connect:
+      "I can connect to your client's data sources — their store (Shopify, WooCommerce), CRM (Salesforce, HubSpot), or analytics (GA4). This gives us conversion data and audience signals. Which client and which platform?",
   },
 };
 
 const fallbacks: Record<PersonaId, string[]> = {
-  "sarah-chen": [
-    "I can help with campaign creation, performance analysis, audience building, or budget optimization. What would you like to focus on?",
-    "Want me to pull up your latest campaign metrics or help plan something new?",
-    "I'm ready to help. Try asking about campaign performance, budget allocation, or audience targeting.",
+  "cynthia-b2c": [
+    "I can help with campaign creation, store connections, audience building, or budget planning. What would you like to start with?",
+    "Want to connect your store first, or jump straight into building a campaign?",
+    "I'm ready to help you get started. The fastest path is usually: connect your store, build an audience, then launch a campaign.",
   ],
-  "marcus-patel": [
-    "I can prepare team summaries, pipeline reviews, budget analyses, or leadership reports. What do you need?",
-    "Want a quick view of team performance or a deeper dive into a specific channel?",
-    "I can help with strategic planning, team oversight, or budget decisions. What's on your mind?",
+  "cynthia-b2b": [
+    "I can help with demand gen campaigns, CRM connections, account-based targeting, or pipeline reporting. Where should we start?",
+    "Want to connect your CRM first, or start building your target account list?",
+    "I'm ready to help. For B2B, the best starting point is usually connecting your CRM so I can optimize against pipeline, not just clicks.",
   ],
-  "jordan-reyes": [
-    "I can show you campaign updates, performance reports, or help you plan new campaigns. What would you like?",
-    "Want to see how your Lumen Organics campaigns are doing or explore new opportunities?",
-    "I'm here to help with your account. Try asking about performance, reach, or campaign planning.",
+  "cynthia-agency": [
+    "I can help you add clients, build campaigns, connect data sources, or generate reports. What do you need?",
+    "Want to set up your first client account, or are you looking to build a campaign for an existing client?",
+    "I'm here to help manage your client portfolio. Start by adding a client, or I can pull a cross-client report if you have accounts set up.",
   ],
 };
 
 const fallbackIndex: Record<PersonaId, number> = {
-  "sarah-chen": 0,
-  "marcus-patel": 0,
-  "jordan-reyes": 0,
+  "cynthia-b2c": 0,
+  "cynthia-b2b": 0,
+  "cynthia-agency": 0,
 };
 
 export function getAIResponse(
@@ -77,12 +83,12 @@ export function getAIResponse(
 
 export function getWelcomeMessage(personaId: PersonaId): string {
   const messages: Record<PersonaId, string> = {
-    "sarah-chen":
-      "Hi Sarah. I have context on your 8 active campaigns and recent performance data. What would you like to work on?",
-    "marcus-patel":
-      "Hi Marcus. I have your team's quarterly performance and pipeline data ready. What do you need?",
-    "jordan-reyes":
-      "Hi Jordan. I have your Lumen Organics account data loaded — 6 active campaigns, $8,320 remaining budget. How can I help?",
+    "cynthia-b2c":
+      "Welcome to FuseIQ. I'll help you set up your D2C marketing — from connecting your store to launching your first campaign. What would you like to start with?",
+    "cynthia-b2b":
+      "Welcome to FuseIQ. I'll help you set up your B2B demand gen — from connecting your CRM to building account-based campaigns. Where should we begin?",
+    "cynthia-agency":
+      "Welcome to FuseIQ. I'll help you manage your client portfolio — from onboarding new accounts to launching campaigns and generating reports. What do you need first?",
   };
   return messages[personaId];
 }

@@ -1,11 +1,21 @@
-export type PersonaId = "sarah-chen" | "marcus-patel" | "jordan-reyes";
+export type PersonaId = "cynthia-b2c" | "cynthia-b2b" | "cynthia-agency";
+
+export type Vertical = "b2c" | "b2b" | "agency";
 
 export interface Persona {
   id: PersonaId;
   name: string;
-  role: string;
+  vertical: Vertical;
+  verticalLabel: string;
   initials: string;
-  org: string;
+}
+
+export interface GettingStartedTask {
+  id: string;
+  title: string;
+  description: string;
+  cta: string;
+  status: "not-started" | "in-progress" | "complete";
 }
 
 export interface DashboardMetric {

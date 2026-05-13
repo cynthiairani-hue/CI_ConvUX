@@ -1,88 +1,130 @@
-import { Persona, PersonaDashboard, PersonaId } from "@/types/persona";
+import { Persona, GettingStartedTask, PersonaId } from "@/types/persona";
 
 export const personas: Persona[] = [
   {
-    id: "sarah-chen",
-    name: "Sarah Chen",
-    role: "Performance Marketing Manager",
-    initials: "SC",
-    org: "Internal",
+    id: "cynthia-b2c",
+    name: "Cynthia Irani",
+    vertical: "b2c",
+    verticalLabel: "B2C Marketer",
+    initials: "CI",
   },
   {
-    id: "marcus-patel",
-    name: "Marcus Patel",
-    role: "VP of Marketing",
-    initials: "MP",
-    org: "Internal",
+    id: "cynthia-b2b",
+    name: "Cynthia Irani",
+    vertical: "b2b",
+    verticalLabel: "B2B Marketer",
+    initials: "CI",
   },
   {
-    id: "jordan-reyes",
-    name: "Jordan Reyes",
-    role: "Client, Lumen Organics",
-    initials: "JR",
-    org: "Lumen Organics",
+    id: "cynthia-agency",
+    name: "Cynthia Irani",
+    vertical: "agency",
+    verticalLabel: "Agency Marketer",
+    initials: "CI",
   },
 ];
 
-export const dashboards: Record<PersonaId, PersonaDashboard> = {
-  "sarah-chen": {
-    heading: "Campaign Performance",
-    subheading: "Your active campaigns across all channels",
-    metrics: [
-      { label: "Impressions", value: "1.24M", change: "+12.3%", trend: "up" },
-      { label: "Clicks", value: "48.2K", change: "+8.1%", trend: "up" },
-      { label: "CTR", value: "3.89%", change: "-0.2%", trend: "down" },
-      { label: "Spend", value: "$12,480", change: "+5.4%", trend: "neutral" },
-    ],
-  },
-  "marcus-patel": {
-    heading: "Marketing Overview",
-    subheading: "Team performance and pipeline health",
-    metrics: [
-      {
-        label: "Total Budget",
-        value: "$84,200",
-        change: "62% utilized",
-        trend: "neutral",
-      },
-      {
-        label: "Pipeline",
-        value: "$342K",
-        change: "+18.7%",
-        trend: "up",
-      },
-      {
-        label: "Team Velocity",
-        value: "94%",
-        change: "+3 pts",
-        trend: "up",
-      },
-      { label: "Campaign ROI", value: "4.2x", change: "+0.3x", trend: "up" },
-    ],
-  },
-  "jordan-reyes": {
-    heading: "Lumen Organics",
-    subheading: "Your campaign performance with AdRoll",
-    metrics: [
-      {
-        label: "Active Campaigns",
-        value: "6",
-        change: "+2 this month",
-        trend: "up",
-      },
-      { label: "Reach", value: "892K", change: "+22.1%", trend: "up" },
-      {
-        label: "Engagement Rate",
-        value: "5.12%",
-        change: "+1.1%",
-        trend: "up",
-      },
-      {
-        label: "Budget Remaining",
-        value: "$8,320",
-        change: "of $15,000",
-        trend: "neutral",
-      },
-    ],
-  },
+export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
+  "cynthia-b2c": [
+    {
+      id: "connect-store",
+      title: "Connect your store",
+      description:
+        "Link your Shopify, WooCommerce, or BigCommerce store so we can pull product data and track conversions.",
+      cta: "Connect store",
+      status: "not-started",
+    },
+    {
+      id: "first-campaign",
+      title: "Build your first campaign",
+      description:
+        "Launch a retargeting or prospecting campaign to start reaching your customers.",
+      cta: "Create campaign",
+      status: "not-started",
+    },
+    {
+      id: "define-audience",
+      title: "Define your audience",
+      description:
+        "Upload your customer list or let us build a lookalike from your store visitors.",
+      cta: "Build audience",
+      status: "not-started",
+    },
+    {
+      id: "set-budget",
+      title: "Set your budget",
+      description:
+        "Tell us your monthly ad spend so we can optimize across channels.",
+      cta: "Set budget",
+      status: "not-started",
+    },
+  ],
+  "cynthia-b2b": [
+    {
+      id: "connect-crm",
+      title: "Connect your CRM",
+      description:
+        "Link Salesforce, HubSpot, or your CRM to sync leads and track pipeline attribution.",
+      cta: "Connect CRM",
+      status: "not-started",
+    },
+    {
+      id: "first-campaign",
+      title: "Build your first campaign",
+      description:
+        "Launch an account-based or demand gen campaign to drive demos and trial signups.",
+      cta: "Create campaign",
+      status: "not-started",
+    },
+    {
+      id: "target-accounts",
+      title: "Define your target accounts",
+      description:
+        "Upload your ICP list or let us build an account-based audience from your CRM data.",
+      cta: "Add accounts",
+      status: "not-started",
+    },
+    {
+      id: "set-budget",
+      title: "Set your budget",
+      description:
+        "Tell us your quarterly ad budget so we can pace spend across your pipeline goals.",
+      cta: "Set budget",
+      status: "not-started",
+    },
+  ],
+  "cynthia-agency": [
+    {
+      id: "add-client",
+      title: "Add your first client",
+      description:
+        "Create a client account to manage their campaigns, budgets, and reporting in one place.",
+      cta: "Add client",
+      status: "not-started",
+    },
+    {
+      id: "first-campaign",
+      title: "Build a campaign for your client",
+      description:
+        "Launch a campaign on behalf of a client across display, social, and retargeting channels.",
+      cta: "Create campaign",
+      status: "not-started",
+    },
+    {
+      id: "connect-data",
+      title: "Connect client data sources",
+      description:
+        "Link your client's store, CRM, or analytics to pull in performance data.",
+      cta: "Connect data",
+      status: "not-started",
+    },
+    {
+      id: "set-budget",
+      title: "Set client budgets",
+      description:
+        "Configure budget caps and pacing rules per client to stay within their spend targets.",
+      cta: "Set budgets",
+      status: "not-started",
+    },
+  ],
 };

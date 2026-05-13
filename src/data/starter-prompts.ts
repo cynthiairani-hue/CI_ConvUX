@@ -6,46 +6,47 @@ export interface StarterPrompt {
 }
 
 export const starterPrompts: Record<PersonaId, StarterPrompt[]> = {
-  "sarah-chen": [
+  "cynthia-b2c": [
     {
       label: "Build a campaign",
-      message: "Help me build a new campaign for trial signups",
+      message: "Help me build a retargeting campaign for cart abandoners",
     },
     {
-      label: "Analyze performance",
-      message: "Show me how my campaigns are performing this week",
+      label: "Connect my store",
+      message: "I want to connect my Shopify store to start tracking conversions",
     },
     {
-      label: "Optimize budget",
-      message: "Where should I shift budget to improve ROI?",
-    },
-  ],
-  "marcus-patel": [
-    {
-      label: "Team summary",
-      message: "Give me a summary of the team's campaign performance this quarter",
-    },
-    {
-      label: "Pipeline review",
-      message: "What's the current state of our marketing pipeline?",
-    },
-    {
-      label: "Budget allocation",
-      message: "How should we reallocate budget across channels?",
+      label: "Find new customers",
+      message: "How can I reach new customers who look like my best buyers?",
     },
   ],
-  "jordan-reyes": [
+  "cynthia-b2b": [
     {
-      label: "Campaign updates",
-      message: "What's new with my Lumen Organics campaigns?",
+      label: "Build a campaign",
+      message: "Help me build a demand gen campaign to drive demo signups",
     },
     {
-      label: "Performance report",
-      message: "Can you pull a performance report for this month?",
+      label: "Connect my CRM",
+      message: "I want to connect HubSpot to sync my leads and track pipeline",
     },
     {
-      label: "Expand reach",
-      message: "How can I reach more customers in my target audience?",
+      label: "Target accounts",
+      message: "How do I build an account-based audience from my ICP list?",
+    },
+  ],
+  "cynthia-agency": [
+    {
+      label: "Add a client",
+      message: "I need to set up a new client account for Lumen Organics",
+    },
+    {
+      label: "Build a campaign",
+      message:
+        "Help me build a prospecting campaign for my client's product launch",
+    },
+    {
+      label: "Client report",
+      message: "Can you pull a performance report across all my client accounts?",
     },
   ],
 };

@@ -19,7 +19,7 @@ interface PersonaContextValue {
 const PersonaContext = createContext<PersonaContextValue | null>(null);
 
 export function PersonaProvider({ children }: { children: ReactNode }) {
-  const [activeId, setActiveId] = useState<PersonaId>("sarah-chen");
+  const [activeId, setActiveId] = useState<PersonaId>("cynthia-b2c");
 
   const activePersona = personas.find((p) => p.id === activeId)!;
 
