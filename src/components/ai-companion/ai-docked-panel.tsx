@@ -8,7 +8,7 @@ import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
 
 export function AIDockedPanel() {
-  const { messages, sendMessage, submitChoice, expand, close, toggleDockSide } =
+  const { messages, isLoading, sendMessage, submitChoice, expand, close, toggleDockSide } =
     useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +58,15 @@ export function AIDockedPanel() {
         {messages.map((msg) => (
           <AIMessage key={msg.id} message={msg} />
         ))}
+        {isLoading && (
+          <div className="px-4 py-3">
+            <div className="flex gap-1">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="px-4 py-3">

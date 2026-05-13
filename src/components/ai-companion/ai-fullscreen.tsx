@@ -8,7 +8,7 @@ import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
 
 export function AIFullscreen() {
-  const { messages, sendMessage, submitChoice, minimize, close } =
+  const { messages, isLoading, sendMessage, submitChoice, minimize, close } =
     useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -23,7 +23,7 @@ export function AIFullscreen() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -52,6 +52,17 @@ export function AIFullscreen() {
           {messages.map((msg) => (
             <AIMessage key={msg.id} message={msg} />
           ))}
+          {isLoading && (
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <div className="flex gap-1">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

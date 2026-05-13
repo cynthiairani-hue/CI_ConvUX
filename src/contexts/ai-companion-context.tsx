@@ -6,10 +6,11 @@ import {
   useState,
   useCallback,
   useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import { usePersona } from "./persona-context";
-import { getAIResponse, getWelcomeMessage } from "@/data/ai-responses";
+import { getWelcomeMessage } from "@/data/ai-responses";
 import {
   parseIntent,
   mergeIntent,
@@ -49,6 +50,7 @@ interface AICompanionContextValue {
   state: AICompanionState;
   dockSide: DockSide;
   messages: ChatMessage[];
+  isLoading: boolean;
   openFullscreen: (initialMessage?: string) => void;
   startCampaignFlow: () => void;
   minimize: () => void;
@@ -73,6 +75,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   const [dockSide, setDockSide] = useState<DockSide>("right");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [campaignIntent, setCampaignIntent] = useState<CampaignIntent | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesRef = useRef<ChatMessage[]>([]);
 
   useEffect(() => {
     setMessages([
@@ -136,35 +140,100 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     [setActivePlan]
   );
 
+  // Keep messagesRef in sync for API calls
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const callAPI = useCallback(
+    async (allMessages: ChatMessage[]) => {
+      const apiMessages = allMessages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .filter((m) => m.content)
+        .map((m) => ({ role: m.role, content: m.content }));
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: apiMessages }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          return { text: data.error || "Something went wrong.", toolCall: null };
+        }
+
+        return await res.json();
+      } catch {
+        return {
+          text: "Connection error. Check that the dev server is running.",
+          toolCall: null,
+        };
+      }
+    },
+    []
+  );
+
   const sendMessage = useCallback(
     (content: string) => {
       const userMsg: ChatMessage = { id: nextId(), role: "user", content };
       const parsed = parseIntent(content);
 
       if (campaignIntent) {
-        // We're in a campaign flow — merge new info
         const merged = mergeIntent(campaignIntent, parsed);
         evaluateAndRespond(merged, userMsg);
-      } else if (
-        content.toLowerCase().includes("campaign") ||
-        content.toLowerCase().includes("build") ||
-        content.toLowerCase().includes("launch") ||
-        content.toLowerCase().includes("create")
-      ) {
-        // User wants to build a campaign — start intent collection
-        evaluateAndRespond(parsed, userMsg);
-      } else {
-        // Regular conversation
-        const aiResponse = getAIResponse(content, activePersona.id);
-        const aiMsg: ChatMessage = {
-          id: nextId(),
-          role: "assistant",
-          content: aiResponse,
-        };
-        setMessages((prev) => [...prev, userMsg, aiMsg]);
+        return;
       }
+
+      // Add user message and show loading
+      setMessages((prev) => [...prev, userMsg]);
+      setIsLoading(true);
+
+      // Call the real API
+      const updatedMessages = [...messagesRef.current, userMsg];
+      callAPI(updatedMessages).then(
+        (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
+          setIsLoading(false);
+
+          if (response.toolCall?.name === "build_campaign_plan") {
+            const input = response.toolCall.input;
+            const intent: CampaignIntent = {
+              objective: input.objective,
+              audience: input.audience || undefined,
+              budget: input.budget || undefined,
+            };
+
+            const plan = buildPlanFromIntent(intent);
+            setActivePlan(plan);
+
+            const textMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content:
+                response.text ||
+                getAcknowledgment(intent),
+            };
+            const planMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content:
+                "Here's your media plan. Each section shows its readiness state — review the details, edit anything, and send for approval when ready.",
+              artifact: plan,
+            };
+            setMessages((prev) => [...prev, textMsg, planMsg]);
+          } else {
+            const aiMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: response.text,
+            };
+            setMessages((prev) => [...prev, aiMsg]);
+          }
+        }
+      );
     },
-    [activePersona.id, campaignIntent, evaluateAndRespond]
+    [campaignIntent, evaluateAndRespond, callAPI, setActivePlan]
   );
 
   const submitChoice = useCallback(
@@ -257,6 +326,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         state,
         dockSide,
         messages,
+        isLoading,
         openFullscreen,
         startCampaignFlow,
         minimize,
