@@ -51,11 +51,7 @@ export function LeftRail() {
             label={item.label}
             href={item.href}
             badge={item.badge}
-            isActive={
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href)
-            }
+            isActive={pathname.startsWith(item.href)}
             isCollapsed={leftRailCollapsed}
           />
         ))}
