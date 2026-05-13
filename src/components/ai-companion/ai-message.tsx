@@ -3,17 +3,17 @@
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlanCard } from "@/components/patterns/plan-card";
+import { ChatChoices } from "./chat-choices";
+import { useAICompanion } from "@/contexts/ai-companion-context";
 import type { ChatMessage } from "@/contexts/ai-companion-context";
 
 export function AIMessage({ message }: { message: ChatMessage }) {
+  const { submitChoice } = useAICompanion();
   const isUser = message.role === "user";
 
   return (
     <div
-      className={cn(
-        "flex gap-3 px-4 py-3",
-        isUser && "flex-row-reverse"
-      )}
+      className={cn("flex gap-3 px-4 py-3", isUser && "flex-row-reverse")}
     >
       {!isUser && (
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-foreground/5">
@@ -29,6 +29,15 @@ export function AIMessage({ message }: { message: ChatMessage }) {
         )}
       >
         {message.content}
+        {message.toolCall?.type === "choices" && (
+          <ChatChoices
+            options={message.toolCall.options}
+            multiSelect={message.toolCall.multiSelect}
+            onSubmit={(selected) =>
+              submitChoice(message.id, message.toolCall!.field, selected)
+            }
+          />
+        )}
         {message.artifact && (
           <div className="mt-3">
             <PlanCard plan={message.artifact} />

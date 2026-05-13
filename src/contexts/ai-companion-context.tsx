@@ -11,24 +11,34 @@ import {
 import { usePersona } from "./persona-context";
 import { getAIResponse, getWelcomeMessage } from "@/data/ai-responses";
 import {
-  campaignFlowSteps,
-  buildPlanFromAnswers,
+  parseIntent,
+  mergeIntent,
+  getNextChoiceTool,
+  resolveChoice,
+  getAcknowledgment,
+  buildPlanFromIntent,
+  type CampaignIntent,
 } from "@/data/campaign-flow";
 import type { CampaignPlan } from "@/types/campaign";
+import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
 
 export type AICompanionState = "resting" | "fullscreen" | "docked";
 export type DockSide = "right" | "left";
+
+export interface ToolCallChoices {
+  type: "choices";
+  field: string;
+  options: ChoiceOption[];
+  multiSelect?: boolean;
+}
 
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   artifact?: CampaignPlan;
+  toolCall?: ToolCallChoices;
 }
-
-type FlowState =
-  | { type: "idle" }
-  | { type: "campaign-guided"; stepIndex: number; answers: Record<string, string> };
 
 interface AICompanionContextValue {
   state: AICompanionState;
@@ -41,6 +51,7 @@ interface AICompanionContextValue {
   expand: () => void;
   toggleDockSide: () => void;
   sendMessage: (content: string) => void;
+  submitChoice: (messageId: string, field: string, selected: string[]) => void;
 }
 
 const AICompanionContext = createContext<AICompanionContextValue | null>(null);
@@ -55,7 +66,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AICompanionState>("resting");
   const [dockSide, setDockSide] = useState<DockSide>("right");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [flow, setFlow] = useState<FlowState>({ type: "idle" });
+  const [campaignIntent, setCampaignIntent] = useState<CampaignIntent | null>(null);
 
   useEffect(() => {
     setMessages([
@@ -66,45 +77,73 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       },
     ]);
     setState("resting");
-    setFlow({ type: "idle" });
+    setCampaignIntent(null);
   }, [activePersona.id]);
+
+  // Core logic: evaluate intent and decide what to do next
+  const evaluateAndRespond = useCallback(
+    (intent: CampaignIntent, userMsg?: ChatMessage) => {
+      const nextTool = getNextChoiceTool(intent);
+
+      if (nextTool) {
+        // AI needs more info — surface a selection card
+        const aiMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: nextTool.question,
+          toolCall: {
+            type: "choices",
+            field: nextTool.field,
+            options: nextTool.options,
+          },
+        };
+        setMessages((prev) => [...(userMsg ? [...prev, userMsg] : prev), aiMsg]);
+        setCampaignIntent(intent);
+      } else {
+        // AI has enough — build the Plan Card
+        const plan = buildPlanFromIntent(intent);
+        const ackMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: getAcknowledgment(intent),
+        };
+        const planMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content:
+            "Here's your campaign plan. Each section shows its readiness state — review the details, edit anything inline, and activate when ready.",
+          artifact: plan,
+        };
+        setMessages((prev) => [
+          ...(userMsg ? [...prev, userMsg] : prev),
+          ackMsg,
+          planMsg,
+        ]);
+        setCampaignIntent(null);
+      }
+    },
+    []
+  );
 
   const sendMessage = useCallback(
     (content: string) => {
       const userMsg: ChatMessage = { id: nextId(), role: "user", content };
+      const parsed = parseIntent(content);
 
-      if (flow.type === "campaign-guided") {
-        const steps = campaignFlowSteps[activePersona.id];
-        const currentStep = steps[flow.stepIndex];
-        const newAnswers = { ...flow.answers, [currentStep.id]: content };
-        const nextIndex = flow.stepIndex + 1;
-
-        if (nextIndex < steps.length) {
-          const nextStep = steps[nextIndex];
-          const aiMsg: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            content: `Got it. ${nextStep.question}`,
-          };
-          setMessages((prev) => [...prev, userMsg, aiMsg]);
-          setFlow({
-            type: "campaign-guided",
-            stepIndex: nextIndex,
-            answers: newAnswers,
-          });
-        } else {
-          const plan = buildPlanFromAnswers(activePersona.id, newAnswers);
-          const aiMsg: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            content:
-              "Here's your campaign plan. Each section shows its readiness state — review the details, edit anything inline, and activate when ready.",
-            artifact: plan,
-          };
-          setMessages((prev) => [...prev, userMsg, aiMsg]);
-          setFlow({ type: "idle" });
-        }
+      if (campaignIntent) {
+        // We're in a campaign flow — merge new info
+        const merged = mergeIntent(campaignIntent, parsed);
+        evaluateAndRespond(merged, userMsg);
+      } else if (
+        content.toLowerCase().includes("campaign") ||
+        content.toLowerCase().includes("build") ||
+        content.toLowerCase().includes("launch") ||
+        content.toLowerCase().includes("create")
+      ) {
+        // User wants to build a campaign — start intent collection
+        evaluateAndRespond(parsed, userMsg);
       } else {
+        // Regular conversation
         const aiResponse = getAIResponse(content, activePersona.id);
         const aiMsg: ChatMessage = {
           id: nextId(),
@@ -114,23 +153,70 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setMessages((prev) => [...prev, userMsg, aiMsg]);
       }
     },
-    [activePersona.id, flow]
+    [activePersona.id, campaignIntent, evaluateAndRespond]
+  );
+
+  const submitChoice = useCallback(
+    (msgId: string, field: string, selected: string[]) => {
+      const resolved = resolveChoice(field as keyof CampaignIntent, selected);
+      const label = selected
+        .map((id) => {
+          // Find the label from the original message's tool call
+          const msg = messages.find((m) => m.id === msgId);
+          const opt = msg?.toolCall?.options.find((o: ChoiceOption) => o.id === id);
+          return opt?.label || id;
+        })
+        .join(", ");
+
+      // Remove the tool call from the message (it's been answered)
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, toolCall: undefined } : m
+        )
+      );
+
+      // Add user's selection as a message
+      const userMsg: ChatMessage = {
+        id: nextId(),
+        role: "user",
+        content: label,
+      };
+
+      const updated = mergeIntent(campaignIntent || {}, {
+        [field]: resolved,
+      } as CampaignIntent);
+
+      evaluateAndRespond(updated, userMsg);
+    },
+    [campaignIntent, messages, evaluateAndRespond]
   );
 
   const startCampaignFlow = useCallback(() => {
-    const steps = campaignFlowSteps[activePersona.id];
-    const firstStep = steps[0];
-
+    setState("fullscreen");
+    const intent: CampaignIntent = {};
     const aiMsg: ChatMessage = {
       id: nextId(),
       role: "assistant",
-      content: `Let's build your campaign. I'll walk you through a few questions to get the plan right.\n\n${firstStep.question}`,
+      content: "Let's build your campaign.",
     };
-
-    setState("fullscreen");
-    setMessages((prev) => [...prev, aiMsg]);
-    setFlow({ type: "campaign-guided", stepIndex: 0, answers: {} });
-  }, [activePersona.id]);
+    setCampaignIntent(intent);
+    const nextTool = getNextChoiceTool(intent);
+    if (nextTool) {
+      const choiceMsg: ChatMessage = {
+        id: nextId(),
+        role: "assistant",
+        content: nextTool.question,
+        toolCall: {
+          type: "choices",
+          field: nextTool.field,
+          options: nextTool.options,
+        },
+      };
+      setMessages((prev) => [...prev, aiMsg, choiceMsg]);
+    } else {
+      setMessages((prev) => [...prev, aiMsg]);
+    }
+  }, []);
 
   const openFullscreen = useCallback(
     (initialMessage?: string) => {
@@ -142,21 +228,13 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     [sendMessage]
   );
 
-  const minimize = useCallback(() => {
-    setState("docked");
-  }, []);
-
-  const close = useCallback(() => {
-    setState("resting");
-  }, []);
-
-  const expand = useCallback(() => {
-    setState("fullscreen");
-  }, []);
-
-  const toggleDockSide = useCallback(() => {
-    setDockSide((prev) => (prev === "right" ? "left" : "right"));
-  }, []);
+  const minimize = useCallback(() => setState("docked"), []);
+  const close = useCallback(() => setState("resting"), []);
+  const expand = useCallback(() => setState("fullscreen"), []);
+  const toggleDockSide = useCallback(
+    () => setDockSide((prev) => (prev === "right" ? "left" : "right")),
+    []
+  );
 
   return (
     <AICompanionContext.Provider
@@ -171,6 +249,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         expand,
         toggleDockSide,
         sendMessage,
+        submitChoice,
       }}
     >
       {children}
