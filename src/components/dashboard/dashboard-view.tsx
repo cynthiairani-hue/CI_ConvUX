@@ -14,6 +14,7 @@ import {
   UserPlus,
   Target,
   FolderOpen,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GettingStartedTask } from "@/types/persona";
@@ -30,37 +31,39 @@ const taskIcons: Record<string, LucideIcon> = {
   "connect-data": FolderOpen,
 };
 
-function PrimaryTaskCard({ task }: { task: GettingStartedTask }) {
+function HeroCard({ task }: { task: GettingStartedTask }) {
   const Icon = taskIcons[task.id] || Building2;
 
   return (
-    <div className="flex flex-col rounded-xl bg-background p-6 transition-shadow hover:shadow-sm">
-      <div className="mb-4 flex h-32 items-center justify-center rounded-lg bg-muted/50">
-        <Icon className="h-10 w-10 text-muted-foreground/50" strokeWidth={1.5} />
+    <div className="flex flex-col items-center rounded-xl bg-background px-8 py-10 text-center">
+      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+        <Icon className="h-6 w-6 text-foreground/70" strokeWidth={1.5} />
       </div>
-      <h3 className="text-sm font-semibold text-foreground">{task.title}</h3>
-      <p className="mt-1 flex-1 text-sm text-muted-foreground">
+      <h3 className="text-base font-semibold text-foreground">{task.title}</h3>
+      <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
         {task.description}
       </p>
-      <div className="mt-4">
-        <button className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90">
-          {task.cta}
-        </button>
-      </div>
+      <button className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90">
+        <Sparkles className="h-4 w-4" />
+        {task.cta}
+      </button>
     </div>
   );
 }
 
-function SecondaryTaskCard({ task }: { task: GettingStartedTask }) {
+function SecondaryCard({ task }: { task: GettingStartedTask }) {
   const Icon = taskIcons[task.id] || Building2;
 
   return (
-    <div className="flex flex-col items-start gap-2 rounded-xl bg-background p-4 transition-shadow hover:shadow-sm">
-      <h3 className="text-sm font-medium text-foreground">{task.title}</h3>
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted">
+    <div className="flex flex-col items-center rounded-xl bg-background px-4 py-6 text-center transition-shadow hover:shadow-sm">
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <button className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent">
+      <h3 className="text-sm font-medium text-foreground">{task.title}</h3>
+      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+        {task.description}
+      </p>
+      <button className="mt-3 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent">
         {task.cta}
       </button>
     </div>
@@ -76,34 +79,32 @@ export function DashboardView() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Good to see you. Let&apos;s get started.
-        </h1>
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight text-foreground">
+        Welcome, {activePersona.name.split(" ")[0]}
+      </h1>
 
       {state === "resting" && <CanvasChatInput />}
 
-      <div className="overflow-hidden rounded-xl bg-muted/60 p-3 space-y-3">
-        <div className={cn(
-          "grid gap-3",
-          essentialTasks.length === 2 ? "grid-cols-2" : "grid-cols-1"
-        )}>
+      <div>
+        <h2 className="mb-3 text-sm font-medium text-foreground">
+          Start building
+        </h2>
+        <div className="space-y-3 rounded-2xl bg-muted/60 p-3">
           {essentialTasks.map((task) => (
-            <PrimaryTaskCard key={task.id} task={task} />
+            <HeroCard key={task.id} task={task} />
           ))}
-        </div>
 
-        {optionalTasks.length > 0 && (
-          <div className={cn(
-            "grid gap-3",
-            optionalTasks.length >= 3 ? "grid-cols-3" : `grid-cols-${optionalTasks.length}`
-          )}>
-            {optionalTasks.map((task) => (
-              <SecondaryTaskCard key={task.id} task={task} />
-            ))}
-          </div>
-        )}
+          {optionalTasks.length > 0 && (
+            <div className={cn(
+              "grid gap-3",
+              optionalTasks.length >= 3 ? "grid-cols-3" : `grid-cols-${optionalTasks.length}`
+            )}>
+              {optionalTasks.map((task) => (
+                <SecondaryCard key={task.id} task={task} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

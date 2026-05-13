@@ -27,7 +27,7 @@ export function CanvasChatInput() {
     <div className="mx-auto w-full max-w-xl space-y-4">
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-3 rounded-xl border bg-background px-4 py-3 shadow-sm transition-shadow focus-within:shadow-md"
+        className="ai-glow-border flex items-center gap-3 rounded-xl bg-background px-4 py-3"
       >
         <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
         <input
@@ -51,15 +51,7 @@ export function CanvasChatInput() {
         </button>
       </form>
 
-      <div className="flex flex-wrap justify-center gap-2">
-        {prompts.map((prompt) => (
-          <StarterPromptButton
-            key={prompt.label}
-            label={prompt.label}
-            onClick={() => openFullscreen(prompt.message)}
-          />
-        ))}
-      </div>
+      {/* Starter prompts hidden — focus on setup CTAs first */}
     </div>
   );
 }
