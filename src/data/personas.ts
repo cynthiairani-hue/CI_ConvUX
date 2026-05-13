@@ -33,6 +33,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Link your Shopify, WooCommerce, or BigCommerce store so we can pull product data and track conversions.",
       cta: "Connect store",
       status: "not-started",
+      priority: "essential",
     },
     {
       id: "first-campaign",
@@ -41,6 +42,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Launch a retargeting or prospecting campaign to start reaching your customers.",
       cta: "Create campaign",
       status: "not-started",
+      priority: "essential",
     },
     {
       id: "define-audience",
@@ -49,6 +51,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Upload your customer list or let us build a lookalike from your store visitors.",
       cta: "Build audience",
       status: "not-started",
+      priority: "optional",
     },
     {
       id: "set-budget",
@@ -57,6 +60,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Tell us your monthly ad spend so we can optimize across channels.",
       cta: "Set budget",
       status: "not-started",
+      priority: "optional",
     },
   ],
   "cynthia-b2b": [
@@ -67,6 +71,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Link Salesforce, HubSpot, or your CRM to sync leads and track pipeline attribution.",
       cta: "Connect CRM",
       status: "not-started",
+      priority: "essential",
     },
     {
       id: "first-campaign",
@@ -75,6 +80,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Launch an account-based or demand gen campaign to drive demos and trial signups.",
       cta: "Create campaign",
       status: "not-started",
+      priority: "essential",
     },
     {
       id: "target-accounts",
@@ -83,6 +89,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Upload your ICP list or let us build an account-based audience from your CRM data.",
       cta: "Add accounts",
       status: "not-started",
+      priority: "optional",
     },
     {
       id: "set-budget",
@@ -91,6 +98,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Tell us your quarterly ad budget so we can pace spend across your pipeline goals.",
       cta: "Set budget",
       status: "not-started",
+      priority: "optional",
     },
   ],
   "cynthia-agency": [
@@ -101,6 +109,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Create a client account to manage their campaigns, budgets, and reporting in one place.",
       cta: "Add client",
       status: "not-started",
+      priority: "essential",
     },
     {
       id: "first-campaign",
@@ -109,6 +118,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Launch a campaign on behalf of a client across display, social, and retargeting channels.",
       cta: "Create campaign",
       status: "not-started",
+      priority: "essential",
     },
     {
       id: "connect-data",
@@ -117,6 +127,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Link your client's store, CRM, or analytics to pull in performance data.",
       cta: "Connect data",
       status: "not-started",
+      priority: "optional",
     },
     {
       id: "set-budget",
@@ -125,6 +136,7 @@ export const gettingStartedTasks: Record<PersonaId, GettingStartedTask[]> = {
         "Configure budget caps and pacing rules per client to stay within their spend targets.",
       cta: "Set budgets",
       status: "not-started",
+      priority: "optional",
     },
   ],
 };

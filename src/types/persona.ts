@@ -16,6 +16,7 @@ export interface GettingStartedTask {
   description: string;
   cta: string;
   status: "not-started" | "in-progress" | "complete";
+  priority: "essential" | "optional";
 }
 
 export interface DashboardMetric {
