@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Circle, CircleCheck, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ChoiceOption {
@@ -12,93 +12,111 @@ export interface ChoiceOption {
 }
 
 interface ChatChoicesProps {
+  question: string;
+  subtitle?: string;
+  step: number;
+  totalSteps: number;
   options: ChoiceOption[];
   multiSelect?: boolean;
   onSubmit: (selected: string[]) => void;
-  submitted?: boolean;
+  onSkip?: () => void;
 }
 
 export function ChatChoices({
+  question,
+  subtitle,
+  step,
+  totalSteps,
   options,
   multiSelect = false,
   onSubmit,
-  submitted = false,
+  onSkip,
 }: ChatChoicesProps) {
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
 
-  function toggle(id: string) {
-    if (submitted) return;
-    if (multiSelect) {
-      setSelected((prev) =>
-        prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-      );
-    } else {
-      setSelected([id]);
+  function handleSelect(id: string) {
+    if (selected) return;
+    setSelected(id);
+    if (!multiSelect) {
+      setTimeout(() => onSubmit([id]), 250);
     }
   }
 
-  function handleSubmit() {
-    if (selected.length === 0) return;
-    onSubmit(selected);
-  }
-
-  if (submitted) return null;
-
   return (
-    <div className="mt-3 space-y-1.5">
-      {options.map((option) => {
-        const isSelected = selected.includes(option.id);
-        return (
-          <button
-            key={option.id}
-            onClick={() => toggle(option.id)}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-all",
-              isSelected
-                ? "border-foreground/20 bg-foreground/[0.03]"
-                : "border-transparent hover:bg-muted/50"
-            )}
-          >
-            <div
-              className={cn(
-                "flex h-[18px] w-[18px] shrink-0 items-center justify-center transition-colors",
-                multiSelect ? "rounded" : "rounded-full",
-                isSelected
-                  ? "border-2 border-foreground bg-foreground"
-                  : "border-2 border-muted-foreground/30"
-              )}
-            >
-              {isSelected && (
-                <Check className="h-3 w-3 text-background" strokeWidth={3} />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-sm text-foreground">{option.label}</span>
-              {option.detail && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {option.detail}
-                </p>
-              )}
-            </div>
-            {option.recommended && (
-              <span className="shrink-0 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
-                Recommended
+    <div className="w-full rounded-[20px] bg-white py-2.5 shadow-[0px_1px_6px_rgba(71,88,114,0.08),0px_7px_14px_rgba(71,88,114,0.08)]">
+      <div className="flex flex-col gap-2 px-4">
+        {/* Header */}
+        <div className="flex items-center gap-2 py-1.5">
+          <div className="flex flex-1 flex-col min-w-0">
+            <span className="text-sm font-semibold text-[#394859] leading-[22px]">
+              {question}
+            </span>
+            {subtitle && (
+              <span className="text-sm text-[#8492A6] leading-[22px]">
+                {subtitle}
               </span>
             )}
-          </button>
-        );
-      })}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <ChevronLeft className="h-3.5 w-3.5 text-[#BFCCD9]" />
+            <span className="text-xs text-[#8492A6] leading-[18px]">
+              {step} of {totalSteps}
+            </span>
+            <ChevronRight className="h-3.5 w-3.5 text-[#394859]" />
+          </div>
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              className="shrink-0 rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-sm text-[#8492A6] hover:text-[#394859] transition-colors"
+            >
+              Skip
+            </button>
+          )}
+        </div>
 
-      {selected.length > 0 && (
+        {/* Options */}
+        {options.map((option) => {
+          const isSelected = selected === option.id;
+          return (
+            <button
+              key={option.id}
+              onClick={() => handleSelect(option.id)}
+              disabled={selected !== null}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-[20px] border px-4 py-3 text-left transition-all",
+                isSelected
+                  ? "border-[#2C9FDD]/30 bg-[#2C9FDD]/[0.06]"
+                  : "border-[#E0E8F2] bg-white hover:bg-[#F9FAFB]",
+                selected !== null && !isSelected && "opacity-50"
+              )}
+            >
+              {isSelected ? (
+                <CircleCheck className="h-[18px] w-[18px] shrink-0 text-[#2C9FDD]" />
+              ) : (
+                <Circle className="h-[18px] w-[18px] shrink-0 text-[#8492A6]" />
+              )}
+              <span className="flex-1 text-sm text-[#394859] leading-[22px] min-w-0">
+                {option.label}
+              </span>
+            </button>
+          );
+        })}
+
+        {/* Something else */}
         <button
-          onClick={handleSubmit}
-          className="mt-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+          onClick={() => {}}
+          disabled={selected !== null}
+          className={cn(
+            "flex w-full items-center gap-1.5 rounded-[20px] border border-[#E0E8F2] px-4 py-3 text-left transition-all",
+            selected !== null ? "opacity-50" : "hover:bg-[#F9FAFB]"
+          )}
         >
-          {multiSelect
-            ? `Continue with ${selected.length} selected`
-            : "Continue"}
+          <Pencil className="h-3.5 w-3.5 shrink-0 text-[#8492A6]" />
+          <span className="text-sm text-[#8492A6] leading-[22px]">
+            Something else
+          </span>
         </button>
-      )}
+      </div>
     </div>
   );
 }

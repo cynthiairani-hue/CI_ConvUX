@@ -28,6 +28,10 @@ export type DockSide = "right" | "left";
 export interface ToolCallChoices {
   type: "choices";
   field: string;
+  question: string;
+  subtitle?: string;
+  step: number;
+  totalSteps: number;
   options: ChoiceOption[];
   multiSelect?: boolean;
 }
@@ -90,10 +94,14 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const aiMsg: ChatMessage = {
           id: nextId(),
           role: "assistant",
-          content: nextTool.question,
+          content: "",
           toolCall: {
             type: "choices",
             field: nextTool.field,
+            question: nextTool.question,
+            subtitle: nextTool.subtitle,
+            step: nextTool.step,
+            totalSteps: nextTool.totalSteps,
             options: nextTool.options,
           },
         };
@@ -205,10 +213,14 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       const choiceMsg: ChatMessage = {
         id: nextId(),
         role: "assistant",
-        content: nextTool.question,
+        content: "",
         toolCall: {
           type: "choices",
           field: nextTool.field,
+          question: nextTool.question,
+          subtitle: nextTool.subtitle,
+          step: nextTool.step,
+          totalSteps: nextTool.totalSteps,
           options: nextTool.options,
         },
       };

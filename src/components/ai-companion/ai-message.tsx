@@ -11,6 +11,26 @@ export function AIMessage({ message }: { message: ChatMessage }) {
   const { submitChoice } = useAICompanion();
   const isUser = message.role === "user";
 
+  if (message.toolCall?.type === "choices") {
+    return (
+      <div className="px-4 py-3">
+        <ChatChoices
+          question={message.toolCall.question}
+          subtitle={message.toolCall.subtitle}
+          step={message.toolCall.step}
+          totalSteps={message.toolCall.totalSteps}
+          options={message.toolCall.options}
+          multiSelect={message.toolCall.multiSelect}
+          onSubmit={(selected) =>
+            submitChoice(message.id, message.toolCall!.field, selected)
+          }
+        />
+      </div>
+    );
+  }
+
+  if (!message.content && !message.artifact) return null;
+
   return (
     <div
       className={cn("flex gap-3 px-4 py-3", isUser && "flex-row-reverse")}
@@ -29,15 +49,6 @@ export function AIMessage({ message }: { message: ChatMessage }) {
         )}
       >
         {message.content}
-        {message.toolCall?.type === "choices" && (
-          <ChatChoices
-            options={message.toolCall.options}
-            multiSelect={message.toolCall.multiSelect}
-            onSubmit={(selected) =>
-              submitChoice(message.id, message.toolCall!.field, selected)
-            }
-          />
-        )}
         {message.artifact && (
           <div className="mt-3">
             <PlanCard plan={message.artifact} />

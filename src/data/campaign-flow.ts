@@ -11,6 +11,9 @@ export interface CampaignIntent {
 export interface ChoiceTool {
   field: keyof CampaignIntent;
   question: string;
+  subtitle?: string;
+  step: number;
+  totalSteps: number;
   options: ChoiceOption[];
 }
 
@@ -120,15 +123,18 @@ export function mergeIntent(
   return { ...existing, ...update };
 }
 
-// Simulates AI tool selection: what does the AI need to ask next?
+const TOTAL_STEPS = 3;
+
 export function getNextChoiceTool(
   intent: CampaignIntent
 ): ChoiceTool | null {
   if (!intent.objective) {
     return {
       field: "objective",
-      question:
-        "What's the goal for this campaign?",
+      question: "What's the goal for this campaign?",
+      subtitle: "Most marketers like you start with:",
+      step: 1,
+      totalSteps: TOTAL_STEPS,
       options: objectiveChoices,
     };
   }
@@ -136,6 +142,9 @@ export function getNextChoiceTool(
     return {
       field: "audience",
       question: "Who should we target?",
+      subtitle: "Pick the audience that best matches your goal:",
+      step: 2,
+      totalSteps: TOTAL_STEPS,
       options: audienceChoices,
     };
   }
@@ -143,6 +152,9 @@ export function getNextChoiceTool(
     return {
       field: "budget",
       question: "What's your monthly budget?",
+      subtitle: "This helps optimize channel allocation and pacing:",
+      step: 3,
+      totalSteps: TOTAL_STEPS,
       options: budgetChoices,
     };
   }
