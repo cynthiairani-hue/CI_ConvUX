@@ -380,8 +380,11 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     campaignIntentRef.current = campaignIntent;
   }, [campaignIntent]);
 
-  // Brand context for API calls — cached once on mount
-  const brandRef = useRef<BrandProfile | null>(null);
+  // Brand context for API calls — initialize eagerly so it's available on first interaction
+  const brandRef = useRef<BrandProfile | null>(
+    typeof window !== "undefined" ? getCurrentBrand() : null
+  );
+  // Also refresh after mount in case localStorage wasn't ready during SSR hydration
   useEffect(() => {
     brandRef.current = getCurrentBrand();
   }, []);
@@ -481,6 +484,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         content,
         ...(images && images.length > 0 ? { images } : {}),
       };
+
+      // Ensure brand context is fresh — ref may not have been set if useEffect hasn't fired
+      if (!brandRef.current) brandRef.current = getCurrentBrand();
 
       // Use refs for flow state — avoids stale closure when called via setTimeout
       const currentStrategyIntent = strategyIntentRef.current;
@@ -1160,6 +1166,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     setMessages([]);
 
     // Auto-infer advertiser from brand profile if known
+    // Re-check at call time in case the ref wasn't ready on mount
+    if (!brandRef.current) brandRef.current = getCurrentBrand();
     const brand = brandRef.current;
     let hasAdv = !!advertiser;
 
