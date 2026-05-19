@@ -18,25 +18,21 @@ const STATUS_STYLES: Record<string, { label: string; dot: string }> = {
 /**
  * Inline card that appears above the chat input when there's an active
  * artifact (strategy or narrative) but the canvas isn't visible.
- * Gives non-power-users a clear way to find their draft.
+ * Only shows explicitly active artifacts — not stale saved ones from prior sessions.
  * Only renders in fullscreen or docked mode — in split mode the canvas is already visible.
  */
 export function ArtifactPreviewCard() {
-  const { activeStrategy, activeNarrative, savedStrategies } = useCampaign();
+  const { activeStrategy, activeNarrative } = useCampaign();
   const { state, setState } = useAICompanion();
 
   // Only show when canvas is NOT visible (fullscreen or docked)
   if (state === "split" || state === "resting") return null;
 
-  // Find the artifact to preview
-  const strategy = activeStrategy || savedStrategies[savedStrategies.length - 1];
-  const narrative = activeNarrative;
-
-  // Narrative takes priority (matches app-shell split canvas logic)
-  const artifact = narrative || strategy;
+  // Only show explicitly active artifacts — not fallback to last saved
+  const artifact = activeNarrative || activeStrategy;
   if (!artifact) return null;
 
-  const isNarrative = !!narrative;
+  const isNarrative = !!activeNarrative;
   const name = artifact.name;
   const status = artifact.status;
   const config = STATUS_STYLES[status] || STATUS_STYLES.draft;

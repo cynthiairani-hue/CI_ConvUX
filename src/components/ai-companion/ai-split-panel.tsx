@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useMemo } from "react";
-import { X, Maximize2 } from "lucide-react";
+import { X, Maximize2, ChevronDown } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
@@ -15,8 +15,22 @@ export function AISplitPanel({ width }: { width?: number }) {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
     submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close,
+    currentSessionId, chatSessions,
   } = useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const sessionName = useMemo(() => {
+    if (currentSessionId) {
+      const meta = chatSessions.find((s) => s.id === currentSessionId);
+      if (meta?.name) return meta.name;
+    }
+    const firstUser = messages.find((m) => m.role === "user");
+    if (firstUser?.content) {
+      const trimmed = firstUser.content.trim();
+      return trimmed.length <= 24 ? trimmed : trimmed.slice(0, 22) + "…";
+    }
+    return "New conversation";
+  }, [currentSessionId, chatSessions, messages]);
 
   const activeToolCall = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -104,7 +118,16 @@ export function AISplitPanel({ width }: { width?: number }) {
       style={{ width: width ? `${width}px` : undefined, minWidth: 320, maxWidth: 640, flexShrink: 0 }}
     >
       <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <span className="text-sm font-semibold">AI Companion</span>
+        <button
+          onClick={expand}
+          className="flex items-center gap-1 min-w-0 rounded-md px-1 py-0.5 transition-colors hover:bg-accent"
+          title="Expand to manage conversation"
+        >
+          <span className="text-sm font-semibold text-foreground truncate">
+            {sessionName}
+          </span>
+          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+        </button>
         <div className="flex items-center gap-0.5">
           <ChatModeSelector />
           <button

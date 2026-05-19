@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useMemo } from "react";
-import { X, Maximize2, ArrowLeftRight, Plus, PanelRight } from "lucide-react";
+import { X, Maximize2, ArrowLeftRight, PanelRight, ChevronDown } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
 import { AIMessage } from "./ai-message";
@@ -17,10 +17,25 @@ export function AIDockedPanel() {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
     submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close, toggleDockSide, startNewChat, setState,
+    currentSessionId, chatSessions,
   } = useAICompanion();
-  const { activeStrategy, activeNarrative, savedStrategies } = useCampaign();
-  const hasPreview = !!(activeStrategy || activeNarrative || savedStrategies.length > 0);
+  const { activeStrategy, activeNarrative } = useCampaign();
+  const hasPreview = !!(activeStrategy || activeNarrative);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Derive session name
+  const sessionName = useMemo(() => {
+    if (currentSessionId) {
+      const meta = chatSessions.find((s) => s.id === currentSessionId);
+      if (meta?.name) return meta.name;
+    }
+    const firstUser = messages.find((m) => m.role === "user");
+    if (firstUser?.content) {
+      const trimmed = firstUser.content.trim();
+      return trimmed.length <= 24 ? trimmed : trimmed.slice(0, 22) + "…";
+    }
+    return "New conversation";
+  }, [currentSessionId, chatSessions, messages]);
 
   const activeToolCall = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -105,15 +120,17 @@ export function AIDockedPanel() {
   return (
     <aside className="flex h-screen w-80 flex-col border-l bg-background">
       <header className="flex h-14 items-center justify-between px-4">
-        <span className="text-sm font-semibold">AI Companion</span>
+        <button
+          onClick={expand}
+          className="flex items-center gap-1 min-w-0 rounded-md px-1 py-0.5 transition-colors hover:bg-accent"
+          title="Expand"
+        >
+          <span className="text-sm font-semibold text-foreground truncate">
+            {sessionName}
+          </span>
+          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+        </button>
         <div className="flex items-center gap-0.5">
-          <button
-            onClick={startNewChat}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="New chat"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
           <ChatModeSelector />
           {hasPreview && (
             <button
