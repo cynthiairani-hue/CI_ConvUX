@@ -9,7 +9,6 @@ import { SEED_PERFORMANCE, SEED_ANOMALIES } from "@/data/seed-company";
 import type { SeedMonthlyPerformance, SeedAnomaly } from "@/data/seed-company";
 import {
   FileText,
-  Plus,
   Clock,
   ChevronRight,
   TrendingUp,
@@ -377,88 +376,90 @@ export default function ReportsPage() {
     openFullscreen(prompt);
   }
 
-  function handleNewReport() {
-    openFullscreen("Help me create a custom report");
-  }
+  const brand = getCurrentBrand();
+  const hasNarratives = savedNarratives.length > 0;
+  const hasPerf = data.perf.length > 0;
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-10">
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>
-          <p className="mt-0.5 text-[13px] text-[#8492A6]">
-            Performance dashboards, narratives, and automated reports
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleNewReport}
-          className="flex items-center gap-1.5 rounded-lg bg-[#2C9FDD] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1A7BB5]"
-        >
-          <Plus className="h-4 w-4" />
-          New report
-        </button>
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>
+        <p className="mt-0.5 text-[13px] text-[#8492A6]">
+          {hasNarratives ? `${savedNarratives.length} report${savedNarratives.length === 1 ? "" : "s"}` : "Your reports will live here"}
+        </p>
       </div>
 
-      <div className="mt-6 space-y-6">
-        {/* Performance dashboard */}
-        {data.perf.length > 0 && (
-          <PerformanceDashboard perf={data.perf} />
-        )}
+      {/* Hero card — performance overview or brand empty state */}
+      <div className="mt-6">
+        {hasPerf ? (
+          <div className="rounded-xl bg-white px-8 py-8">
+            <PerformanceDashboard perf={data.perf} />
 
-        {/* Anomaly alert */}
-        {data.anomalies.length > 0 && (
-          <AnomalyBanner anomalies={data.anomalies} onAsk={handleGenerateReport} />
-        )}
-
-        {/* Automated report templates */}
-        <div>
-          <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-[#8492A6]">
-            Report templates
-          </h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {REPORT_TEMPLATES.map((t) => (
-              <ReportTemplateCard
-                key={t.id}
-                template={t}
-                onGenerate={() => handleGenerateReport(t.prompt)}
-              />
-            ))}
+            {/* Anomaly alert */}
+            {data.anomalies.length > 0 && (
+              <div className="mt-4">
+                <AnomalyBanner anomalies={data.anomalies} onAsk={handleGenerateReport} />
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Saved reports */}
-        {savedNarratives.length > 0 && (
-          <div>
-            <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-[#8492A6]">
-              Saved reports
-            </h2>
-            <div className="space-y-2">
-              {savedNarratives
-                .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
-                .map((n) => (
-                  <NarrativeRow
-                    key={n.id}
-                    narrative={n}
-                    onOpen={() => handleOpenNarrative(n.id)}
-                  />
-                ))}
-            </div>
-          </div>
-        )}
-
-        {/* Empty state for saved reports when none exist */}
-        {savedNarratives.length === 0 && (
-          <div className="rounded-xl border border-dashed border-[#D5DDE5] bg-[#FAFBFC] px-6 py-8 text-center">
-            <FileText className="mx-auto h-6 w-6 text-[#C4CDD8]" />
-            <p className="mt-2 text-[13px] font-medium text-[#394859]">No saved reports yet</p>
-            <p className="mt-1 text-[12px] text-[#8492A6]">
-              Generate a report from a template above, or ask the AI to create a custom one.
+        ) : (
+          <div className="flex flex-col items-center rounded-xl bg-white px-8 py-10 text-center">
+            {brand?.pageImages?.reports ? (
+              <div className="mb-5 w-full max-w-md overflow-hidden rounded-lg">
+                <img src={brand.pageImages.reports} alt="" className="h-48 w-full object-cover" />
+              </div>
+            ) : (
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                <BarChart3 className="h-6 w-6 text-foreground/70" strokeWidth={1.5} />
+              </div>
+            )}
+            <h2 className="text-base font-semibold text-foreground">See how your marketing is performing</h2>
+            <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+              Connect your ad accounts and the AI will generate performance dashboards, executive narratives, and anomaly alerts.
             </p>
+            <button
+              type="button"
+              onClick={() => handleGenerateReport("Show me how my marketing is performing")}
+              className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+            >
+              <Sparkles className="h-4 w-4" />
+              View performance
+            </button>
           </div>
         )}
       </div>
+
+      {/* Report templates — same card style as home secondary cards */}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {REPORT_TEMPLATES.map((t) => (
+          <ReportTemplateCard
+            key={t.id}
+            template={t}
+            onGenerate={() => handleGenerateReport(t.prompt)}
+          />
+        ))}
+      </div>
+
+      {/* Saved reports */}
+      {hasNarratives && (
+        <div className="mt-6">
+          <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-[#8492A6]">
+            Saved reports
+          </h2>
+          <div className="space-y-2">
+            {savedNarratives
+              .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
+              .map((n) => (
+                <NarrativeRow
+                  key={n.id}
+                  narrative={n}
+                  onOpen={() => handleOpenNarrative(n.id)}
+                />
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

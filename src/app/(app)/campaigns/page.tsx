@@ -2,8 +2,9 @@
 
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
+import { getCurrentBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
-import { Megaphone, Plus, Clock, ChevronRight } from "lucide-react";
+import { Megaphone, Plus, Clock, ChevronRight, Sparkles } from "lucide-react";
 import type { StrategyPlan, StrategyPlanStatus } from "@/types/campaign";
 
 const STATUS_CONFIG: Record<StrategyPlanStatus, { label: string; dot: string; bg: string; text: string }> = {
@@ -99,6 +100,7 @@ export default function CampaignsPage() {
   }
 
   const isEmpty = savedStrategies.length === 0;
+  const brand = getCurrentBrand();
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-10">
@@ -106,35 +108,43 @@ export default function CampaignsPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Campaigns</h1>
           <p className="mt-0.5 text-[13px] text-[#8492A6]">
-            {isEmpty ? "No campaigns yet" : `${savedStrategies.length} campaign${savedStrategies.length === 1 ? "" : "s"}`}
+            {isEmpty ? "Your campaigns will live here" : `${savedStrategies.length} campaign${savedStrategies.length === 1 ? "" : "s"}`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleNewCampaign}
-          className="flex items-center gap-1.5 rounded-lg bg-[#2C9FDD] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1A7BB5]"
-        >
-          <Plus className="h-4 w-4" />
-          New campaign
-        </button>
+        {!isEmpty && (
+          <button
+            type="button"
+            onClick={handleNewCampaign}
+            className="flex items-center gap-1.5 rounded-lg bg-[#2C9FDD] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1A7BB5]"
+          >
+            <Plus className="h-4 w-4" />
+            New campaign
+          </button>
+        )}
       </div>
 
       {isEmpty ? (
-        <div className="mt-16 flex flex-col items-center justify-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F7F9FB]">
-            <Megaphone className="h-6 w-6 text-[#C4CDD8]" />
-          </div>
-          <h2 className="mt-4 text-[14px] font-semibold text-[#394859]">No campaigns yet</h2>
-          <p className="mt-1 max-w-xs text-[13px] text-[#8492A6]">
-            Build your first campaign and it will show up here. You can also save drafts from the AI companion.
+        <div className="mt-10 flex flex-col items-center rounded-xl bg-white px-8 py-10 text-center">
+          {brand?.pageImages?.campaigns ? (
+            <div className="mb-5 w-full max-w-md overflow-hidden rounded-lg">
+              <img src={brand.pageImages.campaigns} alt="" className="h-48 w-full object-cover" />
+            </div>
+          ) : (
+            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+              <Megaphone className="h-6 w-6 text-foreground/70" strokeWidth={1.5} />
+            </div>
+          )}
+          <h2 className="text-base font-semibold text-foreground">Build your first campaign</h2>
+          <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+            The AI will walk you through targeting, budget, and creative — step by step.
           </p>
           <button
             type="button"
             onClick={handleNewCampaign}
-            className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#2C9FDD] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1A7BB5]"
+            className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
           >
-            <Plus className="h-4 w-4" />
-            Build a campaign
+            <Sparkles className="h-4 w-4" />
+            Get started
           </button>
         </div>
       ) : (

@@ -34,6 +34,58 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function EditableName({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+  useEffect(() => { if (editing) inputRef.current?.select(); }, [editing]);
+
+  function commit() {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) onSave(trimmed);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        }}
+        className="truncate rounded border border-[#2C9FDD] bg-white px-1.5 py-0.5 text-[14px] font-semibold text-[#394859] outline-none"
+        style={{ width: `${Math.max(draft.length, 10)}ch` }}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="group flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-[#F7F9FB]"
+      title="Click to rename"
+    >
+      <h1 className="truncate text-[14px] font-semibold text-[#394859]">{value}</h1>
+      <span className="text-[#C4CDD8] opacity-0 transition-opacity group-hover:opacity-100">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+      </span>
+    </button>
+  );
+}
+
 function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof useCampaign>["activeStrategy"]> }) {
   const { saveStrategy, setActiveStrategy, showToast } = useCampaign();
 
@@ -51,12 +103,19 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
     saveStrategy(updated);
   }
 
+  function handleRename(name: string) {
+    const updated = { ...strategy, name, lastModifiedAt: new Date().toISOString() };
+    setActiveStrategy(updated);
+    saveStrategy(updated);
+    showToast("Campaign renamed");
+  }
+
   return (
     <main className="flex flex-1 flex-col overflow-hidden">
       {/* Page-level header — actions live here, not in the card */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
         <div className="min-w-0">
-          <h1 className="truncate text-[14px] font-semibold text-[#394859]">{strategy.name}</h1>
+          <EditableName value={strategy.name} onSave={handleRename} />
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={strategy.status} />

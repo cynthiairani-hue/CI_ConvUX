@@ -22,6 +22,8 @@ export interface BrandProfile {
   heroImages: string[];
   /** One image per secondary card (index 0 = "see performance", 1 = "connect accounts", 2 = "plan spend") */
   cardImages: string[];
+  /** Page-specific empty-state images keyed by page name */
+  pageImages?: Record<string, string>;
   /** Brand-specific keywords for campaign targeting — used instead of generic industry pools */
   keywords?: BrandKeywords;
 }
@@ -45,6 +47,11 @@ export const brandProfiles: Record<string, BrandProfile> = {
       `${FFERN_CDN}/bcbe2b7b9b73336b9e681b018c9ab4cb1852d2e3-3656x3656.jpg?w=200&h=200&fit=crop&crop=focalpoint&auto=format`,
       `${FFERN_CDN}/b5249f0b979a6e71074d2f6c06cdf76773177fdb-1297x1080.jpg?w=200&h=200&fit=crop&crop=focalpoint&auto=format`,
     ],
+    pageImages: {
+      audiences: `${FFERN_CDN}/cbfbdc6e024ac304b1212c65bbb19d12a3d09711-1896x1896.jpg?w=480&h=320&fit=crop&crop=focalpoint&auto=format`,
+      campaigns: `${FFERN_CDN}/b5249f0b979a6e71074d2f6c06cdf76773177fdb-1297x1080.jpg?w=480&h=320&fit=crop&crop=focalpoint&auto=format`,
+      reports: `${FFERN_CDN}/bcbe2b7b9b73336b9e681b018c9ab4cb1852d2e3-3656x3656.jpg?w=480&h=320&fit=crop&crop=focalpoint&auto=format`,
+    },
     keywords: {
       brand: [
         "Ffern perfume",
