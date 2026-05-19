@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useMemo } from "react";
-import { X, Minimize2 } from "lucide-react";
+import { X, Maximize2 } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
@@ -11,10 +11,10 @@ import { KeywordChipSelector } from "./keyword-chip-selector";
 import { ChatModeSelector } from "./chat-mode-selector";
 import { PlatformConnectionCard } from "./platform-connection-card";
 
-export function AIFullscreen() {
+export function AISplitPanel({ width }: { width?: number }) {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
-    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, minimize, close,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close,
   } = useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -29,7 +29,7 @@ export function AIFullscreen() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isLoading]);
+  }, [messages]);
 
   function renderToolCall() {
     if (!activeToolCall?.toolCall) return null;
@@ -99,55 +99,52 @@ export function AIFullscreen() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
-      <header className="flex h-14 items-center justify-between px-6">
+    <aside
+      className="flex h-screen flex-col border-r bg-background"
+      style={{ width: width ? `${width}px` : undefined, minWidth: 320, maxWidth: 640, flexShrink: 0 }}
+    >
+      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
         <span className="text-sm font-semibold">AI Companion</span>
         <div className="flex items-center gap-0.5">
           <ChatModeSelector />
           <button
-            onClick={minimize}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="Dock to side"
+            onClick={expand}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Expand"
           >
-            <Minimize2 className="h-4 w-4" />
+            <Maximize2 className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={close}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             title="Close"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl py-6">
-          {messages.map((msg) => (
-            <AIMessage key={msg.id} message={msg} />
-          ))}
-          {isLoading && (
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <div className="flex gap-1">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
-                </div>
-              </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto py-4">
+        {messages.map((msg) => (
+          <AIMessage key={msg.id} message={msg} />
+        ))}
+        {isLoading && (
+          <div className="px-4 py-3">
+            <div className="flex gap-1">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      <div>
-        <div className="mx-auto max-w-2xl px-4 py-4 space-y-3">
-          {activeToolCall?.toolCall && renderToolCall()}
-          <div className="rounded-xl border px-4 py-3">
-            <AIInput onSend={sendMessage} autoFocus />
-          </div>
+      <div className="px-4 py-3 space-y-3">
+        {activeToolCall?.toolCall && renderToolCall()}
+        <div className="rounded-lg border px-3 py-2">
+          <AIInput onSend={sendMessage} />
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

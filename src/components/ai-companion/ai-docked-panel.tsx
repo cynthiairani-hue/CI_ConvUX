@@ -6,10 +6,16 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
+import { AdvertiserSetupForm } from "./advertiser-setup-form";
+import { KeywordChipSelector } from "./keyword-chip-selector";
+import { ChatModeSelector } from "./chat-mode-selector";
+import { PlatformConnectionCard } from "./platform-connection-card";
 
 export function AIDockedPanel() {
-  const { messages, isLoading, sendMessage, submitChoice, expand, close, toggleDockSide } =
-    useAICompanion();
+  const {
+    messages, isLoading, sendMessage, submitChoice, skipChoice,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close, toggleDockSide,
+  } = useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const activeToolCall = useMemo(() => {
@@ -25,11 +31,79 @@ export function AIDockedPanel() {
     }
   }, [messages]);
 
+  function renderToolCall() {
+    if (!activeToolCall?.toolCall) return null;
+    const tc = activeToolCall.toolCall;
+
+    if (tc.type === "advertiser-setup") {
+      return (
+        <AdvertiserSetupForm
+          key={activeToolCall.id}
+          question={tc.question}
+          step={tc.step}
+          totalSteps={tc.totalSteps}
+          onSubmit={(data) => submitAdvertiserSetup(activeToolCall.id, data)}
+          onSkip={() => skipChoice(activeToolCall.id, tc.field)}
+        />
+      );
+    }
+
+    if (tc.type === "keywords") {
+      return (
+        <KeywordChipSelector
+          key={activeToolCall.id}
+          question={tc.question}
+          step={tc.step}
+          totalSteps={tc.totalSteps}
+          keywords={tc.keywords}
+          onSubmit={(selectedIds, allKeywords) =>
+            submitKeywords(activeToolCall.id, selectedIds, allKeywords)
+          }
+          onSkip={() => skipChoice(activeToolCall.id, tc.field)}
+        />
+      );
+    }
+
+    if (tc.type === "platform-connect") {
+      return (
+        <PlatformConnectionCard
+          key={activeToolCall.id}
+          platformIds={tc.platformIds}
+          onDone={(connectedIds) =>
+            submitPlatformConnection(activeToolCall.id, connectedIds, tc.intentTag)
+          }
+        />
+      );
+    }
+
+    if (tc.type === "choices") {
+      return (
+        <ChatChoices
+          key={activeToolCall.id}
+          question={tc.question}
+          subtitle={tc.subtitle}
+          step={tc.step}
+          totalSteps={tc.totalSteps}
+          options={tc.options}
+          multiSelect={tc.multiSelect}
+          onSubmit={(selected) =>
+            submitChoice(activeToolCall.id, tc.field, selected)
+          }
+          onFreeText={(text) => sendMessage(text)}
+          onSkip={() => skipChoice(activeToolCall.id, tc.field)}
+        />
+      );
+    }
+
+    return null;
+  }
+
   return (
     <aside className="flex h-screen w-80 flex-col border-l bg-background">
       <header className="flex h-14 items-center justify-between px-4">
         <span className="text-sm font-semibold">AI Companion</span>
         <div className="flex items-center gap-0.5">
+          <ChatModeSelector />
           <button
             onClick={toggleDockSide}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -69,30 +143,11 @@ export function AIDockedPanel() {
         )}
       </div>
 
-      <div className="px-4 py-3">
-        {activeToolCall?.toolCall ? (
-          <ChatChoices
-            key={activeToolCall.id}
-            question={activeToolCall.toolCall.question}
-            subtitle={activeToolCall.toolCall.subtitle}
-            step={activeToolCall.toolCall.step}
-            totalSteps={activeToolCall.toolCall.totalSteps}
-            options={activeToolCall.toolCall.options}
-            multiSelect={activeToolCall.toolCall.multiSelect}
-            onSubmit={(selected) =>
-              submitChoice(
-                activeToolCall.id,
-                activeToolCall.toolCall!.field,
-                selected
-              )
-            }
-            onFreeText={(text) => sendMessage(text)}
-          />
-        ) : (
-          <div className="rounded-lg border px-3 py-2">
-            <AIInput onSend={sendMessage} />
-          </div>
-        )}
+      <div className="px-4 py-3 space-y-3">
+        {activeToolCall?.toolCall && renderToolCall()}
+        <div className="rounded-lg border px-3 py-2">
+          <AIInput onSend={sendMessage} />
+        </div>
       </div>
     </aside>
   );

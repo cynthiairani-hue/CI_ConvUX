@@ -41,37 +41,37 @@ export const personas: Persona[] = [
 export const universalTasks: GettingStartedTask[] = [
   {
     id: "first-campaign",
-    title: "Build your first campaign",
+    title: "Let's build your first campaign",
     description:
-      "Launch a retargeting, prospecting, or account-based campaign — the AI will guide you through setup.",
-    cta: "Create campaign",
+      "The AI will walk you through targeting, budget, and creative — step by step.",
+    cta: "Get started",
     status: "not-started",
     priority: "essential",
   },
   {
-    id: "connect-data",
-    title: "Connect a data source",
+    id: "see-performance",
+    title: "See what's performing",
     description:
-      "Link your store, CRM, or analytics platform to unlock audience building and conversion tracking.",
-    cta: "Connect data",
+      "Get an instant view of your marketing performance across channels.",
+    cta: "View performance",
     status: "not-started",
     priority: "optional",
   },
   {
-    id: "build-audience",
-    title: "Build an audience",
+    id: "connect-accounts",
+    title: "Connect your ad accounts",
     description:
-      "Create a retargeting, lookalike, or account-based audience from your data.",
-    cta: "Build audience",
+      "Link Google, Meta, TikTok, or LinkedIn to start tracking results.",
+    cta: "Connect accounts",
     status: "not-started",
     priority: "optional",
   },
   {
-    id: "set-budget",
-    title: "Set your budget",
+    id: "plan-spend",
+    title: "Plan your monthly spend",
     description:
-      "Define your monthly ad spend so we can pace and optimize across channels.",
-    cta: "Set budget",
+      "Set a budget so the AI can pace and optimize across channels.",
+    cta: "Plan spend",
     status: "not-started",
     priority: "optional",
   },

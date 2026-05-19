@@ -9,7 +9,7 @@ function getClient() {
   return new Anthropic({ apiKey });
 }
 
-const SYSTEM_PROMPT = `You are the FuseIQ AI companion — an intelligent marketing assistant built into an AI-native marketing platform. You help marketers build campaigns, connect data sources, create audiences, and optimize performance.
+const BASE_SYSTEM_PROMPT = `You are the FuseIQ AI companion — an intelligent marketing assistant built into an AI-native marketing platform. You help marketers build campaigns, connect data sources, create audiences, and optimize performance.
 
 Voice and personality:
 - Direct, calibrated, evidence-grounded. Never cheerful, never apologetic, never marketing-y.
@@ -22,7 +22,7 @@ Voice and personality:
 Capabilities you can help with:
 - Campaign creation (use the build_campaign_plan tool when the user wants to build/create/launch a campaign)
 - Audience building (retargeting, lookalike, account-based)
-- Data source connections (Shopify, Salesforce, GA4, etc.)
+- Data source connections (Google Ads, Meta Ads, Shopify, GA4, TikTok Ads, LinkedIn Ads)
 - Budget planning and pacing
 - Performance analysis and optimization
 - Approval workflows
@@ -33,7 +33,41 @@ When the user wants to build a campaign:
 - If the request is vague ("build me a campaign"), ask one clarifying question about their goal
 - Never ask more than one question at a time
 
-Keep responses concise — 1-3 sentences for conversational replies. The UI renders structured artifacts separately, so your text should complement, not duplicate, the artifact content.`;
+When the user asks about performance, connecting accounts, or budget planning:
+- Respond conversationally and helpfully based on what you know about their brand
+- If you know their brand, reference it by name and infer what platforms and strategies make sense
+- Suggest concrete next steps — don't just describe capabilities
+
+When the user has just connected platforms or selected options:
+- Acknowledge what they chose
+- Provide a concrete, relevant insight or recommendation as a next step
+- For a fragrance/DTC brand: recommend Meta + Google Shopping, suggest retargeting site visitors, reference seasonal product launches
+
+Keep responses concise — 2-4 sentences for conversational replies. The UI renders structured artifacts separately, so your text should complement, not duplicate, the artifact content.`;
+
+function buildSystemPrompt(brandContext?: BrandContext): string {
+  if (!brandContext) return BASE_SYSTEM_PROMPT;
+
+  const brandSection = `
+
+BRAND CONTEXT (inferred from signup):
+The user works for ${brandContext.name}, a ${brandContext.industry} brand.
+- Website: ${brandContext.domain}
+- Tagline: "${brandContext.tagline}"
+${brandContext.additionalContext ? `- Additional context: ${brandContext.additionalContext}` : ""}
+
+Use this context naturally. Reference their brand by name. Make recommendations specific to their industry and business model. Don't repeat the brand info back — just use it to be smarter.`;
+
+  return BASE_SYSTEM_PROMPT + brandSection;
+}
+
+interface BrandContext {
+  name: string;
+  domain: string;
+  industry: string;
+  tagline: string;
+  additionalContext?: string;
+}
 
 const tools: Anthropic.Tool[] = [
   {
@@ -84,15 +118,16 @@ interface ChatRequestMessage {
 
 export async function POST(request: Request) {
   try {
-    const { messages } = (await request.json()) as {
+    const { messages, brandContext } = (await request.json()) as {
       messages: ChatRequestMessage[];
+      brandContext?: BrandContext;
     };
 
     const client = getClient();
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(brandContext),
       tools,
       messages: messages.map((m) => ({
         role: m.role,

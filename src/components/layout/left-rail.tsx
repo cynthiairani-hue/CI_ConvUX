@@ -14,10 +14,11 @@ import { cn } from "@/lib/utils";
 export function LeftRail() {
   const { leftRailCollapsed, toggleLeftRail } = useLayout();
   const pathname = usePathname();
-  const { getPendingForPersona } = useCampaign();
+  const { getPendingForPersona, savedNarratives } = useCampaign();
   const { activePersona } = usePersona();
 
   const pendingCount = getPendingForPersona(activePersona.id).length;
+  const narrativeCount = savedNarratives.length;
 
   return (
     <aside
@@ -56,7 +57,7 @@ export function LeftRail() {
             icon={item.icon}
             label={item.label}
             href={item.href}
-            badge={item.id === "approvals" ? pendingCount : item.badge}
+            badge={item.id === "approvals" ? pendingCount : item.id === "reports" ? narrativeCount : item.badge}
             isActive={pathname.startsWith(item.href)}
             isCollapsed={leftRailCollapsed}
           />

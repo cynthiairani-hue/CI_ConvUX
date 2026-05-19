@@ -5,21 +5,47 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import type {
   CampaignPlan,
   CampaignPlanSectionKey,
   ApprovalRequest,
+  Advertiser,
+  StrategyPlan,
+  CFONarrative,
 } from "@/types/campaign";
 import { approvers } from "@/data/approvers";
 import { personas } from "@/data/personas";
 import type { PersonaId } from "@/types/persona";
+import {
+  loadStrategies,
+  persistStrategies,
+  loadAdvertisers,
+  persistAdvertisers,
+  loadNarratives,
+  persistNarratives,
+} from "@/lib/storage";
 
 interface CampaignContextValue {
   activePlan: CampaignPlan | null;
   setActivePlan: (plan: CampaignPlan | null) => void;
   updateSection: (key: CampaignPlanSectionKey, value: string) => void;
+  advertiser: Advertiser | null;
+  setAdvertiser: (advertiser: Advertiser) => void;
+  activeStrategy: StrategyPlan | null;
+  setActiveStrategy: (plan: StrategyPlan | null) => void;
+  savedStrategies: StrategyPlan[];
+  savedAdvertisers: Advertiser[];
+  saveStrategy: (plan: StrategyPlan) => void;
+  loadStrategy: (id: string) => void;
+  savedNarratives: CFONarrative[];
+  activeNarrative: CFONarrative | null;
+  setActiveNarrative: (narrative: CFONarrative | null) => void;
+  saveNarrative: (narrative: CFONarrative) => void;
+  loadNarrative: (id: string) => void;
   approvalRequests: ApprovalRequest[];
   sendForApproval: (approverId: string, senderPersonaId: PersonaId) => void;
   resolveApproval: (
@@ -33,6 +59,7 @@ interface CampaignContextValue {
   getPendingForPersona: (personaId: PersonaId) => ApprovalRequest[];
   toast: { message: string; visible: boolean };
   dismissToast: () => void;
+  showToast: (message: string) => void;
 }
 
 const CampaignContext = createContext<CampaignContextValue | null>(null);
@@ -41,10 +68,87 @@ let commentId = 0;
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
   const [activePlan, setActivePlan] = useState<CampaignPlan | null>(null);
+  const [advertiser, setAdvertiserState] = useState<Advertiser | null>(null);
+  const [activeStrategy, setActiveStrategy] = useState<StrategyPlan | null>(null);
+  const [savedStrategies, setSavedStrategies] = useState<StrategyPlan[]>([]);
+  const [savedAdvertisers, setSavedAdvertisers] = useState<Advertiser[]>([]);
+  const [savedNarratives, setSavedNarratives] = useState<CFONarrative[]>([]);
+  const [activeNarrative, setActiveNarrative] = useState<CFONarrative | null>(null);
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>(
     []
   );
   const [toast, setToast] = useState({ message: "", visible: false });
+  const hydrated = useRef(false);
+
+  // Hydrate from localStorage on mount
+  useEffect(() => {
+    setSavedStrategies(loadStrategies());
+    setSavedAdvertisers(loadAdvertisers());
+    setSavedNarratives(loadNarratives());
+    hydrated.current = true;
+  }, []);
+
+  // Persist strategies to localStorage on change
+  useEffect(() => {
+    if (hydrated.current) persistStrategies(savedStrategies);
+  }, [savedStrategies]);
+
+  // Persist advertisers to localStorage on change
+  useEffect(() => {
+    if (hydrated.current) persistAdvertisers(savedAdvertisers);
+  }, [savedAdvertisers]);
+
+  // Persist narratives to localStorage on change
+  useEffect(() => {
+    if (hydrated.current) persistNarratives(savedNarratives);
+  }, [savedNarratives]);
+
+  const setAdvertiser = useCallback((adv: Advertiser) => {
+    setAdvertiserState(adv);
+    setSavedAdvertisers((prev) => {
+      const exists = prev.findIndex((a) => a.id === adv.id);
+      if (exists >= 0) {
+        const next = [...prev];
+        next[exists] = adv;
+        return next;
+      }
+      return [...prev, adv];
+    });
+  }, []);
+
+  const saveStrategy = useCallback((plan: StrategyPlan) => {
+    setSavedStrategies((prev) => {
+      const exists = prev.findIndex((s) => s.id === plan.id);
+      if (exists >= 0) {
+        const next = [...prev];
+        next[exists] = plan;
+        return next;
+      }
+      return [...prev, plan];
+    });
+  }, []);
+
+  const loadStrategy = useCallback((id: string) => {
+    const found = savedStrategies.find((s) => s.id === id);
+    if (found) setActiveStrategy(found);
+  }, [savedStrategies]);
+
+  const saveNarrative = useCallback((narrative: CFONarrative) => {
+    setSavedNarratives((prev) => {
+      const exists = prev.findIndex((n) => n.id === narrative.id);
+      if (exists >= 0) {
+        const next = [...prev];
+        next[exists] = narrative;
+        return next;
+      }
+      return [...prev, narrative];
+    });
+  }, []);
+
+  const loadNarrative = useCallback((id: string) => {
+    const found = savedNarratives.find((n) => n.id === id);
+    if (found) setActiveNarrative(found);
+  }, [savedNarratives]);
 
   const dismissToast = useCallback(() => {
     setToast({ message: "", visible: false });
@@ -223,6 +327,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         activePlan,
         setActivePlan,
         updateSection,
+        advertiser,
+        setAdvertiser,
+        activeStrategy,
+        setActiveStrategy,
         approvalRequests,
         sendForApproval,
         resolveApproval,
@@ -231,6 +339,16 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         getPendingForPersona,
         toast,
         dismissToast,
+        showToast,
+        savedStrategies,
+        savedAdvertisers,
+        saveStrategy,
+        loadStrategy,
+        savedNarratives,
+        activeNarrative,
+        setActiveNarrative,
+        saveNarrative,
+        loadNarrative,
       }}
     >
       {children}

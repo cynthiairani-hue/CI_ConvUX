@@ -16,7 +16,7 @@ export default function SignupPage() {
     e.preventDefault();
     if (!canSubmit) return;
     localStorage.setItem("fuseiq-user", JSON.stringify({ name, email }));
-    router.push("/dashboard");
+    router.push("/home");
   }
 
   return (

@@ -1,5 +1,15 @@
-import type { CampaignPlan } from "@/types/campaign";
+import type {
+  CampaignPlan,
+  Advertiser,
+  IABIndustry,
+  IABRestrictedCategory,
+  StrategyPlan,
+  PlacementType,
+  KeywordChip,
+} from "@/types/campaign";
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
+import { generateKeywordsForIndustry } from "./keyword-mocks";
+import { generateForecast } from "./forecast-mocks";
 
 export interface CampaignIntent {
   objective?: string;
@@ -265,6 +275,256 @@ const audienceMap: Record<string, string> = {
   lookalike: "Lookalike from top customers by LTV",
   "account-list": "Target account list — matched to identity graph",
 };
+
+// --- New Strategy Flow ---
+
+export interface StrategyIntent {
+  advertiserId?: string;
+  advertiserSetup?: {
+    companyName?: string;
+    websiteUrl?: string;
+    industry?: IABIndustry;
+    restrictedCategories?: IABRestrictedCategory[];
+  };
+  objective?: string;
+  selectedKeywords?: string[];
+}
+
+export interface StrategyChoiceTool {
+  type: "choices";
+  field: string;
+  question: string;
+  subtitle?: string;
+  step: number;
+  totalSteps: number;
+  options: ChoiceOption[];
+}
+
+export interface StrategyAdvertiserTool {
+  type: "advertiser-setup";
+  field: "advertiserSetup";
+  question: string;
+  step: number;
+  totalSteps: number;
+}
+
+export interface StrategyKeywordsTool {
+  type: "keywords";
+  field: "selectedKeywords";
+  question: string;
+  step: number;
+  totalSteps: number;
+  keywords: KeywordChip[];
+}
+
+export type StrategyFlowTool = StrategyChoiceTool | StrategyAdvertiserTool | StrategyKeywordsTool;
+
+export function getNextStrategyTool(
+  intent: StrategyIntent,
+  hasAdvertiser: boolean
+): StrategyFlowTool | null {
+  const missing: string[] = [];
+  if (!hasAdvertiser && !intent.advertiserSetup?.companyName) missing.push("advertiser");
+  if (!intent.objective) missing.push("objective");
+  if (intent.objective && (hasAdvertiser || intent.advertiserSetup?.companyName) && !intent.selectedKeywords) {
+    missing.push("keywords");
+  }
+
+  if (missing.length === 0) return null;
+
+  const totalSteps = missing.length;
+  const currentStep = 1;
+
+  if (missing[0] === "advertiser") {
+    return {
+      type: "advertiser-setup",
+      field: "advertiserSetup",
+      question: "First, let’s set up your advertiser profile.",
+      step: currentStep,
+      totalSteps,
+    };
+  }
+
+  if (missing[0] === "objective") {
+    return {
+      type: "choices",
+      field: "objective",
+      question: "What’s the goal for this campaign?",
+      subtitle: "This determines how we optimize your spend:",
+      step: currentStep,
+      totalSteps,
+      options: objectiveChoices,
+    };
+  }
+
+  if (missing[0] === "keywords") {
+    const advertiserSetup = intent.advertiserSetup;
+    const websiteUrl = advertiserSetup?.websiteUrl || "example.com";
+    const industry = advertiserSetup?.industry || "other";
+    const keywords = generateKeywordsForIndustry(industry, websiteUrl);
+    return {
+      type: "keywords",
+      field: "selectedKeywords",
+      question: "Here are suggested keywords based on your profile.",
+      step: currentStep,
+      totalSteps,
+      keywords,
+    };
+  }
+
+  return null;
+}
+
+const defaultPlacementsByObjective: Record<string, PlacementType[]> = {
+  awareness: ["video", "display", "ctv-ott"],
+  traffic: ["display", "native", "in-app"],
+  leads: ["display", "native", "video"],
+  sales: ["display", "native", "in-app", "video"],
+  retargeting: ["display", "native"],
+  "app-promotion": ["in-app", "video", "display"],
+};
+
+const defaultBudgetByObjective: Record<string, number> = {
+  awareness: 5000,
+  traffic: 3000,
+  leads: 4000,
+  sales: 3000,
+  retargeting: 2000,
+  "app-promotion": 4000,
+};
+
+export function buildStrategyFromIntent(
+  intent: StrategyIntent,
+  advertiser: Advertiser
+): StrategyPlan {
+  const obj = objectiveMap[intent.objective || "sales"] || objectiveMap.sales;
+  const monthlyBudget = defaultBudgetByObjective[intent.objective || "sales"] || 3000;
+  const dailyBudget = Math.round(monthlyBudget / 30);
+  const placements = defaultPlacementsByObjective[intent.objective || "sales"] || ["display"];
+
+  const audience = {
+    locations: ["United States"],
+    marketInterests: (intent.selectedKeywords || [])
+      .slice(0, 5)
+      .map((id) => id.replace("kw-", "keyword ")),
+    customAudiences: [],
+    ageRange: { min: 25, max: 54 },
+    gender: "all" as const,
+    demographics: ["Homeowners", "College educated"],
+  };
+
+  const forecast = generateForecast(dailyBudget, placements, audience);
+
+  const now = new Date().toISOString();
+
+  return {
+    id: `strategy-${Date.now()}`,
+    name: `${advertiser.companyName} — ${obj.name}`,
+    status: "draft",
+    advertiserId: advertiser.id,
+    objective: {
+      label: "Objective",
+      value: obj.value,
+      provenance: { source: "ai_inferred", reasoning: obj.rationale, confidence: "high" },
+      readiness: "ready",
+      editable: false,
+      authorshipState: "proposed",
+      filled: true,
+      editHistory: [],
+    },
+    budgetSchedule: {
+      label: "Budget & Schedule",
+      value: `$${dailyBudget}/day · $${monthlyBudget.toLocaleString()}/month · Always on`,
+      provenance: { source: "default", reasoning: "Budget pacing ensures even daily spend. I'll optimize allocation across channels and alert you at 80% utilization.", confidence: "medium" },
+      readiness: "ready",
+      editable: true,
+      authorshipState: "proposed",
+      filled: true,
+      editHistory: [],
+      data: {
+        dailyBudget,
+        monthlyBudget,
+        startDate: null,
+        endDate: null,
+        alwaysOn: true,
+      },
+    },
+    audience: {
+      label: "Audience",
+      value: `${audience.locations.join(", ")} · Ages ${audience.ageRange.min}-${audience.ageRange.max} · ${audience.gender === "all" ? "All genders" : audience.gender}`,
+      provenance: { source: "ai_inferred", reasoning: "Audience quality is the single biggest lever for campaign performance. Higher-intent segments convert at 3-5x the rate of broad targeting.", confidence: "medium" },
+      readiness: "ready",
+      editable: true,
+      authorshipState: "proposed",
+      filled: true,
+      editHistory: [],
+      data: audience,
+    },
+    placements: {
+      label: "Placements",
+      value: placements.map((p) => {
+        const labels: Record<PlacementType, string> = {
+          display: "Display", video: "Video", "ctv-ott": "CTV/OTT",
+          native: "Native", audio: "Audio", dooh: "DOOH",
+          "in-app": "In-App", "rich-media": "Rich Media",
+        };
+        return labels[p];
+      }).join(", "),
+      provenance: { source: "ai_inferred", reasoning: obj.channelsRationale, confidence: "high" },
+      readiness: "ready",
+      editable: true,
+      authorshipState: "proposed",
+      filled: true,
+      editHistory: [],
+      data: placements,
+    },
+    bidding: {
+      label: "Bidding",
+      value: "Automatic (recommended)",
+      provenance: { source: "default", reasoning: "Automatic bidding uses real-time signals to optimize bids per impression.", confidence: "high" },
+      readiness: "ready",
+      editable: true,
+      authorshipState: "proposed",
+      filled: true,
+      editHistory: [],
+      data: {
+        strategy: "automatic",
+        manualCpm: null,
+      },
+    },
+    creative: {
+      label: "Creative",
+      value: "No assets yet — upload or generate with AI",
+      provenance: { source: "default", reasoning: "Multiple creative variations enable A/B testing. I'll rotate top performers and pause underperformers automatically." },
+      readiness: "limited",
+      editable: true,
+      authorshipState: "proposed",
+      filled: false,
+      editHistory: [],
+      data: {
+        status: "not-started",
+        assets: [],
+      },
+    },
+    forecast: {
+      label: "Forecast",
+      value: `~${forecast.dailyReach.toLocaleString()} daily reach · ~${forecast.dailyImpressions.toLocaleString()} daily impressions`,
+      provenance: { source: "ai_inferred", reasoning: "Forecast is based on your budget, placements, and audience size. Actual performance may vary during the first 7 days as the system optimizes.", confidence: forecast.confidenceLevel },
+      readiness: forecast.confidenceLevel === "low" ? "limited" : "ready",
+      editable: false,
+      authorshipState: "proposed",
+      filled: true,
+      editHistory: [],
+      data: forecast,
+    },
+    keywords: [],
+    createdAt: now,
+    lastModifiedAt: now,
+    lastModifiedBy: "system",
+  };
+}
+
+// --- Legacy Plan Builder (backward compat) ---
 
 export function buildPlanFromIntent(intent: CampaignIntent): CampaignPlan {
   const obj = objectiveMap[intent.objective || "sales"] || objectiveMap.sales;

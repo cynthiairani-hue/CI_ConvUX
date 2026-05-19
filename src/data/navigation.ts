@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard,
+  Home,
   Megaphone,
   Users,
   BarChart3,
@@ -17,7 +17,7 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { id: "home", label: "Home", href: "/home", icon: Home },
   { id: "campaigns", label: "Campaigns", href: "/campaigns", icon: Megaphone },
   { id: "audiences", label: "Audiences", href: "/audiences", icon: Users },
   { id: "reports", label: "Reports", href: "/reports", icon: BarChart3 },

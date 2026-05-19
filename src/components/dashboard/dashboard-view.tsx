@@ -1,42 +1,94 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { universalTasks } from "@/data/personas";
 import { CanvasChatInput } from "@/components/ai-companion/canvas-chat-input";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import {
   Megaphone,
-  Database,
-  Users,
+  TrendingUp,
+  Link,
   DollarSign,
   Building2,
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getBrandFromEmail, type BrandProfile } from "@/data/brand-profiles";
 import type { GettingStartedTask } from "@/types/persona";
 import type { LucideIcon } from "lucide-react";
 
 const taskIcons: Record<string, LucideIcon> = {
   "first-campaign": Megaphone,
-  "connect-data": Database,
-  "build-audience": Users,
-  "set-budget": DollarSign,
+  "see-performance": TrendingUp,
+  "connect-accounts": Link,
+  "plan-spend": DollarSign,
 };
+
+// Maps optional task ids to their index in BrandProfile.cardImages
+const SECONDARY_IMAGE_INDEX: Record<string, number> = {
+  "see-performance": 0,
+  "connect-accounts": 1,
+  "plan-spend": 2,
+};
+
+/* ──────────────────────────────────────────────
+   Hero image carousel — crossfade, no controls
+   ────────────────────────────────────────────── */
+
+function HeroCarousel({ images }: { images: string[] }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % images.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [images.length]);
+
+  return (
+    <div className="relative h-48 w-full overflow-hidden rounded-lg">
+      {images.map((src, i) => (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover transition-opacity duration-1000",
+            i === activeIndex ? "opacity-100" : "opacity-0"
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
+   Hero card — with optional brand images
+   ────────────────────────────────────────────── */
 
 function HeroCard({
   task,
   onAction,
+  brand,
 }: {
   task: GettingStartedTask;
   onAction: () => void;
+  brand: BrandProfile | null;
 }) {
   const Icon = taskIcons[task.id] || Building2;
 
   return (
     <div className="flex flex-col items-center rounded-xl bg-background px-8 py-10 text-center">
-      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
-        <Icon className="h-6 w-6 text-foreground/70" strokeWidth={1.5} />
-      </div>
+      {brand ? (
+        <div className="mb-5 w-full max-w-md">
+          <HeroCarousel images={brand.heroImages} />
+        </div>
+      ) : (
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+          <Icon className="h-6 w-6 text-foreground/70" strokeWidth={1.5} />
+        </div>
+      )}
       <h3 className="text-base font-semibold text-foreground">{task.title}</h3>
       <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
         {task.description}
@@ -52,84 +104,130 @@ function HeroCard({
   );
 }
 
-function SecondaryCard({ task }: { task: GettingStartedTask }) {
+/* ──────────────────────────────────────────────
+   Secondary card — with optional brand image
+   ────────────────────────────────────────────── */
+
+function SecondaryCard({
+  task,
+  onAction,
+  imageUrl,
+}: {
+  task: GettingStartedTask;
+  onAction: () => void;
+  imageUrl?: string;
+}) {
   const Icon = taskIcons[task.id] || Building2;
 
   return (
     <div className="flex flex-col items-center rounded-xl bg-background px-4 py-6 text-center transition-shadow hover:shadow-sm">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </div>
+      {imageUrl ? (
+        <div className="mb-3 h-9 w-9 overflow-hidden rounded-lg">
+          <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+        </div>
+      ) : (
+        <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </div>
+      )}
       <h3 className="text-sm font-medium text-foreground">{task.title}</h3>
       <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
         {task.description}
       </p>
-      <button className="mt-3 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent">
+      <button
+        onClick={onAction}
+        className="mt-3 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+      >
         {task.cta}
       </button>
     </div>
   );
 }
 
+/* ──────────────────────────────────────────────
+   Task action routing
+   ────────────────────────────────────────────── */
+
 const taskActions: Record<string, string> = {
   "first-campaign": "campaign",
-  "connect-data": "Help me connect a data source",
-  "build-audience": "Help me build an audience",
-  "set-budget": "Help me set my budget",
+  "see-performance": "Show me how my marketing is performing",
+  "connect-accounts": "Help me connect my ad accounts",
+  "plan-spend": "Help me plan my monthly spend",
 };
 
-function getUserName(): string {
-  if (typeof window === "undefined") return "there";
+/* ──────────────────────────────────────────────
+   User + brand inference from localStorage
+   ────────────────────────────────────────────── */
+
+interface UserInfo {
+  name: string;
+  brand: BrandProfile | null;
+}
+
+function getUserInfo(): UserInfo {
+  if (typeof window === "undefined") return { name: "there", brand: null };
   try {
     const stored = localStorage.getItem("fuseiq-user");
     if (stored) {
-      const { name } = JSON.parse(stored);
-      if (name) return name.split(" ")[0];
+      const { name, email } = JSON.parse(stored);
+      const firstName = name ? name.split(" ")[0] : "there";
+      const brand = email ? getBrandFromEmail(email) : null;
+      return { name: firstName, brand };
     }
   } catch {
     // ignore
   }
-  return "there";
+  return { name: "there", brand: null };
 }
+
+/* ──────────────────────────────────────────────
+   Dashboard view
+   ────────────────────────────────────────────── */
 
 export function DashboardView() {
   const { state, openFullscreen, startCampaignFlow } = useAICompanion();
-  const [userName, setUserName] = useState("there");
+  const [userInfo, setUserInfo] = useState<UserInfo>({ name: "there", brand: null });
 
   useEffect(() => {
-    setUserName(getUserName());
+    setUserInfo(getUserInfo());
   }, []);
+
+  const { name: userName, brand } = userInfo;
 
   const essentialTasks = universalTasks.filter((t) => t.priority === "essential");
   const optionalTasks = universalTasks.filter((t) => t.priority === "optional");
 
-  function handleTaskAction(taskId: string) {
-    const action = taskActions[taskId];
-    if (action === "campaign") {
-      startCampaignFlow();
-    } else if (action) {
-      openFullscreen(action);
-    }
-  }
+  const handleTaskAction = useCallback(
+    (taskId: string) => {
+      const action = taskActions[taskId];
+      if (action === "campaign") {
+        startCampaignFlow();
+      } else if (action) {
+        openFullscreen(action);
+      }
+    },
+    [startCampaignFlow, openFullscreen]
+  );
+
+  // Personalized greeting when brand is known
+  const greeting = brand
+    ? `Welcome, ${userName}. Let’s get ${brand.name} running.`
+    : `Welcome, ${userName}`;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-foreground">
-        Welcome, {userName}
+        {greeting}
       </h1>
 
-      {state === "resting" && <CanvasChatInput />}
-
       <div>
-        <h2 className="mb-3 text-sm font-medium text-foreground">
-          Start building
-        </h2>
         <div className="space-y-3 rounded-2xl bg-muted/60 p-3">
           {essentialTasks.map((task) => (
             <HeroCard
               key={task.id}
               task={task}
               onAction={() => handleTaskAction(task.id)}
+              brand={brand}
             />
           ))}
 
@@ -143,12 +241,23 @@ export function DashboardView() {
               )}
             >
               {optionalTasks.map((task) => (
-                <SecondaryCard key={task.id} task={task} />
+                <SecondaryCard
+                  key={task.id}
+                  task={task}
+                  onAction={() => handleTaskAction(task.id)}
+                  imageUrl={
+                    brand
+                      ? brand.cardImages[SECONDARY_IMAGE_INDEX[task.id] ?? 0]
+                      : undefined
+                  }
+                />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {state === "resting" && <CanvasChatInput />}
     </div>
   );
 }
