@@ -6,7 +6,6 @@ import {
   useState,
   useCallback,
   useEffect,
-  useRef,
   type ReactNode,
 } from "react";
 import type {
@@ -57,9 +56,9 @@ interface CampaignContextValue {
   addComment: (requestId: string, authorId: PersonaId, content: string) => void;
   activatePlan: (requestId: string) => void;
   getPendingForPersona: (personaId: PersonaId) => ApprovalRequest[];
-  toast: { message: string; visible: boolean };
+  toast: { message: string; visible: boolean; action?: { label: string; href: string } };
   dismissToast: () => void;
-  showToast: (message: string) => void;
+  showToast: (message: string, action?: { label: string; href: string }) => void;
 }
 
 const CampaignContext = createContext<CampaignContextValue | null>(null);
@@ -77,54 +76,64 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>(
     []
   );
-  const [toast, setToast] = useState({ message: "", visible: false });
-  const hydrated = useRef(false);
+  const [toast, setToast] = useState<{ message: string; visible: boolean; action?: { label: string; href: string } }>({ message: "", visible: false });
+  // Use STATE (not ref) so hydrated batches with loaded data — prevents
+  // the persistence effect from writing [] on the first render.
+  const [hydrated, setHydrated] = useState(false);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
     setSavedStrategies(loadStrategies());
     setSavedAdvertisers(loadAdvertisers());
     setSavedNarratives(loadNarratives());
-    hydrated.current = true;
+    setHydrated(true);
   }, []);
 
-  // Persist strategies to localStorage on change
+  // Persist strategies to localStorage on change (skip until hydration render)
   useEffect(() => {
-    if (hydrated.current) persistStrategies(savedStrategies);
-  }, [savedStrategies]);
+    if (hydrated) persistStrategies(savedStrategies);
+  }, [savedStrategies, hydrated]);
 
   // Persist advertisers to localStorage on change
   useEffect(() => {
-    if (hydrated.current) persistAdvertisers(savedAdvertisers);
-  }, [savedAdvertisers]);
+    if (hydrated) persistAdvertisers(savedAdvertisers);
+  }, [savedAdvertisers, hydrated]);
 
   // Persist narratives to localStorage on change
   useEffect(() => {
-    if (hydrated.current) persistNarratives(savedNarratives);
-  }, [savedNarratives]);
+    if (hydrated) persistNarratives(savedNarratives);
+  }, [savedNarratives, hydrated]);
 
   const setAdvertiser = useCallback((adv: Advertiser) => {
     setAdvertiserState(adv);
     setSavedAdvertisers((prev) => {
       const exists = prev.findIndex((a) => a.id === adv.id);
+      let next: Advertiser[];
       if (exists >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[exists] = adv;
-        return next;
+      } else {
+        next = [...prev, adv];
       }
-      return [...prev, adv];
+      persistAdvertisers(next);
+      return next;
     });
   }, []);
 
   const saveStrategy = useCallback((plan: StrategyPlan) => {
     setSavedStrategies((prev) => {
       const exists = prev.findIndex((s) => s.id === plan.id);
+      let next: StrategyPlan[];
       if (exists >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[exists] = plan;
-        return next;
+      } else {
+        next = [...prev, plan];
       }
-      return [...prev, plan];
+      // Belt-and-suspenders: persist immediately so data survives even if
+      // the React effect doesn't flush before navigation or unmount.
+      persistStrategies(next);
+      return next;
     });
   }, []);
 
@@ -136,12 +145,15 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const saveNarrative = useCallback((narrative: CFONarrative) => {
     setSavedNarratives((prev) => {
       const exists = prev.findIndex((n) => n.id === narrative.id);
+      let next: CFONarrative[];
       if (exists >= 0) {
-        const next = [...prev];
+        next = [...prev];
         next[exists] = narrative;
-        return next;
+      } else {
+        next = [...prev, narrative];
       }
-      return [...prev, narrative];
+      persistNarratives(next);
+      return next;
     });
   }, []);
 
@@ -154,9 +166,9 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setToast({ message: "", visible: false });
   }, []);
 
-  const showToast = useCallback((message: string) => {
-    setToast({ message, visible: true });
-    setTimeout(() => setToast({ message: "", visible: false }), 4000);
+  const showToast = useCallback((message: string, action?: { label: string; href: string }) => {
+    setToast({ message, visible: true, action });
+    setTimeout(() => setToast({ message: "", visible: false }), action ? 6000 : 4000);
   }, []);
 
   const updateSection = useCallback(

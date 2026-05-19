@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useMemo } from "react";
-import { X, Minimize2 } from "lucide-react";
+import { X, Minimize2, Plus, PanelRight } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
+import { useCampaign } from "@/contexts/campaign-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
@@ -10,12 +11,16 @@ import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
 import { ChatModeSelector } from "./chat-mode-selector";
 import { PlatformConnectionCard } from "./platform-connection-card";
+import { ArtifactPreviewCard } from "./artifact-preview-card";
 
 export function AIFullscreen() {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
-    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, minimize, close,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, minimize, close, startNewChat, setState,
   } = useAICompanion();
+  const { activeStrategy, activeNarrative, savedStrategies } = useCampaign();
+  // There's a previewable artifact if we have an active strategy/narrative, or a recent saved strategy
+  const hasPreview = !!(activeStrategy || activeNarrative || savedStrategies.length > 0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const activeToolCall = useMemo(() => {
@@ -103,7 +108,23 @@ export function AIFullscreen() {
       <header className="flex h-14 items-center justify-between px-6">
         <span className="text-sm font-semibold">AI Companion</span>
         <div className="flex items-center gap-0.5">
+          <button
+            onClick={startNewChat}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="New chat"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
           <ChatModeSelector />
+          {hasPreview && (
+            <button
+              onClick={() => setState("split")}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Show canvas preview"
+            >
+              <PanelRight className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={minimize}
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -143,6 +164,7 @@ export function AIFullscreen() {
       <div>
         <div className="mx-auto max-w-2xl px-4 py-4 space-y-3">
           {activeToolCall?.toolCall && renderToolCall()}
+          <ArtifactPreviewCard />
           <div className="rounded-xl border px-4 py-3">
             <AIInput onSend={sendMessage} autoFocus />
           </div>

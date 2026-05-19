@@ -1,4 +1,5 @@
 import type { IABIndustry, KeywordChip } from "@/types/campaign";
+import type { BrandKeywords } from "@/data/brand-profiles";
 
 const KEYWORD_POOLS: Record<IABIndustry, { brand: string[]; product: string[]; competitor: string[]; interest: string[] }> = {
   automotive: {
@@ -136,26 +137,24 @@ function extractBrandName(websiteUrl: string): string {
 
 export function generateKeywordsForIndustry(
   industry: IABIndustry,
-  websiteUrl: string
+  websiteUrl: string,
+  /** Brand-specific keywords override — used instead of generic industry pool when available */
+  brandKeywords?: BrandKeywords,
 ): KeywordChip[] {
-  const pool = KEYWORD_POOLS[industry];
+  const pool = brandKeywords || KEYWORD_POOLS[industry] || KEYWORD_POOLS.other;
   const brandName = extractBrandName(websiteUrl);
 
   const keywords: KeywordChip[] = [];
   let id = 0;
 
+  // Lead with the brand name itself
   keywords.push({
     id: `kw-${id++}`,
     label: brandName,
     category: "brand",
     selected: true,
   });
-  keywords.push({
-    id: `kw-${id++}`,
-    label: `${brandName} reviews`,
-    category: "brand",
-    selected: true,
-  });
+
   for (const label of pool.brand) {
     keywords.push({ id: `kw-${id++}`, label, category: "brand", selected: true });
   }

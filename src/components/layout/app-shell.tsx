@@ -1,7 +1,8 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { Share2, Save } from "lucide-react";
+import { Share2, Save, FileDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { LeftRail } from "./left-rail";
 import { MainCanvas } from "./main-canvas";
 import { AIDockedPanel } from "@/components/ai-companion/ai-docked-panel";
@@ -10,32 +11,55 @@ import { AISplitPanel } from "@/components/ai-companion/ai-split-panel";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
 import { StrategyCard } from "@/components/patterns/strategy-card";
+import { CFONarrativeCard } from "@/components/patterns/cfo-narrative-card";
+import { getCurrentBrand } from "@/data/brand-profiles";
+import { FFERN_SEED_PERFORMANCE } from "@/data/seed-ffern";
 import { Toast } from "@/components/ui/toast-notification";
 
 const MIN_CHAT_WIDTH = 320;
 const MAX_CHAT_WIDTH = 640;
 const DEFAULT_CHAT_WIDTH = 420;
 
-function SplitCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof useCampaign>["activeStrategy"]> }) {
-  const { saveStrategy, showToast } = useCampaign();
+/** Status badge for artifact status */
+function StatusBadge({ status }: { status: string }) {
+  const label = status === "draft" ? "Draft" : status === "approved" ? "Approved" : status === "active" ? "Active" : status === "final" ? "Final" : status;
+  const color = status === "draft" ? "bg-[#F3F4F6] text-[#6B7280]"
+    : status === "approved" || status === "active" || status === "final" ? "bg-emerald-50 text-emerald-600"
+    : status === "pending-approval" ? "bg-amber-50 text-amber-600"
+    : "bg-[#F3F4F6] text-[#6B7280]";
+  return (
+    <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize", color)}>
+      {label}
+    </span>
+  );
+}
+
+function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof useCampaign>["activeStrategy"]> }) {
+  const { saveStrategy, setActiveStrategy, showToast } = useCampaign();
 
   function handleSaveDraft() {
     saveStrategy({ ...strategy, status: "draft", lastModifiedAt: new Date().toISOString() });
-    showToast("Strategy saved as draft");
+    showToast("Strategy saved as draft", { label: "View in Campaigns", href: "/campaigns" });
   }
 
   function handleShare() {
     showToast("Share link copied to clipboard");
   }
 
+  function handleStrategyUpdate(updated: typeof strategy) {
+    setActiveStrategy(updated);
+    saveStrategy(updated);
+  }
+
   return (
     <main className="flex flex-1 flex-col overflow-hidden">
-      {/* Canvas header with CTAs */}
+      {/* Page-level header — actions live here, not in the card */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
         <div className="min-w-0">
           <h1 className="truncate text-[14px] font-semibold text-[#394859]">{strategy.name}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <StatusBadge status={strategy.status} />
           <button
             type="button"
             onClick={handleShare}
@@ -54,11 +78,82 @@ function SplitCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof use
           </button>
         </div>
       </header>
-
-      {/* Canvas content */}
-      <div className="flex-1 overflow-y-auto px-8 py-8">
+      {/* Grey canvas background — card floats on it */}
+      <div className="flex-1 overflow-y-auto bg-[#F7F9FB] px-8 py-8">
         <div className="mx-auto max-w-2xl">
-          <StrategyCard plan={strategy} />
+          <StrategyCard plan={strategy} onUpdate={handleStrategyUpdate} />
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType<typeof useCampaign>["activeNarrative"]> }) {
+  const { saveNarrative, setActiveNarrative, showToast } = useCampaign();
+  const brand = getCurrentBrand();
+
+  function handleShare() {
+    showToast("Share link copied to clipboard");
+  }
+
+  function handleExportPDF() {
+    // Open a print-friendly window with the narrative content
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const monthLabel = monthNames[narrative.period.month - 1];
+    const sectionKeys = ["spendByChannel","attributionByChannel","whatChanged","recommendedNextMoves","confidenceSummary"] as const;
+    const sections = sectionKeys.map((key) => ({ label: narrative[key].label, value: narrative[key].value }));
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${narrative.name}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:800px;margin:40px auto;padding:0 20px;color:#394859;line-height:1.6}h1{font-size:20px;font-weight:600;margin-bottom:4px}.subtitle{font-size:13px;color:#8492A6;margin-bottom:32px}h2{font-size:14px;font-weight:600;margin-top:24px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #EDF1F5}.section-content{font-size:13px;white-space:pre-wrap;margin-bottom:16px}.footer{margin-top:40px;padding-top:16px;border-top:1px solid #EDF1F5;font-size:11px;color:#8492A6}@media print{body{margin:20px}}</style></head><body><h1>${narrative.name}</h1><div class="subtitle">${narrative.advertiserId} · ${monthLabel} ${narrative.period.year}</div>${sections.map((s) => `<h2>${s.label}</h2><div class="section-content">${s.value}</div>`).join("")}<div class="footer">Generated by FuseIQ · ${new Date().toLocaleDateString()}</div></body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 500); }
+  }
+
+  function handleSendToCFO() {
+    const updated = { ...narrative, status: "final" as const, lastModifiedAt: new Date().toISOString() };
+    saveNarrative(updated);
+    setActiveNarrative(updated);
+    showToast("Narrative finalized and sent");
+  }
+
+  return (
+    <main className="flex flex-1 flex-col overflow-hidden">
+      {/* Page-level header — actions live here, not in the card */}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
+        <div className="min-w-0">
+          <h1 className="truncate text-[14px] font-semibold text-[#394859]">{narrative.name}</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={narrative.status} />
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+          >
+            <FileDown className="h-3.5 w-3.5" />
+            Export PDF
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Share
+          </button>
+          {narrative.status === "draft" && (
+            <button
+              type="button"
+              onClick={handleSendToCFO}
+              className="flex items-center gap-1.5 rounded-lg bg-[#394859] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2D3A47]"
+            >
+              Send to CFO
+            </button>
+          )}
+        </div>
+      </header>
+      {/* Grey canvas background — card floats on it */}
+      <div className="flex-1 overflow-y-auto bg-[#F7F9FB] px-8 py-8">
+        <div className="mx-auto max-w-2xl">
+          <CFONarrativeCard narrative={narrative} seedData={brand ? FFERN_SEED_PERFORMANCE : undefined} hideHeaderActions />
         </div>
       </div>
     </main>
@@ -114,7 +209,7 @@ function ResizeDivider({ onDrag }: { onDrag: (deltaX: number) => void }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { state, dockSide } = useAICompanion();
-  const { activeStrategy, savedStrategies } = useCampaign();
+  const { activeStrategy, savedStrategies, activeNarrative } = useCampaign();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
 
   const strategy = activeStrategy || savedStrategies[savedStrategies.length - 1];
@@ -122,6 +217,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const handleDrag = useCallback((deltaX: number) => {
     setChatWidth((prev) => Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, prev + deltaX)));
   }, []);
+
+  // Determine what to show on the split canvas — narrative takes priority when set
+  const renderSplitCanvas = () => {
+    if (activeNarrative) {
+      return <SplitNarrativeCanvas narrative={activeNarrative} />;
+    }
+    if (strategy) {
+      return <SplitStrategyCanvas strategy={strategy} />;
+    }
+    return (
+      <main className="flex flex-1 items-center justify-center">
+        <p className="text-sm text-muted-foreground">No artifact to display</p>
+      </main>
+    );
+  };
 
   return (
     <>
@@ -135,13 +245,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
         {state === "docked" && dockSide === "left" && <AIDockedPanel />}
         {state === "split" ? (
-          strategy ? (
-            <SplitCanvas strategy={strategy} />
-          ) : (
-            <main className="flex flex-1 items-center justify-center">
-              <p className="text-sm text-muted-foreground">No strategy to display</p>
-            </main>
-          )
+          renderSplitCanvas()
         ) : (
           <MainCanvas>{children}</MainCanvas>
         )}

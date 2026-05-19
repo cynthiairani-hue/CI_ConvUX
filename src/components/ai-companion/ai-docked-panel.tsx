@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useMemo } from "react";
-import { X, Maximize2, ArrowLeftRight } from "lucide-react";
+import { X, Maximize2, ArrowLeftRight, Plus, PanelRight } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
+import { useCampaign } from "@/contexts/campaign-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
@@ -10,12 +11,15 @@ import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
 import { ChatModeSelector } from "./chat-mode-selector";
 import { PlatformConnectionCard } from "./platform-connection-card";
+import { ArtifactPreviewCard } from "./artifact-preview-card";
 
 export function AIDockedPanel() {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
-    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close, toggleDockSide,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close, toggleDockSide, startNewChat, setState,
   } = useAICompanion();
+  const { activeStrategy, activeNarrative, savedStrategies } = useCampaign();
+  const hasPreview = !!(activeStrategy || activeNarrative || savedStrategies.length > 0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const activeToolCall = useMemo(() => {
@@ -103,7 +107,23 @@ export function AIDockedPanel() {
       <header className="flex h-14 items-center justify-between px-4">
         <span className="text-sm font-semibold">AI Companion</span>
         <div className="flex items-center gap-0.5">
+          <button
+            onClick={startNewChat}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="New chat"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
           <ChatModeSelector />
+          {hasPreview && (
+            <button
+              onClick={() => setState("split")}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Show canvas preview"
+            >
+              <PanelRight className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             onClick={toggleDockSide}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -145,6 +165,7 @@ export function AIDockedPanel() {
 
       <div className="px-4 py-3 space-y-3">
         {activeToolCall?.toolCall && renderToolCall()}
+        <ArtifactPreviewCard />
         <div className="rounded-lg border px-3 py-2">
           <AIInput onSend={sendMessage} />
         </div>

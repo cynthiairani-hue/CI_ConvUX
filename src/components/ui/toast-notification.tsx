@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { X } from "lucide-react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,15 @@ export function Toast() {
       <span className="text-sm font-medium text-foreground">
         {toast.message}
       </span>
+      {toast.action && (
+        <Link
+          href={toast.action.href}
+          onClick={dismissToast}
+          className="shrink-0 text-sm font-medium text-[#2C9FDD] transition-colors hover:text-[#1A7BB5]"
+        >
+          {toast.action.label}
+        </Link>
+      )}
       <button
         onClick={dismissToast}
         className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-foreground"

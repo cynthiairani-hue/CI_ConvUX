@@ -24,12 +24,26 @@ import {
   type StrategyIntent,
   type StrategyFlowTool,
 } from "@/data/campaign-flow";
-import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestrictedCategory, ChatMode } from "@/types/campaign";
+import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestrictedCategory, ChatMode, DetailLevel } from "@/types/campaign";
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
 import { useCampaign } from "./campaign-context";
+import { useLayout } from "./layout-context";
 import { buildNarrativeFromSeed } from "@/data/narrative-flow";
 import { SEED_PERFORMANCE, SEED_ANOMALIES } from "@/data/seed-company";
-import { getCurrentBrand, type BrandProfile } from "@/data/brand-profiles";
+import { FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES } from "@/data/seed-ffern";
+import { getCurrentBrand, mapBrandIndustryToIAB, type BrandProfile } from "@/data/brand-profiles";
+import {
+  loadChatSessions,
+  loadChatSessionMetas,
+  saveChatSession,
+  deleteChatSession as deleteSessionFromStorage,
+  archiveChatSession as archiveSessionInStorage,
+  renameChatSession as renameSessionInStorage,
+  autoNameSession,
+  inferSessionGroup,
+  type StoredChatSession,
+  type ChatSessionMeta,
+} from "@/lib/storage";
 
 export type AICompanionState = "resting" | "fullscreen" | "docked" | "split";
 export type DockSide = "right" | "left";
@@ -83,6 +97,14 @@ export interface PerformanceSnapshot {
   }[];
 }
 
+export interface AttachedImage {
+  name: string;
+  type: string;
+  size: number;
+  /** Base64 data URL */
+  dataUrl: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -90,13 +112,18 @@ export interface ChatMessage {
   artifact?: CampaignPlan | StrategyPlan;
   performanceSnapshot?: PerformanceSnapshot;
   toolCall?: ToolCall;
+  /** Images attached by the user */
+  images?: AttachedImage[];
 }
 
 interface AICompanionContextValue {
   state: AICompanionState;
+  setState: (state: AICompanionState) => void;
   dockSide: DockSide;
   chatMode: ChatMode;
   setChatMode: (mode: ChatMode) => void;
+  detailLevel: DetailLevel;
+  setDetailLevel: (level: DetailLevel) => void;
   messages: ChatMessage[];
   isLoading: boolean;
   openFullscreen: (initialMessage?: string) => void;
@@ -105,7 +132,7 @@ interface AICompanionContextValue {
   close: () => void;
   expand: () => void;
   toggleDockSide: () => void;
-  sendMessage: (content: string) => void;
+  sendMessage: (content: string, files?: { name: string; type: string; size: number; preview?: string }[]) => void;
   submitChoice: (messageId: string, field: string, selected: string[]) => void;
   skipChoice: (messageId: string, field: string) => void;
   submitAdvertiserSetup: (messageId: string, data: {
@@ -116,6 +143,14 @@ interface AICompanionContextValue {
   }) => void;
   submitKeywords: (messageId: string, selectedKeywordIds: string[], allKeywords: KeywordChip[]) => void;
   submitPlatformConnection: (messageId: string, connectedIds: string[], intentTag: string) => void;
+  /** Chat session management */
+  currentSessionId: string | null;
+  chatSessions: ChatSessionMeta[];
+  startNewChat: () => void;
+  loadChatSession: (sessionId: string) => void;
+  renameChatSession: (sessionId: string, name: string) => void;
+  archiveChatSession: (sessionId: string) => void;
+  deleteChatSession: (sessionId: string) => void;
 }
 
 const AICompanionContext = createContext<AICompanionContextValue | null>(null);
@@ -128,8 +163,9 @@ function nextId() {
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
   const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative } = useCampaign();
+  const { collapseLeftRail } = useLayout();
   const [state, setState] = useState<AICompanionState>("resting");
-  const [dockSide, setDockSide] = useState<DockSide>("right");
+  const [dockSide, setDockSide] = useState<DockSide>("left");
   const [chatMode, setChatModeState] = useState<ChatMode>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("fuseiq-chat-mode") as ChatMode) || "assisted";
@@ -143,13 +179,34 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("fuseiq-chat-mode", mode);
     }
   }, []);
+  const [detailLevel, setDetailLevelState] = useState<DetailLevel>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("fuseiq-detail-level") as DetailLevel) || "normal";
+    }
+    return "normal";
+  });
+  const setDetailLevel = useCallback((level: DetailLevel) => {
+    setDetailLevelState(level);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fuseiq-detail-level", level);
+    }
+  }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [campaignIntent, setCampaignIntent] = useState<CampaignIntent | null>(null);
   const [strategyIntent, setStrategyIntent] = useState<StrategyIntent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const messagesRef = useRef<ChatMessage[]>([]);
 
-  useEffect(() => {
+  // --- Chat session state ---
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [chatSessions, setChatSessions] = useState<ChatSessionMeta[]>(() => {
+    if (typeof window === "undefined") return [];
+    return loadChatSessionMetas();
+  });
+
+  const initNewSession = useCallback(() => {
+    const sessionId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    setCurrentSessionId(sessionId);
     setMessages([
       {
         id: nextId(),
@@ -157,10 +214,15 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         content: getWelcomeMessage(activePersona.id),
       },
     ]);
-    setState("resting");
     setCampaignIntent(null);
     setStrategyIntent(null);
+    return sessionId;
   }, [activePersona.id]);
+
+  useEffect(() => {
+    initNewSession();
+    setState("resting");
+  }, [activePersona.id, initNewSession]);
 
   // --- Strategy flow logic ---
   const evaluateStrategyFlow = useCallback(
@@ -191,13 +253,19 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         }
 
         const strategy = buildStrategyFromIntent(intent, adv);
-        // Attach selected keywords to the strategy
-        strategy.keywords = (intent.selectedKeywords || []).map((id) => ({
-          id,
-          label: id,
-          category: "interest" as const,
-          selected: true,
-        }));
+        // Attach selected keywords to the strategy — resolve IDs to real labels
+        const kwLookup = new Map(
+          (intent.allKeywords || []).map((k) => [k.id, k])
+        );
+        strategy.keywords = (intent.selectedKeywords || []).map((id) => {
+          const chip = kwLookup.get(id);
+          return {
+            id,
+            label: chip?.label || id,
+            category: chip?.category || ("interest" as const),
+            selected: true,
+          };
+        });
 
         setActiveStrategy(strategy);
         saveStrategy(strategy);
@@ -215,9 +283,10 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
         // Auto-split: chat moves to left panel, canvas shows the strategy
         setState("split");
+        collapseLeftRail();
       }
     },
-    [advertiser, setAdvertiser, setActiveStrategy, saveStrategy]
+    [advertiser, setAdvertiser, setActiveStrategy, saveStrategy, collapseLeftRail]
   );
 
   // --- Legacy campaign flow logic ---
@@ -272,6 +341,45 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     messagesRef.current = messages;
   }, [messages]);
 
+  // --- Auto-persist current session to localStorage ---
+  useEffect(() => {
+    if (!currentSessionId || messages.length <= 1) return;
+    // Find the first user message for auto-naming
+    const firstUserMsg = messages.find((m) => m.role === "user");
+    if (!firstUserMsg) return;
+
+    const now = new Date().toISOString();
+    const existing = loadChatSessions().find((s) => s.id === currentSessionId);
+
+    const session: StoredChatSession = {
+      id: currentSessionId,
+      name: existing?.name || autoNameSession(firstUserMsg.content),
+      status: existing?.status || "active",
+      group: existing?.group || inferSessionGroup(firstUserMsg.content),
+      createdAt: existing?.createdAt || now,
+      lastMessageAt: now,
+      messageCount: messages.filter((m) => m.role === "user").length,
+      messages: messages
+        .filter((m) => m.content && !m.toolCall)
+        .map((m) => ({ role: m.role, content: m.content })),
+    };
+
+    saveChatSession(session);
+    // Update local meta list
+    setChatSessions(loadChatSessionMetas());
+  }, [messages, currentSessionId]);
+
+  // Ref mirrors for values accessed inside setTimeout closures
+  const strategyIntentRef = useRef<StrategyIntent | null>(null);
+  useEffect(() => {
+    strategyIntentRef.current = strategyIntent;
+  }, [strategyIntent]);
+
+  const campaignIntentRef = useRef<CampaignIntent | null>(null);
+  useEffect(() => {
+    campaignIntentRef.current = campaignIntent;
+  }, [campaignIntent]);
+
   // Brand context for API calls — cached once on mount
   const brandRef = useRef<BrandProfile | null>(null);
   useEffect(() => {
@@ -282,8 +390,45 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     async (allMessages: ChatMessage[]) => {
       const apiMessages = allMessages
         .filter((m) => m.role === "user" || m.role === "assistant")
-        .filter((m) => m.content)
-        .map((m) => ({ role: m.role, content: m.content }));
+        .filter((m) => m.content || m.performanceSnapshot || m.images?.length)
+        .map((m) => {
+          // Build text content — include performance snapshot as text so the API can reference it
+          let text = m.content || "";
+          if (m.performanceSnapshot) {
+            const snap = m.performanceSnapshot;
+            const metricsText = snap.metrics
+              .map((metric) => `- ${metric.label}: ${metric.value}${metric.change ? ` (${metric.change.direction === "up" ? "↑" : "↓"}${metric.change.text})` : ""}${metric.context ? ` — ${metric.context}` : ""}`)
+              .join("\n");
+            text = text
+              ? `${text}\n\n[${snap.title} — ${snap.period}]\n${metricsText}`
+              : `[${snap.title} — ${snap.period}]\n${metricsText}`;
+          }
+
+          // If user attached images, send as multimodal content blocks
+          if (m.images?.length && m.role === "user") {
+            const contentBlocks: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }> = [];
+            for (const img of m.images) {
+              // Extract base64 data from data URL
+              const base64Match = img.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+              if (base64Match) {
+                contentBlocks.push({
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: base64Match[1],
+                    data: base64Match[2],
+                  },
+                });
+              }
+            }
+            if (text) {
+              contentBlocks.push({ type: "text", text });
+            }
+            return { role: m.role, content: contentBlocks };
+          }
+
+          return { role: m.role, content: text };
+        });
 
       const brand = brandRef.current;
       const brandContext = brand
@@ -319,14 +464,33 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   );
 
   const sendMessage = useCallback(
-    (content: string) => {
-      const userMsg: ChatMessage = { id: nextId(), role: "user", content };
+    (content: string, files?: { name: string; type: string; size: number; preview?: string }[]) => {
+      // Convert AttachedFile previews (data URLs) to AttachedImage for persistence & API
+      const images: AttachedImage[] | undefined = files
+        ?.filter((f) => f.preview && f.type.startsWith("image/"))
+        .map((f) => ({
+          name: f.name,
+          type: f.type,
+          size: f.size,
+          dataUrl: f.preview!,
+        }));
+
+      const userMsg: ChatMessage = {
+        id: nextId(),
+        role: "user",
+        content,
+        ...(images && images.length > 0 ? { images } : {}),
+      };
+
+      // Use refs for flow state — avoids stale closure when called via setTimeout
+      const currentStrategyIntent = strategyIntentRef.current;
+      const currentCampaignIntent = campaignIntentRef.current;
 
       // If in strategy flow, handle inline
-      if (strategyIntent) {
+      if (currentStrategyIntent) {
         const parsed = parseIntent(content);
         const merged: StrategyIntent = {
-          ...strategyIntent,
+          ...currentStrategyIntent,
           ...(parsed.objective ? { objective: parsed.objective } : {}),
         };
         evaluateStrategyFlow(merged, userMsg);
@@ -334,9 +498,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       }
 
       // If in legacy campaign flow
-      if (campaignIntent) {
+      if (currentCampaignIntent) {
         const parsed = parseIntent(content);
-        const merged = mergeIntent(campaignIntent, parsed);
+        const merged = mergeIntent(currentCampaignIntent, parsed);
         evaluateAndRespond(merged, userMsg);
         return;
       }
@@ -355,7 +519,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         lower.includes("launch a") ||
         lower.includes("build a");
 
-      if (isCampaignIntent && !strategyIntent) {
+      if (isCampaignIntent && !currentStrategyIntent) {
         const parsed = parseIntent(content);
         const brand = brandRef.current;
 
@@ -366,7 +530,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             id: `adv-${Date.now()}`,
             companyName: brand.name,
             websiteUrl: brand.domain,
-            industry: brand.industry.toLowerCase().replace(/\s+/g, "-") as IABIndustry,
+            industry: mapBrandIndustryToIAB(brand.industry),
             restrictedCategories: [] as IABRestrictedCategory[],
           };
           setAdvertiser(inferred);
@@ -382,7 +546,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           intent.advertiserSetup = {
             companyName: brand.name,
             websiteUrl: brand.domain,
-            industry: brand.industry.toLowerCase().replace(/\s+/g, "-") as IABIndustry,
+            industry: mapBrandIndustryToIAB(brand.industry),
             restrictedCategories: [],
           };
         }
@@ -404,37 +568,80 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Check for performance / connect-accounts / budget intent
-      // Show the structured platform selection card (good UX for multi-select)
-      // but use brand-aware intro text
+      // --- PERFORMANCE INTENT ---
+      // Skip the connection gate — show Ffern data immediately on canvas
       const isPerformanceIntent =
         lower.includes("performing") ||
         lower.includes("performance") ||
+        lower.includes("how is") ||
+        lower.includes("what changed");
+
+      if (isPerformanceIntent) {
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+
+        const brand = brandRef.current;
+        const period = { month: 5, year: 2026 };
+
+        setTimeout(() => {
+          try {
+            // Use Ffern seed data when brand is known, fall back to Norwest
+            const perfData = brand ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+            const anomalyData = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
+            const narrative = buildNarrativeFromSeed(perfData, anomalyData, period);
+            // Override the name/advertiser to match brand
+            if (brand) {
+              narrative.name = `${brand.name} — May 2026 Performance`;
+              narrative.advertiserId = brand.name;
+            }
+            saveNarrative(narrative);
+            setActiveNarrative(narrative);
+
+            const ackMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: brand
+                ? `Here's ${brand.name}'s performance for the last 30 days. Spend, attribution, changes, and recommended moves — each section shows its confidence level. Review on the canvas, edit anything, or ask me to dig deeper.`
+                : `Here's your performance overview for May 2026. Review each section on the canvas.`,
+            };
+            setMessages((prev) => [...prev, ackMsg]);
+
+            // Trigger split view
+            setState("split");
+            collapseLeftRail();
+          } catch {
+            const errMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: "Couldn't generate the performance view — no data for that period.",
+            };
+            setMessages((prev) => [...prev, errMsg]);
+          }
+          setIsLoading(false);
+        }, 800);
+        return;
+      }
+
+      // --- CONNECT ACCOUNTS INTENT ---
+      // This is a real user action — show the platform selector
+      const isConnectIntent =
         lower.includes("connect my ad") ||
         lower.includes("connect your ad") ||
         lower.includes("connect accounts") ||
         lower.includes("data source") ||
-        lower.includes("plan my monthly") ||
-        lower.includes("plan your monthly") ||
-        lower.includes("plan spend") ||
-        lower.includes("set my budget") ||
-        lower.includes("set your budget");
+        lower.includes("link google") ||
+        lower.includes("link meta");
 
-      if (isPerformanceIntent) {
+      if (isConnectIntent) {
         setMessages((prev) => [...prev, userMsg]);
 
         const brand = brandRef.current;
-        const isConnect = lower.includes("connect");
-        const isBudget = lower.includes("budget") || lower.includes("spend") || lower.includes("plan my") || lower.includes("plan your");
-        const intentTag = isConnect ? "connect" : isBudget ? "budget" : "performance";
-
-        // Brief intro, then straight to connection card — no selection step
         const ackMsg: ChatMessage = {
           id: nextId(),
           role: "assistant",
           content: brand
             ? `Let's connect ${brand.name}'s ad accounts. Authorize the platforms you use — you can always add more later.`
-            : "Let's get your accounts connected. Authorize the ones you use.",
+            : "Let's get your accounts connected. Pick the ones you use.",
         };
 
         const connectMsg: ChatMessage = {
@@ -443,9 +650,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           content: "",
           toolCall: {
             type: "platform-connect",
-            field: `connect:${intentTag}`,
-            platformIds: [], // empty = show all platforms
-            intentTag,
+            field: `connect:connect`,
+            platformIds: [],
+            intentTag: "connect",
           },
         };
 
@@ -453,7 +660,70 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Check for narrative intent
+      // --- BUDGET / SPEND PLANNING INTENT ---
+      // Build a budget-focused strategy card on the canvas
+      const isBudgetIntent =
+        lower.includes("plan my monthly") ||
+        lower.includes("plan your monthly") ||
+        lower.includes("plan spend") ||
+        lower.includes("set my budget") ||
+        lower.includes("set your budget") ||
+        lower.includes("budget") ||
+        (lower.includes("spend") && !lower.includes("performing"));
+
+      if (isBudgetIntent) {
+        setMessages((prev) => [...prev, userMsg]);
+
+        const brand = brandRef.current;
+        // Auto-infer advertiser
+        let hasAdv = !!advertiser;
+        if (!hasAdv && brand) {
+          const inferred = {
+            id: `adv-${Date.now()}`,
+            companyName: brand.name,
+            websiteUrl: brand.domain,
+            industry: mapBrandIndustryToIAB(brand.industry),
+            restrictedCategories: [] as IABRestrictedCategory[],
+          };
+          setAdvertiser(inferred);
+          hasAdv = true;
+        }
+
+        // Show budget selection card
+        const ackMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: brand
+            ? `Let's set ${brand.name}'s monthly budget. This determines how we pace and allocate across channels.`
+            : "Let's plan your monthly spend.",
+        };
+
+        const budgetMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: "",
+          toolCall: {
+            type: "choices",
+            field: "budget-direct",
+            question: "What's your monthly budget?",
+            subtitle: brand ? `We'll allocate across the best channels for ${brand.name}.` : "This helps optimize channel allocation and pacing.",
+            step: 1,
+            totalSteps: 1,
+            multiSelect: false,
+            options: [
+              { id: "3000", label: "$3,000/month", detail: "Starter — focused on 1-2 top channels" },
+              { id: "5000", label: "$5,000/month", detail: "Growth — multi-channel with testing budget", recommended: true },
+              { id: "10000", label: "$10,000/month", detail: "Scale — full channel mix with optimization" },
+              { id: "custom", label: "Custom amount" },
+            ],
+          },
+        };
+
+        setMessages((prev) => [...prev, ackMsg, budgetMsg]);
+        return;
+      }
+
+      // --- NARRATIVE INTENT (CFO reports, executive summaries) ---
       const isNarrativeIntent =
         lower.includes("cfo narrative") ||
         lower.includes("cfo report") ||
@@ -461,38 +731,43 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         lower.includes("executive summary") ||
         lower.includes("budget meeting") ||
         (lower.includes("narrative") && lower.includes("may")) ||
-        (lower.includes("draft") && lower.includes("narrative")) ||
-        (lower.includes("what changed") && (lower.includes("paid social") || lower.includes("this month")));
+        (lower.includes("draft") && lower.includes("narrative"));
 
       if (isNarrativeIntent) {
         setMessages((prev) => [...prev, userMsg]);
         setIsLoading(true);
 
-        // Determine which month — default to May 2026 (latest in seed)
+        const brand = brandRef.current;
         const period = { month: 5, year: 2026 };
 
         setTimeout(() => {
           try {
-            const narrative = buildNarrativeFromSeed(SEED_PERFORMANCE, SEED_ANOMALIES, period);
+            const perfData = brand ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+            const anomalyData = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
+            const narrative = buildNarrativeFromSeed(perfData, anomalyData, period);
+            if (brand) {
+              narrative.name = `${brand.name} — May 2026 Executive Summary`;
+              narrative.advertiserId = brand.name;
+            }
             saveNarrative(narrative);
             setActiveNarrative(narrative);
 
             const ackMsg: ChatMessage = {
               id: nextId(),
               role: "assistant",
-              content: `Drafted your May 2026 marketing performance narrative for Norwest Analytics. Five sections covering spend, attribution, changes, recommendations, and confidence — each with provenance. You can review it on the Reports page.`,
+              content: brand
+                ? `Drafted ${brand.name}'s May performance narrative. Five sections with provenance — review on the canvas.`
+                : `Drafted your May 2026 marketing performance narrative. Review on the canvas.`,
             };
-            const navMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: `Head to Reports in the left nav to see the full narrative, or I can walk you through any section here.`,
-            };
-            setMessages((prev) => [...prev, ackMsg, navMsg]);
+            setMessages((prev) => [...prev, ackMsg]);
+
+            setState("split");
+            collapseLeftRail();
           } catch {
             const errMsg: ChatMessage = {
               id: nextId(),
               role: "assistant",
-              content: "I couldn't generate the narrative — no data found for that period.",
+              content: "Couldn't generate the narrative — no data for that period.",
             };
             setMessages((prev) => [...prev, errMsg]);
           }
@@ -545,7 +820,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         }
       );
     },
-    [strategyIntent, campaignIntent, evaluateStrategyFlow, evaluateAndRespond, callAPI, setActivePlan, saveNarrative, setActiveNarrative]
+    [strategyIntent, campaignIntent, evaluateStrategyFlow, evaluateAndRespond, callAPI, setActivePlan, saveNarrative, setActiveNarrative, collapseLeftRail, advertiser, setAdvertiser]
   );
 
   const submitChoice = useCallback(
@@ -749,6 +1024,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       const updated: StrategyIntent = {
         ...strategyIntent,
         selectedKeywords: selectedKeywordIds,
+        allKeywords,
       };
 
       evaluateStrategyFlow(updated, userMsg);
@@ -769,7 +1045,6 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       const brand = brandRef.current;
       const brandName = brand?.name || "your accounts";
       const platformCount = connectedIds.length;
-      const plural = platformCount > 1 ? "s" : "";
 
       // Look up platform labels
       const platformLabels = connectedIds.map((id) => {
@@ -837,75 +1112,45 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         };
         setMessages((prev) => [...prev, toolMsg]);
       } else {
-        // Performance → show structured snapshot card
+        // Performance → build narrative and open on canvas (same as direct performance intent)
         setIsLoading(true);
         setTimeout(() => {
           setIsLoading(false);
+          try {
+            const perfData = brand ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+            const anomalyData = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
+            const period = { month: 5, year: 2026 };
+            const narrative = buildNarrativeFromSeed(perfData, anomalyData, period);
+            if (brand) {
+              narrative.name = `${brand.name} — May 2026 Performance`;
+              narrative.advertiserId = brand.name;
+            }
+            saveNarrative(narrative);
+            setActiveNarrative(narrative);
 
-          const snapshotMsg: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            content: "",
-            performanceSnapshot: {
-              title: brand ? `${brand.name} Performance` : "Performance Overview",
-              period: "Last 30 days",
-              metrics: [
-                {
-                  label: "Shopping — Google Ads",
-                  value: "ROAS 3.8×",
-                  change: { direction: "up", text: "21%" },
-                  context: "Strongest performer — driving most of the return",
-                },
-                {
-                  label: "Retargeting — Site Visitors",
-                  value: "ROAS 4.8×",
-                  change: { direction: "up", text: "12%" },
-                  context: "Nearly 2× your prospecting campaigns",
-                },
-                {
-                  label: "Branded Search",
-                  value: "CPC $0.42",
-                  change: { direction: "down", text: "18%" },
-                  context: "Good time to increase impression share",
-                },
-                {
-                  label: "Overall Spend",
-                  value: "$4,280",
-                  change: { direction: "down", text: "12% under" },
-                  context: `Pacing under budget across ${platformCount} platform${plural}`,
-                },
-              ],
-            },
-          };
+            const ackMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: brand
+                ? `${label} connected — here's ${brand.name}'s performance for the last 30 days. Spend, attribution, changes, and recommended moves on the canvas.`
+                : `Connected. Here's your performance overview for May 2026. Review each section on the canvas.`,
+            };
+            setMessages((prev) => [...prev, ackMsg]);
 
-          // Follow-up as a selection card, not plain text
-          const followUpMsg: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            content: "",
-            toolCall: {
-              type: "choices",
-              field: "post-performance",
-              question: "What would you like to do next?",
-              step: 1,
-              totalSteps: 1,
-              multiSelect: false,
-              options: [
-                { id: "campaign-plan", label: "Draft a campaign plan", detail: "Capitalize on the retargeting momentum" },
-                { id: "dig-deeper", label: "Dig deeper into metrics", detail: "Break down performance by channel" },
-                { id: "budget-realloc", label: "Reallocate budget", detail: "Shift spend toward top performers" },
-              ],
-            },
-          };
-
-          setMessages((prev) => [...prev, snapshotMsg]);
-          setTimeout(() => {
-            setMessages((prev) => [...prev, followUpMsg]);
-          }, 600);
-        }, 1000);
+            setState("split");
+            collapseLeftRail();
+          } catch {
+            const errMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: "Connected, but couldn't generate the performance view — no data for that period.",
+            };
+            setMessages((prev) => [...prev, errMsg]);
+          }
+        }, 800);
       }
     },
-    [messages]
+    [saveNarrative, setActiveNarrative, collapseLeftRail]
   );
 
   // Start the NEW strategy-based campaign flow
@@ -923,7 +1168,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         id: `adv-${Date.now()}`,
         companyName: brand.name,
         websiteUrl: brand.domain,
-        industry: brand.industry.toLowerCase().replace(/\s+/g, "-") as IABIndustry,
+        industry: mapBrandIndustryToIAB(brand.industry),
         restrictedCategories: [] as IABRestrictedCategory[],
       };
       setAdvertiser(inferred);
@@ -936,7 +1181,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       intent.advertiserSetup = {
         companyName: brand.name,
         websiteUrl: brand.domain,
-        industry: brand.industry.toLowerCase().replace(/\s+/g, "-") as IABIndustry,
+        industry: mapBrandIndustryToIAB(brand.industry),
         restrictedCategories: [],
       };
     }
@@ -968,17 +1213,19 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     (initialMessage?: string) => {
       setState("fullscreen");
       if (initialMessage) {
-        // Replace the generic welcome with a clean slate — the user
-        // arrived with a specific intent, so the welcome is noise.
-        setMessages([]);
+        // Start a fresh session for this intent
+        initNewSession();
         // Small delay so the cleared state renders before sending
         setTimeout(() => sendMessage(initialMessage), 0);
       }
     },
-    [sendMessage]
+    [sendMessage, initNewSession]
   );
 
-  const minimize = useCallback(() => setState("docked"), []);
+  const minimize = useCallback(() => {
+    setState("docked");
+    collapseLeftRail();
+  }, [collapseLeftRail]);
   const close = useCallback(() => setState("resting"), []);
   const expand = useCallback(() => setState("fullscreen"), []);
   const toggleDockSide = useCallback(
@@ -986,13 +1233,72 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  // --- Chat session management ---
+  const startNewChat = useCallback(() => {
+    initNewSession();
+    setState("fullscreen");
+  }, [initNewSession]);
+
+  const loadChatSessionById = useCallback(
+    (sessionId: string) => {
+      const sessions = loadChatSessions();
+      const session = sessions.find((s) => s.id === sessionId);
+      if (!session) return;
+
+      setCurrentSessionId(sessionId);
+      // Restore messages as simple chat messages
+      setMessages(
+        session.messages.map((m) => ({
+          id: nextId(),
+          role: m.role,
+          content: m.content,
+        }))
+      );
+      setCampaignIntent(null);
+      setStrategyIntent(null);
+      setState("fullscreen");
+    },
+    []
+  );
+
+  const handleRenameChatSession = useCallback(
+    (sessionId: string, name: string) => {
+      renameSessionInStorage(sessionId, name);
+      setChatSessions(loadChatSessionMetas());
+    },
+    []
+  );
+
+  const handleArchiveChatSession = useCallback(
+    (sessionId: string) => {
+      archiveSessionInStorage(sessionId);
+      setChatSessions(loadChatSessionMetas());
+    },
+    []
+  );
+
+  const handleDeleteChatSession = useCallback(
+    (sessionId: string) => {
+      deleteSessionFromStorage(sessionId);
+      setChatSessions(loadChatSessionMetas());
+      // If we deleted the active session, start fresh
+      if (sessionId === currentSessionId) {
+        initNewSession();
+      }
+    },
+    [currentSessionId, initNewSession]
+  );
+
   return (
     <AICompanionContext.Provider
       value={{
         state,
+        setState,
         dockSide,
         chatMode,
         setChatMode,
+        detailLevel,
+        setDetailLevel,
         messages,
         isLoading,
         openFullscreen,
@@ -1007,6 +1313,13 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         submitAdvertiserSetup,
         submitKeywords,
         submitPlatformConnection,
+        currentSessionId,
+        chatSessions,
+        startNewChat,
+        loadChatSession: loadChatSessionById,
+        renameChatSession: handleRenameChatSession,
+        archiveChatSession: handleArchiveChatSession,
+        deleteChatSession: handleDeleteChatSession,
       }}
     >
       {children}

@@ -23,10 +23,13 @@ import type {
   StrategySection,
   ReadinessState,
 } from "@/types/campaign";
-import { SEED_PERFORMANCE } from "@/data/seed-company";
+import { SEED_PERFORMANCE, type SeedMonthlyPerformance } from "@/data/seed-company";
 
 interface CFONarrativeCardProps {
   narrative: CFONarrative;
+  seedData?: SeedMonthlyPerformance[];
+  /** When true, hides Export PDF + status badge from card header (page header renders them instead) */
+  hideHeaderActions?: boolean;
   onSendToCFO?: () => void;
 }
 
@@ -71,14 +74,14 @@ const CFO_SECTION_KEYS: CFONarrativeSectionKey[] = [
   "confidenceSummary",
 ];
 
-function SpendTable({ narrative }: { narrative: CFONarrative }) {
+function SpendTable({ narrative, perfData }: { narrative: CFONarrative; perfData: SeedMonthlyPerformance[] }) {
   const monthStr = `${narrative.period.year}-${String(narrative.period.month).padStart(2, "0")}`;
   const prevMonthNum = narrative.period.month === 1 ? 12 : narrative.period.month - 1;
   const prevYear = narrative.period.month === 1 ? narrative.period.year - 1 : narrative.period.year;
   const prevMonthStr = `${prevYear}-${String(prevMonthNum).padStart(2, "0")}`;
 
-  const current = SEED_PERFORMANCE.find((p) => p.month === monthStr);
-  const prev = SEED_PERFORMANCE.find((p) => p.month === prevMonthStr);
+  const current = perfData.find((p) => p.month === monthStr);
+  const prev = perfData.find((p) => p.month === prevMonthStr);
 
   if (!current) return null;
 
@@ -153,9 +156,9 @@ function SpendTable({ narrative }: { narrative: CFONarrative }) {
   );
 }
 
-function AttributionTable({ narrative }: { narrative: CFONarrative }) {
+function AttributionTable({ narrative, perfData }: { narrative: CFONarrative; perfData: SeedMonthlyPerformance[] }) {
   const monthStr = `${narrative.period.year}-${String(narrative.period.month).padStart(2, "0")}`;
-  const current = SEED_PERFORMANCE.find((p) => p.month === monthStr);
+  const current = perfData.find((p) => p.month === monthStr);
 
   if (!current) return null;
 
@@ -320,7 +323,8 @@ function exportToPDF(narrative: CFONarrative) {
   }
 }
 
-export function CFONarrativeCard({ narrative, onSendToCFO }: CFONarrativeCardProps) {
+export function CFONarrativeCard({ narrative, seedData, hideHeaderActions, onSendToCFO }: CFONarrativeCardProps) {
+  const perfData = seedData || SEED_PERFORMANCE;
   const [expandedSections, setExpandedSections] = useState<Set<CFONarrativeSectionKey>>(
     () => new Set<CFONarrativeSectionKey>(["spendByChannel", "attributionByChannel"])
   );
@@ -362,17 +366,21 @@ export function CFONarrativeCard({ narrative, onSendToCFO }: CFONarrativeCardPro
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => exportToPDF(narrative)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
-          >
-            <FileDown className="h-3.5 w-3.5" />
-            Export PDF
-          </button>
-          <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium", statusColor)}>
-            {statusLabel}
-          </span>
+          {!hideHeaderActions && (
+            <>
+              <button
+                type="button"
+                onClick={() => exportToPDF(narrative)}
+                className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                Export PDF
+              </button>
+              <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium", statusColor)}>
+                {statusLabel}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -434,8 +442,8 @@ export function CFONarrativeCard({ narrative, onSendToCFO }: CFONarrativeCardPro
             {/* Expanded content */}
             {isExpanded && (
               <div className="border-t border-[#EDF1F5] px-4 pb-3 pt-2 pl-10">
-                {key === "spendByChannel" && <SpendTable narrative={narrative} />}
-                {key === "attributionByChannel" && <AttributionTable narrative={narrative} />}
+                {key === "spendByChannel" && <SpendTable narrative={narrative} perfData={perfData} />}
+                {key === "attributionByChannel" && <AttributionTable narrative={narrative} perfData={perfData} />}
                 {key === "whatChanged" && <BulletList text={section.value} variant="changes" />}
                 {key === "recommendedNextMoves" && <BulletList text={section.value} variant="moves" />}
                 {key === "confidenceSummary" && <ConfidenceBadges text={section.value} />}

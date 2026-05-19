@@ -3,6 +3,71 @@ import type { StrategyPlan, Advertiser, CFONarrative } from "@/types/campaign";
 const STRATEGIES_KEY = "fuseiq-strategies";
 const ADVERTISERS_KEY = "fuseiq-advertisers";
 const NARRATIVES_KEY = "fuseiq-narratives";
+const CHAT_SESSIONS_KEY = "fuseiq-chat-sessions";
+
+/* ── Chat session types ── */
+
+export type ChatSessionStatus = "active" | "archived";
+export type ChatSessionGroup = "campaigns" | "performance" | "accounts" | "budgets" | "general";
+
+export interface ChatSessionMeta {
+  id: string;
+  name: string;
+  status: ChatSessionStatus;
+  group: ChatSessionGroup;
+  createdAt: string;
+  lastMessageAt: string;
+  /** Number of user messages (for sorting/display) */
+  messageCount: number;
+}
+
+/** Full session including serialized messages (stored in separate key to keep meta list small) */
+export interface StoredChatSession extends ChatSessionMeta {
+  /** We only persist text content + role, not heavy artifacts or images */
+  messages: { role: "user" | "assistant"; content: string }[];
+}
+
+/* ── Chat session group inference ── */
+
+const GROUP_KEYWORDS: Record<ChatSessionGroup, string[]> = {
+  campaigns: ["campaign", "retargeting", "prospecting", "awareness", "launch", "build a", "media plan", "creative"],
+  performance: ["performing", "performance", "metrics", "roas", "cpc", "analytics", "report", "narrative", "cfo"],
+  accounts: ["connect", "account", "platform", "google ads", "meta ads", "shopify", "ga4", "tiktok", "linkedin"],
+  budgets: ["budget", "spend", "allocation", "pacing", "forecast"],
+  general: [],
+};
+
+export function inferSessionGroup(firstMessage: string): ChatSessionGroup {
+  const lower = firstMessage.toLowerCase();
+  for (const [group, keywords] of Object.entries(GROUP_KEYWORDS) as [ChatSessionGroup, string[]][]) {
+    if (group === "general") continue;
+    if (keywords.some((kw) => lower.includes(kw))) return group;
+  }
+  return "general";
+}
+
+/** Auto-name a session based on the first user message or CTA */
+export function autoNameSession(firstMessage: string): string {
+  const trimmed = firstMessage.trim();
+  // If it's short enough, use as-is
+  if (trimmed.length <= 40) return trimmed;
+  // Otherwise truncate at word boundary
+  const words = trimmed.split(/\s+/);
+  let name = "";
+  for (const word of words) {
+    if ((name + " " + word).length > 36) break;
+    name = name ? name + " " + word : word;
+  }
+  return name + "…";
+}
+
+export const SESSION_GROUP_LABELS: Record<ChatSessionGroup, string> = {
+  campaigns: "Campaigns",
+  performance: "Performance & Reports",
+  accounts: "Data & Accounts",
+  budgets: "Budget & Spend",
+  general: "General",
+};
 
 function safeGet<T>(key: string, fallback: T): T {
   try {
@@ -44,4 +109,69 @@ export function loadNarratives(): CFONarrative[] {
 
 export function persistNarratives(narratives: CFONarrative[]): void {
   safeSet(NARRATIVES_KEY, narratives);
+}
+
+/* ── Chat session persistence ── */
+
+export function loadChatSessions(): StoredChatSession[] {
+  return safeGet<StoredChatSession[]>(CHAT_SESSIONS_KEY, []);
+}
+
+/** Load only the meta fields (no messages) for display in the UI */
+export function loadChatSessionMetas(): ChatSessionMeta[] {
+  return loadChatSessions().map((s) => ({
+    id: s.id,
+    name: s.name,
+    status: s.status,
+    group: s.group,
+    createdAt: s.createdAt,
+    lastMessageAt: s.lastMessageAt,
+    messageCount: s.messageCount,
+  }));
+}
+
+export function persistChatSessions(sessions: StoredChatSession[]): void {
+  safeSet(CHAT_SESSIONS_KEY, sessions);
+}
+
+export function saveChatSession(session: StoredChatSession): void {
+  const sessions = loadChatSessions();
+  const idx = sessions.findIndex((s) => s.id === session.id);
+  if (idx >= 0) {
+    sessions[idx] = session;
+  } else {
+    sessions.push(session);
+  }
+  persistChatSessions(sessions);
+}
+
+export function deleteChatSession(sessionId: string): void {
+  const sessions = loadChatSessions().filter((s) => s.id !== sessionId);
+  persistChatSessions(sessions);
+}
+
+export function archiveChatSession(sessionId: string): void {
+  const sessions = loadChatSessions();
+  const session = sessions.find((s) => s.id === sessionId);
+  if (session) {
+    session.status = "archived";
+    persistChatSessions(sessions);
+  }
+}
+
+export function renameChatSession(sessionId: string, name: string): void {
+  const sessions = loadChatSessions();
+  const session = sessions.find((s) => s.id === sessionId);
+  if (session) {
+    session.name = name;
+    persistChatSessions(sessions);
+  }
+}
+
+export function renameSessionGroup(sessions: StoredChatSession[], oldGroup: ChatSessionGroup, newLabel: string): void {
+  // In prototype, group labels are display-only — we store the group key, not the label
+  // This is a no-op on the stored data; the UI layer manages custom group labels
+  void sessions;
+  void oldGroup;
+  void newLabel;
 }

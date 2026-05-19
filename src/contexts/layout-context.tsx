@@ -11,6 +11,7 @@ import {
 interface LayoutContextValue {
   leftRailCollapsed: boolean;
   toggleLeftRail: () => void;
+  collapseLeftRail: () => void;
 }
 
 const LayoutContext = createContext<LayoutContextValue | null>(null);
@@ -22,8 +23,12 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     setLeftRailCollapsed((prev) => !prev);
   }, []);
 
+  const collapseLeftRail = useCallback(() => {
+    setLeftRailCollapsed(true);
+  }, []);
+
   return (
-    <LayoutContext.Provider value={{ leftRailCollapsed, toggleLeftRail }}>
+    <LayoutContext.Provider value={{ leftRailCollapsed, toggleLeftRail, collapseLeftRail }}>
       {children}
     </LayoutContext.Provider>
   );

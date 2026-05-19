@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Check,
   AlertTriangle,
@@ -24,9 +24,11 @@ import type {
   PlacementType,
 } from "@/types/campaign";
 import { PLACEMENT_TYPES } from "@/data/iab-categories";
+import { OBJECTIVE_OPTIONS } from "@/data/campaign-flow";
 
 interface StrategyCardProps {
   plan: StrategyPlan;
+  onUpdate?: (updated: StrategyPlan) => void;
 }
 
 function ReadinessBadge({ state }: { state: ReadinessState }) {
@@ -146,7 +148,7 @@ function ForecastTable({ forecast }: { forecast: StrategyPlan["forecast"]["data"
   );
 }
 
-export function StrategyCard({ plan }: StrategyCardProps) {
+export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
   const [collapsedSections, setCollapsedSections] = useState<Set<SectionKey>>(new Set());
   const [showRationale, setShowRationale] = useState<SectionKey | null>(null);
 
@@ -159,10 +161,144 @@ export function StrategyCard({ plan }: StrategyCardProps) {
     });
   }
 
+  /** Immutable update helper — updates a section and calls onUpdate */
+  const updateSection = useCallback(
+    (key: SectionKey, patch: Partial<StrategySection> & { data?: unknown }) => {
+      if (!onUpdate) return;
+      const now = new Date().toISOString();
+      const current = plan[key];
+      const updated: StrategyPlan = {
+        ...plan,
+        [key]: {
+          ...current,
+          ...patch,
+          authorshipState: "edited" as const,
+          lastModifiedAt: now,
+        },
+        lastModifiedAt: now,
+        lastModifiedBy: "user",
+      };
+      onUpdate(updated);
+    },
+    [plan, onUpdate]
+  );
+
+  /** Objective change */
+  const handleObjectiveChange = useCallback(
+    (optionId: string) => {
+      const opt = OBJECTIVE_OPTIONS.find((o) => o.id === optionId);
+      if (!opt) return;
+      updateSection("objective", {
+        value: opt.value,
+        provenance: {
+          source: "user_input",
+          reasoning: `User selected ${opt.label} as the campaign objective.`,
+          confidence: "high",
+        },
+      });
+    },
+    [updateSection]
+  );
+
+  /** Budget change */
+  const handleBudgetChange = useCallback(
+    (field: "dailyBudget" | "monthlyBudget", raw: string) => {
+      const num = parseInt(raw.replace(/,/g, "")) || 0;
+      const currentData = plan.budgetSchedule.data;
+      const newData =
+        field === "dailyBudget"
+          ? { ...currentData, dailyBudget: num, monthlyBudget: num * 30 }
+          : { ...currentData, monthlyBudget: num, dailyBudget: Math.round(num / 30) };
+      const value = `$${newData.dailyBudget}/day · $${(newData.monthlyBudget ?? 0).toLocaleString()}/month · ${newData.alwaysOn ? "Always on" : "Scheduled"}`;
+      updateSection("budgetSchedule", { value, data: newData });
+    },
+    [plan.budgetSchedule.data, updateSection]
+  );
+
+  /** Always-on toggle */
+  const handleAlwaysOnToggle = useCallback(() => {
+    const currentData = plan.budgetSchedule.data;
+    const newData = { ...currentData, alwaysOn: !currentData.alwaysOn };
+    const value = `$${newData.dailyBudget}/day · $${(newData.monthlyBudget ?? 0).toLocaleString()}/month · ${newData.alwaysOn ? "Always on" : "Scheduled"}`;
+    updateSection("budgetSchedule", { value, data: newData });
+  }, [plan.budgetSchedule.data, updateSection]);
+
+  /** Audience age range change */
+  const handleAgeChange = useCallback(
+    (end: "min" | "max", raw: string) => {
+      const num = parseInt(raw) || (end === "min" ? 18 : 65);
+      const currentData = plan.audience.data;
+      const newRange = { ...currentData.ageRange, [end]: num };
+      const newData = { ...currentData, ageRange: newRange };
+      const value = `${newData.locations.join(", ")} · Ages ${newRange.min}-${newRange.max} · ${newData.gender === "all" ? "All genders" : newData.gender}`;
+      updateSection("audience", { value, data: newData });
+    },
+    [plan.audience.data, updateSection]
+  );
+
+  /** Gender change */
+  const handleGenderChange = useCallback(
+    (gender: "all" | "male" | "female") => {
+      const currentData = plan.audience.data;
+      const newData = { ...currentData, gender };
+      const value = `${newData.locations.join(", ")} · Ages ${newData.ageRange.min}-${newData.ageRange.max} · ${gender === "all" ? "All genders" : gender}`;
+      updateSection("audience", { value, data: newData });
+    },
+    [plan.audience.data, updateSection]
+  );
+
+  /** Remove interest */
+  const handleRemoveInterest = useCallback(
+    (interest: string) => {
+      const currentData = plan.audience.data;
+      const newInterests = currentData.marketInterests.filter((mi) => mi !== interest);
+      const newData = { ...currentData, marketInterests: newInterests };
+      updateSection("audience", { data: newData });
+    },
+    [plan.audience.data, updateSection]
+  );
+
+  /** Remove location */
+  const handleRemoveLocation = useCallback(
+    (location: string) => {
+      const currentData = plan.audience.data;
+      const newLocations = currentData.locations.filter((l) => l !== location);
+      const newData = { ...currentData, locations: newLocations };
+      const value = `${newData.locations.join(", ") || "No locations"} · Ages ${newData.ageRange.min}-${newData.ageRange.max} · ${newData.gender === "all" ? "All genders" : newData.gender}`;
+      updateSection("audience", { value, data: newData });
+    },
+    [plan.audience.data, updateSection]
+  );
+
+  /** Placement toggle */
+  const handlePlacementToggle = useCallback(
+    (placement: PlacementType) => {
+      const current = plan.placements.data as PlacementType[];
+      const updated = current.includes(placement)
+        ? current.filter((p) => p !== placement)
+        : [...current, placement];
+      // Don't allow removing all placements
+      if (updated.length === 0) return;
+      const labels: Record<PlacementType, string> = {
+        display: "Display", video: "Video", "ctv-ott": "CTV/OTT",
+        native: "Native", audio: "Audio", dooh: "DOOH",
+        "in-app": "In-App", "rich-media": "Rich Media",
+      };
+      const value = updated.map((p) => labels[p]).join(", ");
+      updateSection("placements", { value, data: updated });
+    },
+    [plan.placements.data, updateSection]
+  );
+
   const sections: { key: SectionKey; section: StrategySection }[] = SECTION_KEYS.map((key) => ({
     key,
     section: plan[key],
   }));
+
+  // Determine current objective id from value
+  const currentObjectiveId = OBJECTIVE_OPTIONS.find(
+    (o) => o.value === plan.objective.value
+  )?.id;
 
   return (
     <div className="space-y-4">
@@ -216,9 +352,28 @@ export function StrategyCard({ plan }: StrategyCardProps) {
             {/* Section content — always visible unless collapsed */}
             {!isCollapsed && (
               <div className="border-t border-[#EDF1F5] px-4 pb-4 pt-3">
-                {/* Objective — read-only display */}
+                {/* Objective — selectable buttons */}
                 {key === "objective" && (
-                  <p className="text-[13px] text-[#394859] leading-relaxed">{section.value}</p>
+                  <div className="space-y-2">
+                    <p className="text-[13px] text-[#394859] leading-relaxed mb-3">{section.value}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {OBJECTIVE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => handleObjectiveChange(opt.id)}
+                          className={cn(
+                            "rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                            currentObjectiveId === opt.id
+                              ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
+                              : "border-[#E0E8F2] text-[#8492A6] hover:border-[#C4CDD8] hover:text-[#394859]"
+                          )}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* Budget — editable form fields */}
@@ -227,11 +382,12 @@ export function StrategyCard({ plan }: StrategyCardProps) {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-medium text-[#8492A6] mb-1">Daily budget</label>
-                        <div className="flex items-center rounded-lg border border-[#E0E8F2] px-3 py-2">
+                        <div className="flex items-center rounded-lg border border-[#E0E8F2] px-3 py-2 focus-within:border-[#2C9FDD]">
                           <span className="text-[13px] text-[#8492A6]">$</span>
                           <input
                             type="text"
                             defaultValue={plan.budgetSchedule.data.dailyBudget?.toString() || ""}
+                            onBlur={(e) => handleBudgetChange("dailyBudget", e.target.value)}
                             className="ml-1 w-full bg-transparent text-[13px] text-[#394859] tabular-nums outline-none placeholder:text-[#C4CDD8]"
                             placeholder="0"
                           />
@@ -239,29 +395,33 @@ export function StrategyCard({ plan }: StrategyCardProps) {
                       </div>
                       <div>
                         <label className="block text-[11px] font-medium text-[#8492A6] mb-1">Monthly budget</label>
-                        <div className="flex items-center rounded-lg border border-[#E0E8F2] px-3 py-2">
+                        <div className="flex items-center rounded-lg border border-[#E0E8F2] px-3 py-2 focus-within:border-[#2C9FDD]">
                           <span className="text-[13px] text-[#8492A6]">$</span>
                           <input
                             type="text"
                             defaultValue={plan.budgetSchedule.data.monthlyBudget?.toLocaleString() || ""}
+                            onBlur={(e) => handleBudgetChange("monthlyBudget", e.target.value)}
                             className="ml-1 w-full bg-transparent text-[13px] text-[#394859] tabular-nums outline-none placeholder:text-[#C4CDD8]"
                             placeholder="0"
                           />
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <button
                         type="button"
+                        onClick={handleAlwaysOnToggle}
                         className={cn(
-                          "relative h-5 w-9 rounded-full transition-colors",
-                          plan.budgetSchedule.data.alwaysOn ? "bg-[#2C9FDD]" : "bg-[#E0E8F2]"
+                          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+                          plan.budgetSchedule.data.alwaysOn ? "bg-[#2C9FDD]" : "bg-[#C4CDD8]"
                         )}
                       >
                         <span className={cn(
-                          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
-                          plan.budgetSchedule.data.alwaysOn ? "translate-x-4" : "translate-x-0.5"
-                        )} />
+                          "inline-block h-4.5 w-4.5 rounded-full bg-white shadow-sm ring-0 transition-transform",
+                          plan.budgetSchedule.data.alwaysOn ? "translate-x-[22px]" : "translate-x-[3px]"
+                        )}
+                        style={{ width: 18, height: 18 }}
+                        />
                       </button>
                       <span className="text-[12px] text-[#394859]">Always on</span>
                     </div>
@@ -277,7 +437,7 @@ export function StrategyCard({ plan }: StrategyCardProps) {
                         {plan.audience.data.locations.map((loc) => (
                           <span key={loc} className="inline-flex items-center gap-1 rounded-full bg-[#F3F4F6] px-2.5 py-1 text-[#394859]">
                             {loc}
-                            <button type="button" className="text-[#C4CDD8] hover:text-[#8492A6]">&times;</button>
+                            <button type="button" onClick={() => handleRemoveLocation(loc)} className="text-[#C4CDD8] hover:text-[#8492A6]">&times;</button>
                           </span>
                         ))}
                         <input
@@ -294,12 +454,14 @@ export function StrategyCard({ plan }: StrategyCardProps) {
                           <input
                             type="number"
                             defaultValue={plan.audience.data.ageRange.min}
+                            onBlur={(e) => handleAgeChange("min", e.target.value)}
                             className="w-16 rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-[13px] text-[#394859] tabular-nums outline-none focus:border-[#2C9FDD]"
                           />
                           <span className="text-[#8492A6]">—</span>
                           <input
                             type="number"
                             defaultValue={plan.audience.data.ageRange.max}
+                            onBlur={(e) => handleAgeChange("max", e.target.value)}
                             className="w-16 rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-[13px] text-[#394859] tabular-nums outline-none focus:border-[#2C9FDD]"
                           />
                         </div>
@@ -311,6 +473,7 @@ export function StrategyCard({ plan }: StrategyCardProps) {
                             <button
                               key={g}
                               type="button"
+                              onClick={() => handleGenderChange(g)}
                               className={cn(
                                 "rounded-lg border px-3 py-1.5 text-[12px] font-medium capitalize transition-colors",
                                 plan.audience.data.gender === g
@@ -318,7 +481,7 @@ export function StrategyCard({ plan }: StrategyCardProps) {
                                   : "border-[#E0E8F2] text-[#8492A6] hover:border-[#C4CDD8]"
                               )}
                             >
-                              {g}
+                              {g === "all" ? "All" : g.charAt(0).toUpperCase() + g.slice(1)}
                             </button>
                           ))}
                         </div>
@@ -331,7 +494,7 @@ export function StrategyCard({ plan }: StrategyCardProps) {
                           {plan.audience.data.marketInterests.map((mi) => (
                             <span key={mi} className="inline-flex items-center gap-1 rounded-full bg-[#EBF5FB] px-2.5 py-1 text-[#1A7BB5]">
                               {mi}
-                              <button type="button" className="text-[#1A7BB5]/40 hover:text-[#1A7BB5]">&times;</button>
+                              <button type="button" onClick={() => handleRemoveInterest(mi)} className="text-[#1A7BB5]/40 hover:text-[#1A7BB5]">&times;</button>
                             </span>
                           ))}
                         </div>
@@ -344,11 +507,11 @@ export function StrategyCard({ plan }: StrategyCardProps) {
                 {key === "placements" && (
                   <PlacementGrid
                     placements={plan.placements.data}
-                    onToggle={() => {}}
+                    onToggle={handlePlacementToggle}
                   />
                 )}
 
-                {/* Bidding — read-only for v1 */}
+                {/* Bidding — selectable for v1 */}
                 {key === "bidding" && (
                   <div className="flex items-center gap-3">
                     <span className="rounded-lg border border-[#2C9FDD] bg-[#EBF5FB] px-3 py-1.5 text-[12px] font-medium text-[#1A7BB5]">

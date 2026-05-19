@@ -9,6 +9,7 @@ import type {
 } from "@/types/campaign";
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
 import { generateKeywordsForIndustry } from "./keyword-mocks";
+import { getCurrentBrand } from "./brand-profiles";
 import { generateForecast } from "./forecast-mocks";
 
 export interface CampaignIntent {
@@ -218,6 +219,16 @@ interface ObjectiveConfig {
   conversionEvent: string;
 }
 
+/** Objective options for inline editing on the strategy card */
+export const OBJECTIVE_OPTIONS: { id: string; label: string; value: string }[] = [
+  { id: "awareness", label: "Awareness", value: "Reach more viewers to grow your brand" },
+  { id: "traffic", label: "Traffic", value: "Drive qualified visitors to your site" },
+  { id: "leads", label: "Leads", value: "Generate qualified leads for your pipeline" },
+  { id: "sales", label: "Sales", value: "Increase your sales and revenue" },
+  { id: "retargeting", label: "Retargeting", value: "Reconnect with your audience using existing data" },
+  { id: "app-promotion", label: "App promotion", value: "Drive app installs and in-app revenue" },
+];
+
 const objectiveMap: Record<string, ObjectiveConfig> = {
   awareness: {
     name: "Brand Awareness Campaign",
@@ -288,6 +299,8 @@ export interface StrategyIntent {
   };
   objective?: string;
   selectedKeywords?: string[];
+  /** Full keyword chips — used to resolve IDs to labels when building strategy */
+  allKeywords?: KeywordChip[];
 }
 
 export interface StrategyChoiceTool {
@@ -361,7 +374,9 @@ export function getNextStrategyTool(
     const advertiserSetup = intent.advertiserSetup;
     const websiteUrl = advertiserSetup?.websiteUrl || "example.com";
     const industry = advertiserSetup?.industry || "other";
-    const keywords = generateKeywordsForIndustry(industry, websiteUrl);
+    // Use brand-specific keywords when available — real to the brand, not generic industry
+    const brand = getCurrentBrand();
+    const keywords = generateKeywordsForIndustry(industry, websiteUrl, brand?.keywords);
     return {
       type: "keywords",
       field: "selectedKeywords",
@@ -402,11 +417,17 @@ export function buildStrategyFromIntent(
   const dailyBudget = Math.round(monthlyBudget / 30);
   const placements = defaultPlacementsByObjective[intent.objective || "sales"] || ["display"];
 
+  // Resolve keyword IDs to labels using the full keyword list
+  const keywordLookup = new Map(
+    (intent.allKeywords || []).map((k) => [k.id, k.label])
+  );
+  const resolvedInterests = (intent.selectedKeywords || [])
+    .slice(0, 5)
+    .map((id) => keywordLookup.get(id) || id);
+
   const audience = {
     locations: ["United States"],
-    marketInterests: (intent.selectedKeywords || [])
-      .slice(0, 5)
-      .map((id) => id.replace("kw-", "keyword ")),
+    marketInterests: resolvedInterests,
     customAudiences: [],
     ageRange: { min: 25, max: 54 },
     gender: "all" as const,
@@ -427,7 +448,7 @@ export function buildStrategyFromIntent(
       value: obj.value,
       provenance: { source: "ai_inferred", reasoning: obj.rationale, confidence: "high" },
       readiness: "ready",
-      editable: false,
+      editable: true,
       authorshipState: "proposed",
       filled: true,
       editHistory: [],

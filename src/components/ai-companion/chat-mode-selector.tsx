@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Check, SquareMenu } from "lucide-react";
+import { Check, SlidersHorizontal } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import type { ChatMode } from "@/types/campaign";
+import type { DetailLevel } from "@/types/campaign";
 
-const MODES: { id: ChatMode; label: string; subtitle: string }[] = [
-  { id: "assisted", label: "Assisted", subtitle: "Step-by-step cards" },
-  { id: "conversational", label: "Conversational", subtitle: "Describe in your own words" },
+const LEVELS: { id: DetailLevel; label: string }[] = [
+  { id: "normal", label: "Normal" },
+  { id: "thinking", label: "Thinking" },
+  { id: "verbose", label: "Verbose" },
+  { id: "summary", label: "Summary" },
 ];
 
 export function ChatModeSelector() {
-  const { chatMode, setChatMode } = useAICompanion();
+  const { detailLevel, setDetailLevel } = useAICompanion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -25,36 +27,34 @@ export function ChatModeSelector() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const activeMode = MODES.find((m) => m.id === chatMode) || MODES[0];
-
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        title={`Mode: ${activeMode.label}`}
+        title={`Detail: ${LEVELS.find((l) => l.id === detailLevel)?.label}`}
       >
-        <SquareMenu className="h-3.5 w-3.5" />
+        <SlidersHorizontal className="h-3.5 w-3.5" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-xl border border-[#E0E8F2] bg-white shadow-[0px_4px_12px_rgba(71,88,114,0.12)]">
-          {MODES.map((mode) => (
+        <div className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border border-[#E0E8F2] bg-white shadow-[0px_4px_12px_rgba(71,88,114,0.12)]">
+          <div className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+            Response detail
+          </div>
+          {LEVELS.map((level) => (
             <button
-              key={mode.id}
+              key={level.id}
               type="button"
               onClick={() => {
-                setChatMode(mode.id);
+                setDetailLevel(level.id);
                 setOpen(false);
               }}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[#F7F9FB]"
+              className="flex w-full items-center justify-between px-4 py-2 text-left transition-colors hover:bg-[#F7F9FB]"
             >
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-[#394859]">{mode.label}</div>
-                <div className="text-[11px] text-[#8492A6]">{mode.subtitle}</div>
-              </div>
-              {chatMode === mode.id && (
+              <span className="text-[13px] text-[#394859]">{level.label}</span>
+              {detailLevel === level.id && (
                 <Check className="h-3.5 w-3.5 shrink-0 text-[#2C9FDD]" />
               )}
             </button>

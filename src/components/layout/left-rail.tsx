@@ -1,9 +1,11 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { useLayout } from "@/contexts/layout-context";
 import { useCampaign } from "@/contexts/campaign-context";
+import { useAICompanion } from "@/contexts/ai-companion-context";
 import { usePersona } from "@/contexts/persona-context";
 import { navItems } from "@/data/navigation";
 import { LeftRailNavItem } from "./left-rail-nav-item";
@@ -14,8 +16,20 @@ import { cn } from "@/lib/utils";
 export function LeftRail() {
   const { leftRailCollapsed, toggleLeftRail } = useLayout();
   const pathname = usePathname();
-  const { getPendingForPersona, savedNarratives } = useCampaign();
+  const { getPendingForPersona, savedNarratives, setActiveStrategy, setActiveNarrative } = useCampaign();
+  const { state, close } = useAICompanion();
   const { activePersona } = usePersona();
+  const prevPathname = useRef(pathname);
+
+  // Exit split mode when user navigates to a different page via nav
+  useEffect(() => {
+    if (prevPathname.current !== pathname && state === "split") {
+      close();
+      setActiveStrategy(null);
+      setActiveNarrative(null);
+    }
+    prevPathname.current = pathname;
+  }, [pathname, state, close, setActiveStrategy, setActiveNarrative]);
 
   const pendingCount = getPendingForPersona(activePersona.id).length;
   const narrativeCount = savedNarratives.length;

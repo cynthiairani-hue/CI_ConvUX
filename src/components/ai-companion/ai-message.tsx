@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { ClipboardList, Forward } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlanCard } from "@/components/patterns/plan-card";
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -9,6 +10,54 @@ import { useCampaign } from "@/contexts/campaign-context";
 import { usePersona } from "@/contexts/persona-context";
 import type { ChatMessage } from "@/contexts/ai-companion-context";
 import type { StrategyPlan } from "@/types/campaign";
+
+function MessageActions({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleShare() {
+    setShared(true);
+    setTimeout(() => setShared(false), 2000);
+  }
+
+  return (
+    <div className="flex items-center gap-1 mt-1.5 opacity-0 transition-opacity group-hover/msg:opacity-100">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="relative flex h-7 w-7 items-center justify-center rounded-md text-[#8492A6] transition-colors hover:bg-[#F0F2F5] hover:text-[#394859]"
+        title="Copy to clipboard"
+      >
+        <ClipboardList className="h-3.5 w-3.5" />
+        {copied && (
+          <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[#394859] px-2 py-1 text-[10px] font-medium text-white shadow-sm">
+            Copied
+          </span>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={handleShare}
+        className="relative flex h-7 w-7 items-center justify-center rounded-md text-[#8492A6] transition-colors hover:bg-[#F0F2F5] hover:text-[#394859]"
+        title="Share"
+      >
+        <Forward className="h-3.5 w-3.5" />
+        {shared && (
+          <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-[#394859] px-2 py-1 text-[10px] font-medium text-white shadow-sm">
+            Link copied
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
 
 function isStrategyPlan(artifact: unknown): artifact is StrategyPlan {
   return !!artifact && typeof artifact === "object" && "advertiserId" in artifact;
@@ -122,7 +171,7 @@ export function AIMessage({ message }: { message: ChatMessage }) {
 
   return (
     <div
-      className={cn("flex gap-3 px-4 py-3", isUser && "flex-row-reverse")}
+      className={cn("group/msg flex gap-3 px-4 py-3", isUser && "flex-row-reverse")}
     >
       <div
         className={cn(
@@ -133,7 +182,25 @@ export function AIMessage({ message }: { message: ChatMessage }) {
             : "max-w-[80%] text-sm leading-relaxed text-foreground"
         )}
       >
+        {/* Image thumbnails for user messages */}
+        {isUser && message.images && message.images.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {message.images.map((img, i) => (
+              <div
+                key={i}
+                className="relative h-20 w-20 overflow-hidden rounded-lg border border-black/[0.08]"
+              >
+                <img
+                  src={img.dataUrl}
+                  alt={img.name}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        )}
         {message.content && (isUser ? message.content : renderMarkdown(message.content))}
+        {!isUser && message.content && <MessageActions content={message.content} />}
         {legacyPlan && (
           <div className="mt-3">
             <PlanCard

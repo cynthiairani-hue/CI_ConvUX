@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { universalTasks } from "@/data/personas";
 import { CanvasChatInput } from "@/components/ai-companion/canvas-chat-input";
 import { useAICompanion } from "@/contexts/ai-companion-context";
+import { useCampaign } from "@/contexts/campaign-context";
 import {
   Megaphone,
   TrendingUp,
@@ -11,6 +12,8 @@ import {
   DollarSign,
   Building2,
   Sparkles,
+  ArrowRight,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBrandFromEmail, type BrandProfile } from "@/data/brand-profiles";
@@ -181,11 +184,69 @@ function getUserInfo(): UserInfo {
 }
 
 /* ──────────────────────────────────────────────
+   Return-visit summary banner
+   ────────────────────────────────────────────── */
+
+function ReturnVisitBanner({
+  brand,
+  strategyCount,
+  onAction,
+}: {
+  brand: BrandProfile | null;
+  strategyCount: number;
+  onAction: (prompt: string) => void;
+}) {
+  const brandName = brand?.name || "your brand";
+
+  // Simulated insights — in production these come from real data
+  const insights = [
+    { icon: "📈", text: "Retargeting ROAS up 12% since last week" },
+    { icon: "💰", text: "Pacing 8% under budget — room to scale" },
+    { icon: "🎯", text: `${strategyCount} active ${strategyCount === 1 ? "strategy" : "strategies"} running` },
+  ];
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[#E0E8F2] bg-gradient-to-br from-white to-[#F5FAFF]">
+      <div className="px-5 py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="h-4 w-4 text-[#2C9FDD]" />
+          <span className="text-[13px] font-semibold text-[#394859]">Since your last visit</span>
+        </div>
+        <div className="space-y-2">
+          {insights.map((insight, i) => (
+            <div key={i} className="flex items-center gap-2.5 text-[13px] text-[#5D6B7D]">
+              <span className="text-[14px]">{insight.icon}</span>
+              <span>{insight.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 border-t border-[#EDF1F5] px-5 py-3">
+        <button
+          onClick={() => onAction(`What changed since my last visit for ${brandName}?`)}
+          className="flex items-center gap-1.5 rounded-lg bg-[#394859] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2A3744]"
+        >
+          Full summary
+          <ArrowRight className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => onAction(`Top optimization moves for ${brandName}`)}
+          className="flex items-center gap-1.5 rounded-lg border border-[#D5DDE5] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+        >
+          Optimization ideas
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
    Dashboard view
    ────────────────────────────────────────────── */
 
 export function DashboardView() {
   const { state, openFullscreen, startCampaignFlow } = useAICompanion();
+  const { savedStrategies } = useCampaign();
   const [userInfo, setUserInfo] = useState<UserInfo>({ name: "there", brand: null });
 
   useEffect(() => {
@@ -193,6 +254,7 @@ export function DashboardView() {
   }, []);
 
   const { name: userName, brand } = userInfo;
+  const isReturningUser = (savedStrategies?.length || 0) > 0;
 
   const essentialTasks = universalTasks.filter((t) => t.priority === "essential");
   const optionalTasks = universalTasks.filter((t) => t.priority === "optional");
@@ -209,8 +271,12 @@ export function DashboardView() {
     [startCampaignFlow, openFullscreen]
   );
 
-  // Personalized greeting when brand is known
-  const greeting = brand
+  // Personalized greeting — different for returning users
+  const greeting = isReturningUser
+    ? brand
+      ? `Welcome back. Here’s what’s happening with ${brand.name}.`
+      : `Welcome back, ${userName}.`
+    : brand
     ? `Welcome, ${userName}. Let’s get ${brand.name} running.`
     : `Welcome, ${userName}`;
 
@@ -219,6 +285,15 @@ export function DashboardView() {
       <h1 className="text-xl font-semibold tracking-tight text-foreground">
         {greeting}
       </h1>
+
+      {/* Return-visit summary for returning users */}
+      {isReturningUser && (
+        <ReturnVisitBanner
+          brand={brand}
+          strategyCount={savedStrategies?.length || 0}
+          onAction={openFullscreen}
+        />
+      )}
 
       <div>
         <div className="space-y-3 rounded-2xl bg-muted/60 p-3">

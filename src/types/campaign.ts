@@ -132,6 +132,8 @@ export interface SectionEdit {
 
 export type ChatMode = "assisted" | "conversational";
 
+export type DetailLevel = "normal" | "thinking" | "verbose" | "summary";
+
 export type StrategyPlanStatus = "draft" | "pending-approval" | "approved" | "active" | "paused" | "archived";
 
 export interface StrategySection {
