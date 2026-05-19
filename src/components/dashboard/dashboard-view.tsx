@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBrandFromEmail, getCurrentBrand, type BrandProfile } from "@/data/brand-profiles";
+import { getDemoUserState } from "@/components/persona/persona-switcher";
 import { FFERN_SEED_PERFORMANCE } from "@/data/seed-ffern";
 import { SEED_PERFORMANCE } from "@/data/seed-company";
 import type { SeedMonthlyPerformance } from "@/data/seed-company";
@@ -497,7 +498,16 @@ export function DashboardView() {
   }, []);
 
   const { name: userName, brand } = userInfo;
-  const isReturningUser = (savedStrategies?.length || 0) > 0;
+
+  // Demo mode override — allows toggling between first-time and returning user
+  const [demoState, setDemoState] = useState<string>("returning");
+  useEffect(() => {
+    setDemoState(getDemoUserState());
+  }, []);
+
+  const isReturningUser = demoState === "first-time"
+    ? false
+    : (savedStrategies?.length || 0) > 0;
 
   // Get performance data for returning users
   const perfData = useMemo(() => {
