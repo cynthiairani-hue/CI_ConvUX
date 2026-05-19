@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   Check,
   AlertTriangle,
@@ -15,6 +15,9 @@ import {
   BarChart3,
   Palette,
   TrendingUp,
+  Upload,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -25,6 +28,21 @@ import type {
 } from "@/types/campaign";
 import { PLACEMENT_TYPES } from "@/data/iab-categories";
 import { OBJECTIVE_OPTIONS } from "@/data/campaign-flow";
+import { getCurrentBrand } from "@/data/brand-profiles";
+
+interface CreativeAsset {
+  id: string;
+  src: string;
+  label: string;
+  source: "uploaded" | "ai-generated";
+}
+
+/** Gradient placeholders for AI-generated creatives when no brand images exist */
+const AI_GRADIENTS = [
+  "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+  "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+];
 
 interface StrategyCardProps {
   plan: StrategyPlan;
@@ -151,6 +169,9 @@ function ForecastTable({ forecast }: { forecast: StrategyPlan["forecast"]["data"
 export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
   const [collapsedSections, setCollapsedSections] = useState<Set<SectionKey>>(new Set());
   const [showRationale, setShowRationale] = useState<SectionKey | null>(null);
+  const [creativeAssets, setCreativeAssets] = useState<CreativeAsset[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function toggleCollapse(key: SectionKey) {
     setCollapsedSections((prev) => {
@@ -288,6 +309,97 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
       updateSection("placements", { value, data: updated });
     },
     [plan.placements.data, updateSection]
+  );
+
+  /** Sync creative section value + readiness when assets change */
+  const syncCreativeSection = useCallback(
+    (assets: CreativeAsset[]) => {
+      if (assets.length === 0) {
+        updateSection("creative", {
+          value: "No creative assets",
+          readiness: "limited" as ReadinessState,
+        });
+      } else {
+        const uploadCount = assets.filter((a) => a.source === "uploaded").length;
+        const aiCount = assets.filter((a) => a.source === "ai-generated").length;
+        const parts: string[] = [];
+        if (uploadCount > 0) parts.push(`${uploadCount} uploaded`);
+        if (aiCount > 0) parts.push(`${aiCount} AI-generated`);
+        updateSection("creative", {
+          value: `${assets.length} asset${assets.length !== 1 ? "s" : ""} ready — ${parts.join(", ")}`,
+          readiness: "ready" as ReadinessState,
+          filled: true,
+          provenance: {
+            source: "user_input" as const,
+            reasoning: `User added ${assets.length} creative asset${assets.length !== 1 ? "s" : ""}.`,
+            confidence: "high" as const,
+          },
+        });
+      }
+    },
+    [updateSection]
+  );
+
+  /** Handle file upload */
+  const handleCreativeUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files) return;
+      Array.from(files).forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const newAsset: CreativeAsset = {
+            id: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            src: reader.result as string,
+            label: file.name,
+            source: "uploaded",
+          };
+          setCreativeAssets((prev) => {
+            const next = [...prev, newAsset];
+            syncCreativeSection(next);
+            return next;
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+      // Reset so re-uploading the same file triggers onChange
+      e.target.value = "";
+    },
+    [syncCreativeSection]
+  );
+
+  /** Generate AI creatives (simulated) */
+  const handleGenerateAI = useCallback(() => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setTimeout(() => {
+      const brand = getCurrentBrand();
+      const variations = ["Variation A", "Variation B", "Variation C"];
+      const newAssets: CreativeAsset[] = variations.map((label, i) => ({
+        id: `ai-${Date.now()}-${i}`,
+        src: brand?.cardImages?.[i] ?? `gradient:${i}`,
+        label,
+        source: "ai-generated" as const,
+      }));
+      setCreativeAssets((prev) => {
+        const next = [...prev, ...newAssets];
+        syncCreativeSection(next);
+        return next;
+      });
+      setIsGenerating(false);
+    }, 1500);
+  }, [isGenerating, syncCreativeSection]);
+
+  /** Remove a creative asset */
+  const handleRemoveCreative = useCallback(
+    (id: string) => {
+      setCreativeAssets((prev) => {
+        const next = prev.filter((a) => a.id !== id);
+        syncCreativeSection(next);
+        return next;
+      });
+    },
+    [syncCreativeSection]
   );
 
   const sections: { key: SectionKey; section: StrategySection }[] = SECTION_KEYS.map((key) => ({
@@ -523,23 +635,103 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                   </div>
                 )}
 
-                {/* Creative — placeholder */}
+                {/* Creative — upload + AI generate */}
                 {key === "creative" && (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors hover:border-[#C4CDD8] hover:bg-[#F7F9FB]"
-                    >
-                      <Palette className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
-                      Upload creative
-                    </button>
-                    <button
-                      type="button"
-                      className="flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors hover:border-[#C4CDD8] hover:bg-[#F7F9FB]"
-                    >
-                      <TrendingUp className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
-                      Generate with AI
-                    </button>
+                  <div className="space-y-3">
+                    {/* Hidden file input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      multiple
+                      onChange={handleCreativeUpload}
+                      className="hidden"
+                    />
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors hover:border-[#C4CDD8] hover:bg-[#F7F9FB]"
+                      >
+                        <Upload className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
+                        Upload creative
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleGenerateAI}
+                        disabled={isGenerating}
+                        className={cn(
+                          "flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors",
+                          isGenerating
+                            ? "animate-pulse bg-[#F7F9FB]"
+                            : "hover:border-[#C4CDD8] hover:bg-[#F7F9FB]"
+                        )}
+                      >
+                        <Sparkles className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
+                        {isGenerating ? "Generating..." : "Generate with AI"}
+                      </button>
+                    </div>
+
+                    {/* Creative thumbnails grid */}
+                    {creativeAssets.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {creativeAssets.map((asset) => {
+                          const isGradient = asset.src.startsWith("gradient:");
+                          const gradientIdx = isGradient ? parseInt(asset.src.split(":")[1]) : 0;
+                          return (
+                            <div
+                              key={asset.id}
+                              className="group relative aspect-square overflow-hidden rounded-lg border border-[#E0E8F2]"
+                            >
+                              {isGradient ? (
+                                <div
+                                  className="flex h-full w-full items-center justify-center"
+                                  style={{ background: AI_GRADIENTS[gradientIdx % AI_GRADIENTS.length] }}
+                                >
+                                  <span className="text-[11px] font-medium text-white/90 drop-shadow-sm">
+                                    {asset.label}
+                                  </span>
+                                </div>
+                              ) : (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                  src={asset.src}
+                                  alt={asset.label}
+                                  className="h-full w-full object-cover"
+                                />
+                              )}
+
+                              {/* AI badge */}
+                              {asset.source === "ai-generated" && (
+                                <span className="absolute left-1.5 top-1.5 rounded bg-[#394859]/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                  AI
+                                </span>
+                              )}
+
+                              {/* Remove button */}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCreative(asset.id)}
+                                className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#394859]/70 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+
+                              {/* Label on hover for non-gradient assets */}
+                              {!isGradient && (
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#394859]/70 to-transparent px-2 pb-1.5 pt-4 opacity-0 transition-opacity group-hover:opacity-100">
+                                  <span className="text-[10px] font-medium text-white truncate block">
+                                    {asset.label}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 

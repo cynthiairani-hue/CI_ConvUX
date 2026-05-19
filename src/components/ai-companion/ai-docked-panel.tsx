@@ -1,41 +1,24 @@
 "use client";
 
 import { useRef, useEffect, useMemo } from "react";
-import { X, Maximize2, ArrowLeftRight, PanelRight, ChevronDown } from "lucide-react";
+import { X, Maximize2 } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import { useCampaign } from "@/contexts/campaign-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
 import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
 import { ChatModeSelector } from "./chat-mode-selector";
+import { ChatHeaderMenu } from "./chat-header-menu";
 import { PlatformConnectionCard } from "./platform-connection-card";
 import { ArtifactPreviewCard } from "./artifact-preview-card";
 
 export function AIDockedPanel() {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
-    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close, toggleDockSide, startNewChat, setState,
-    currentSessionId, chatSessions,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close,
   } = useAICompanion();
-  const { activeStrategy, activeNarrative } = useCampaign();
-  const hasPreview = !!(activeStrategy || activeNarrative);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Derive session name
-  const sessionName = useMemo(() => {
-    if (currentSessionId) {
-      const meta = chatSessions.find((s) => s.id === currentSessionId);
-      if (meta?.name) return meta.name;
-    }
-    const firstUser = messages.find((m) => m.role === "user");
-    if (firstUser?.content) {
-      const trimmed = firstUser.content.trim();
-      return trimmed.length <= 24 ? trimmed : trimmed.slice(0, 22) + "…";
-    }
-    return "New conversation";
-  }, [currentSessionId, chatSessions, messages]);
 
   const activeToolCall = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -120,34 +103,9 @@ export function AIDockedPanel() {
   return (
     <aside className="flex h-screen w-80 flex-col border-l bg-background">
       <header className="flex h-14 items-center justify-between px-4">
-        <button
-          onClick={expand}
-          className="flex items-center gap-1 min-w-0 rounded-md px-1 py-0.5 transition-colors hover:bg-accent"
-          title="Expand"
-        >
-          <span className="text-sm font-semibold text-foreground truncate">
-            {sessionName}
-          </span>
-          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-        </button>
+        <ChatHeaderMenu compact />
         <div className="flex items-center gap-0.5">
           <ChatModeSelector />
-          {hasPreview && (
-            <button
-              onClick={() => setState("split")}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              title="Show canvas preview"
-            >
-              <PanelRight className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <button
-            onClick={toggleDockSide}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="Move to other side"
-          >
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-          </button>
           <button
             onClick={expand}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
