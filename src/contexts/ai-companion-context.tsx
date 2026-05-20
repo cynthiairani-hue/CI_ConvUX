@@ -116,6 +116,8 @@ export interface ChatMessage {
   images?: AttachedImage[];
   /** Thinking steps shown before the response — collapsible */
   thinkingSteps?: string[];
+  /** Estimated token count for this message */
+  tokenCount?: number;
 }
 
 interface AICompanionContextValue {

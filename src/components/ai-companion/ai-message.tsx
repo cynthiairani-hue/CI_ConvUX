@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { ClipboardList, Forward, ChevronDown, Brain } from "lucide-react";
+import { ClipboardList, Forward, ChevronDown, Brain, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlanCard } from "@/components/patterns/plan-card";
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -11,7 +11,25 @@ import { usePersona } from "@/contexts/persona-context";
 import type { ChatMessage } from "@/contexts/ai-companion-context";
 import type { StrategyPlan } from "@/types/campaign";
 
-function MessageActions({ content }: { content: string }) {
+export function estimateTokens(msg: ChatMessage): number {
+  if (msg.toolCall) return 0;
+  if (msg.tokenCount) return msg.tokenCount;
+  let tokens = 0;
+  if (msg.content) tokens += Math.ceil(msg.content.length / 3.8);
+  if (msg.artifact) tokens += 940;
+  if (msg.performanceSnapshot) tokens += 720;
+  if (msg.thinkingSteps?.length) tokens += msg.thinkingSteps.length * 48;
+  if (msg.role === "assistant" && tokens > 0) tokens += 135;
+  if (msg.role === "user") tokens += Math.ceil((msg.content?.length || 0) / 4.2);
+  return tokens;
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function MessageActions({ content, tokenCount }: { content: string; tokenCount?: number }) {
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
 
@@ -55,6 +73,12 @@ function MessageActions({ content }: { content: string }) {
           </span>
         )}
       </button>
+      {tokenCount !== undefined && tokenCount > 0 && (
+        <span className="ml-1.5 flex items-center gap-1 text-[11px] text-[#C4CDD8]">
+          <Zap className="h-2.5 w-2.5" />
+          {formatTokens(tokenCount)}
+        </span>
+      )}
     </div>
   );
 }
@@ -236,7 +260,7 @@ export function AIMessage({ message }: { message: ChatMessage }) {
           <ThinkingBlock steps={message.thinkingSteps} />
         )}
         {message.content && (isUser ? message.content : renderMarkdown(message.content))}
-        {!isUser && message.content && <MessageActions content={message.content} />}
+        {!isUser && message.content && <MessageActions content={message.content} tokenCount={estimateTokens(message)} />}
         {legacyPlan && (
           <div className="mt-3">
             <PlanCard

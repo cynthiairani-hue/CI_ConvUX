@@ -14,10 +14,12 @@ import {
   Columns2,
   Settings2,
   Clock,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
+import { estimateTokens } from "@/components/ai-companion/ai-message";
 import type { AICompanionState } from "@/contexts/ai-companion-context";
 import type { ChatSessionMeta } from "@/lib/storage";
 
@@ -106,6 +108,10 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
 
   const hasPreview = !!(activeStrategy || activeNarrative);
 
+  const sessionTokens = useMemo(() => {
+    return messages.reduce((sum, msg) => sum + estimateTokens(msg), 0);
+  }, [messages]);
+
   // Close on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -187,23 +193,31 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
 
   return (
     <div ref={menuRef} className="relative min-w-0">
-      {/* Trigger */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 min-w-0 rounded-md px-1.5 py-1 transition-colors hover:bg-accent"
-      >
-        <span className={cn(
-          "font-semibold text-foreground truncate",
-          compact ? "text-[13px] max-w-[140px]" : "text-sm max-w-[220px]"
-        )}>
-          {sessionName}
-        </span>
-        <ChevronDown className={cn(
-          "shrink-0 text-muted-foreground transition-transform",
-          compact ? "h-3 w-3" : "h-3.5 w-3.5",
-          open && "rotate-180"
-        )} />
-      </button>
+      {/* Trigger + token counter */}
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-1.5 min-w-0 rounded-md px-1.5 py-1 transition-colors hover:bg-accent"
+        >
+          <span className={cn(
+            "font-semibold text-foreground truncate",
+            compact ? "text-[13px] max-w-[140px]" : "text-sm max-w-[220px]"
+          )}>
+            {sessionName}
+          </span>
+          <ChevronDown className={cn(
+            "shrink-0 text-muted-foreground transition-transform",
+            compact ? "h-3 w-3" : "h-3.5 w-3.5",
+            open && "rotate-180"
+          )} />
+        </button>
+        {sessionTokens > 0 && (
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[#F5F7FA] px-2 py-0.5 text-[11px] font-medium text-[#8492A6]" title="Tokens used this session">
+            <Zap className="h-2.5 w-2.5" />
+            {sessionTokens >= 1000 ? `${(sessionTokens / 1000).toFixed(1)}k` : sessionTokens} tokens
+          </span>
+        )}
+      </div>
 
       {/* Dropdown */}
       {open && (
