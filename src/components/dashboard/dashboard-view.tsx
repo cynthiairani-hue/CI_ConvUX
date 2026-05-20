@@ -555,6 +555,8 @@ export function DashboardView() {
     : `Welcome, ${userName}`;
 
   return (
+    <div className="flex h-full flex-col">
+    <div className="flex-1 overflow-y-auto">
     <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-foreground">
         {greeting}
@@ -643,7 +645,15 @@ export function DashboardView() {
         </div>
       </div>
 
-      {state === "resting" && <CanvasChatInput />}
+    </div>
+    </div>
+      {state === "resting" && (
+        <div className="shrink-0 px-8 pb-6 pt-2">
+          <div className="mx-auto max-w-3xl">
+            <CanvasChatInput />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

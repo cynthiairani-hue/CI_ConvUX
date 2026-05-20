@@ -5,6 +5,7 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
 import { Megaphone, Plus, Clock, ChevronRight, Sparkles } from "lucide-react";
+import { PageChatInput } from "@/components/ai-companion/page-chat-input";
 import type { StrategyPlan, StrategyPlanStatus } from "@/types/campaign";
 
 const STATUS_CONFIG: Record<StrategyPlanStatus, { label: string; dot: string; bg: string; text: string }> = {
@@ -103,68 +104,76 @@ export default function CampaignsPage() {
   const brand = getCurrentBrand();
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-10">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Campaigns</h1>
-          <p className="mt-0.5 text-[13px] text-[#8492A6]">
-            {isEmpty ? "Your campaigns will live here" : `${savedStrategies.length} campaign${savedStrategies.length === 1 ? "" : "s"}`}
-          </p>
-        </div>
-        {!isEmpty && (
-          <button
-            type="button"
-            onClick={handleNewCampaign}
-            className="flex items-center gap-1.5 rounded-lg bg-[#2C9FDD] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1A7BB5]"
-          >
-            <Plus className="h-4 w-4" />
-            New campaign
-          </button>
-        )}
-      </div>
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-8 py-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">Campaigns</h1>
+              <p className="mt-0.5 text-[13px] text-[#8492A6]">
+                {isEmpty ? "Your campaigns will live here" : `${savedStrategies.length} campaign${savedStrategies.length === 1 ? "" : "s"}`}
+              </p>
+            </div>
+            {!isEmpty && (
+              <button
+                type="button"
+                onClick={handleNewCampaign}
+                className="flex items-center gap-1.5 rounded-lg bg-[#2C9FDD] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1A7BB5]"
+              >
+                <Plus className="h-4 w-4" />
+                New campaign
+              </button>
+            )}
+          </div>
 
-      {isEmpty ? (
-        <div className="mt-10 flex flex-col items-center rounded-xl bg-white px-8 py-10 text-center">
-          {brand?.pageImages?.campaigns ? (
-            <div className="mb-5 w-full max-w-md overflow-hidden rounded-lg">
-              <img src={brand.pageImages.campaigns} alt="" className="h-48 w-full object-cover" />
+          {isEmpty ? (
+            <div className="mt-10 flex flex-col items-center rounded-xl bg-white px-8 py-10 text-center">
+              {brand?.pageImages?.campaigns ? (
+                <div className="mb-5 w-full max-w-md overflow-hidden rounded-lg">
+                  <img src={brand.pageImages.campaigns} alt="" className="h-48 w-full object-cover" />
+                </div>
+              ) : (
+                <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+                  <Megaphone className="h-6 w-6 text-foreground/70" strokeWidth={1.5} />
+                </div>
+              )}
+              <h2 className="text-base font-semibold text-foreground">Build your first campaign</h2>
+              <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+                The AI will walk you through targeting, budget, and creative — step by step.
+              </p>
+              <button
+                type="button"
+                onClick={handleNewCampaign}
+                className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+              >
+                <Sparkles className="h-4 w-4" />
+                Get started
+              </button>
             </div>
           ) : (
-            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-              <Megaphone className="h-6 w-6 text-foreground/70" strokeWidth={1.5} />
+            <div className="mt-6 space-y-6">
+              {groupEntries.map(([advertiser, strategies]) => (
+                <div key={advertiser}>
+                  <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[#8492A6]">
+                    {advertiser}
+                  </h3>
+                  <div className="space-y-2">
+                    {strategies
+                      .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
+                      .map((s) => (
+                        <StrategyRow key={s.id} strategy={s} onOpen={() => handleOpenStrategy(s)} />
+                      ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-          <h2 className="text-base font-semibold text-foreground">Build your first campaign</h2>
-          <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-            The AI will walk you through targeting, budget, and creative — step by step.
-          </p>
-          <button
-            type="button"
-            onClick={handleNewCampaign}
-            className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-          >
-            <Sparkles className="h-4 w-4" />
-            Get started
-          </button>
         </div>
-      ) : (
-        <div className="mt-6 space-y-6">
-          {groupEntries.map(([advertiser, strategies]) => (
-            <div key={advertiser}>
-              <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[#8492A6]">
-                {advertiser}
-              </h3>
-              <div className="space-y-2">
-                {strategies
-                  .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
-                  .map((s) => (
-                    <StrategyRow key={s.id} strategy={s} onOpen={() => handleOpenStrategy(s)} />
-                  ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
+
+      <div className="shrink-0 pb-6 pt-2">
+        <PageChatInput />
+      </div>
     </div>
   );
 }
