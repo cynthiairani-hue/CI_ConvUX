@@ -114,6 +114,8 @@ export interface ChatMessage {
   toolCall?: ToolCall;
   /** Images attached by the user */
   images?: AttachedImage[];
+  /** Thinking steps shown before the response — collapsible */
+  thinkingSteps?: string[];
 }
 
 interface AICompanionContextValue {
@@ -588,14 +590,47 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
         const brand = brandRef.current;
         const period = { month: 5, year: 2026 };
+        const brandName = brand?.name || "your channels";
 
+        // Realistic progressive thinking sequence
+        const thinkingSteps = [
+          `Pulling ${brandName}'s ad platform data — May 2026`,
+          "Aggregating spend, revenue, and conversion metrics across channels",
+          "Calculating ROAS and CPA by channel with month-over-month trends",
+          "Checking for anomalies and pacing against monthly budget",
+          "Generating attribution breakdown and confidence scores",
+          "Drafting recommended next moves based on what changed",
+        ];
+
+        // Show thinking steps progressively, then deliver result
+        const stepDelay = 500;
+        const thinkingId = nextId();
+        const thinkingMsg: ChatMessage = {
+          id: thinkingId,
+          role: "assistant",
+          content: "",
+          thinkingSteps: [],
+        };
+        setMessages((prev) => [...prev, thinkingMsg]);
+
+        thinkingSteps.forEach((step, i) => {
+          setTimeout(() => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? { ...m, thinkingSteps: thinkingSteps.slice(0, i + 1) }
+                  : m
+              )
+            );
+          }, (i + 1) * stepDelay);
+        });
+
+        // After all thinking steps, deliver the actual result
         setTimeout(() => {
           try {
-            // Use Ffern seed data when brand is known, fall back to Norwest
             const perfData = brand ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
             const anomalyData = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
             const narrative = buildNarrativeFromSeed(perfData, anomalyData, period);
-            // Override the name/advertiser to match brand
             if (brand) {
               narrative.name = `${brand.name} — May 2026 Performance`;
               narrative.advertiserId = brand.name;
@@ -603,28 +638,33 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             saveNarrative(narrative);
             setActiveNarrative(narrative);
 
-            const ackMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: brand
-                ? `Here's ${brand.name}'s performance for the last 30 days. Spend, attribution, changes, and recommended moves — each section shows its confidence level. Review on the canvas, edit anything, or ask me to dig deeper.`
-                : `Here's your performance overview for May 2026. Review each section on the canvas.`,
-            };
-            setMessages((prev) => [...prev, ackMsg]);
+            // Replace the thinking message with the final response (keeps thinking steps)
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? {
+                      ...m,
+                      content: brand
+                        ? `Here's ${brand.name}'s performance for the last 30 days. Spend, attribution, changes, and recommended moves — each section shows its confidence level. Review on the canvas, edit anything, or ask me to dig deeper.`
+                        : `Here's your performance overview for May 2026. Review each section on the canvas.`,
+                    }
+                  : m
+              )
+            );
 
-            // Trigger split view
             setState("split");
             collapseLeftRail();
           } catch {
-            const errMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: "Couldn't generate the performance view — no data for that period.",
-            };
-            setMessages((prev) => [...prev, errMsg]);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? { ...m, content: "Couldn't generate the performance view — no data for that period." }
+                  : m
+              )
+            );
           }
           setIsLoading(false);
-        }, 800);
+        }, thinkingSteps.length * stepDelay + 800);
         return;
       }
 
@@ -745,6 +785,37 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
         const brand = brandRef.current;
         const period = { month: 5, year: 2026 };
+        const brandName = brand?.name || "your brand";
+
+        const thinkingSteps = [
+          `Pulling ${brandName}'s May 2026 channel data`,
+          "Computing spend-by-channel breakdown and attribution percentages",
+          "Identifying what changed month-over-month with root causes",
+          "Generating recommended next moves with confidence levels",
+          "Formatting as executive narrative with five sections",
+        ];
+
+        const stepDelay = 550;
+        const thinkingId = nextId();
+        const thinkingMsg: ChatMessage = {
+          id: thinkingId,
+          role: "assistant",
+          content: "",
+          thinkingSteps: [],
+        };
+        setMessages((prev) => [...prev, thinkingMsg]);
+
+        thinkingSteps.forEach((step, i) => {
+          setTimeout(() => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? { ...m, thinkingSteps: thinkingSteps.slice(0, i + 1) }
+                  : m
+              )
+            );
+          }, (i + 1) * stepDelay);
+        });
 
         setTimeout(() => {
           try {
@@ -758,27 +829,32 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             saveNarrative(narrative);
             setActiveNarrative(narrative);
 
-            const ackMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: brand
-                ? `Drafted ${brand.name}'s May performance narrative. Five sections with provenance — review on the canvas.`
-                : `Drafted your May 2026 marketing performance narrative. Review on the canvas.`,
-            };
-            setMessages((prev) => [...prev, ackMsg]);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? {
+                      ...m,
+                      content: brand
+                        ? `Drafted ${brand.name}'s May performance narrative. Five sections with provenance — review on the canvas.`
+                        : `Drafted your May 2026 marketing performance narrative. Review on the canvas.`,
+                    }
+                  : m
+              )
+            );
 
             setState("split");
             collapseLeftRail();
           } catch {
-            const errMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: "Couldn't generate the narrative — no data for that period.",
-            };
-            setMessages((prev) => [...prev, errMsg]);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? { ...m, content: "Couldn't generate the narrative — no data for that period." }
+                  : m
+              )
+            );
           }
           setIsLoading(false);
-        }, 800);
+        }, thinkingSteps.length * stepDelay + 800);
         return;
       }
 

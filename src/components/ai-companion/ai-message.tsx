@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState } from "react";
-import { ClipboardList, Forward } from "lucide-react";
+import { ClipboardList, Forward, ChevronDown, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlanCard } from "@/components/patterns/plan-card";
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -56,6 +56,39 @@ function MessageActions({ content }: { content: string }) {
         )}
       </button>
     </div>
+  );
+}
+
+function ThinkingBlock({ steps }: { steps: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded(!expanded)}
+      className="mb-2 flex w-full flex-col rounded-lg border border-[#EDF1F5] bg-[#FAFBFC] px-3 py-2 text-left transition-colors hover:bg-[#F5F7FA]"
+    >
+      <div className="flex items-center gap-1.5">
+        <Brain className="h-3 w-3 text-[#8492A6]" />
+        <span className="text-[11px] font-medium text-[#8492A6]">
+          Thought for {steps.length} step{steps.length !== 1 ? "s" : ""}
+        </span>
+        <ChevronDown className={cn(
+          "ml-auto h-3 w-3 text-[#C4CDD8] transition-transform",
+          expanded && "rotate-180"
+        )} />
+      </div>
+      {expanded && (
+        <div className="mt-2 space-y-1 border-t border-[#EDF1F5] pt-2">
+          {steps.map((step, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[11px] text-[#8492A6]">
+              <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-[#C4CDD8]" />
+              <span>{step}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </button>
   );
 }
 
@@ -154,7 +187,7 @@ export function AIMessage({ message }: { message: ChatMessage }) {
   const { activePersona } = usePersona();
 
   if (message.toolCall) return null;
-  if (!message.content && !message.artifact && !message.performanceSnapshot) return null;
+  if (!message.content && !message.artifact && !message.performanceSnapshot && !message.thinkingSteps?.length) return null;
 
   const artifact = message.artifact;
   const isStrategy = artifact && isStrategyPlan(artifact);
@@ -198,6 +231,9 @@ export function AIMessage({ message }: { message: ChatMessage }) {
               </div>
             ))}
           </div>
+        )}
+        {!isUser && message.thinkingSteps && message.thinkingSteps.length > 0 && (
+          <ThinkingBlock steps={message.thinkingSteps} />
         )}
         {message.content && (isUser ? message.content : renderMarkdown(message.content))}
         {!isUser && message.content && <MessageActions content={message.content} />}
