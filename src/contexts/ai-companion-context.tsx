@@ -220,8 +220,10 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     ]);
     setCampaignIntent(null);
     setStrategyIntent(null);
+    setActiveStrategy(null);
+    setActiveNarrative(null);
     return sessionId;
-  }, [activePersona.id]);
+  }, [activePersona.id, setActiveStrategy, setActiveNarrative]);
 
   useEffect(() => {
     initNewSession();
@@ -924,7 +926,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
               m.id === thinkingId
                 ? {
                     ...m,
-                    content: `Here are the top optimization moves for ${brandName} right now, ranked by expected impact:\n\n${moves.map((move, i) => `${i + 1}. ${move}`).join("\n\n")}\n\nWant me to build any of these into a plan you can review and approve?`,
+                    content: `Here are the top optimization moves for ${brandName} right now, ranked by expected impact:\n\n${moves.map((move, i) => `${i + 1}. ${move}`).join("\n")}\n\nWant me to build any of these into a plan you can review and approve?`,
                   }
                 : m
             )
@@ -1406,7 +1408,6 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       if (!session) return;
 
       setCurrentSessionId(sessionId);
-      // Restore messages as simple chat messages
       setMessages(
         session.messages.map((m) => ({
           id: nextId(),
@@ -1416,9 +1417,11 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       );
       setCampaignIntent(null);
       setStrategyIntent(null);
+      setActiveStrategy(null);
+      setActiveNarrative(null);
       setState("fullscreen");
     },
-    []
+    [setActiveStrategy, setActiveNarrative]
   );
 
   const handleRenameChatSession = useCallback(

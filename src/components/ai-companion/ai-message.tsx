@@ -153,10 +153,15 @@ function renderMarkdown(text: string): ReactNode {
       continue;
     }
 
+    // If we're in a list and hit a blank line, check if the next non-blank line continues the list
+    if (line.trim() === "" && listItems.length > 0) {
+      const nextNonBlank = lines.slice(i + 1).find((l) => l.trim() !== "");
+      if (nextNonBlank && /^\d+[.)]\s+/.test(nextNonBlank)) continue;
+    }
+
     flushList();
 
     if (line.trim() === "") {
-      // Empty line → spacing
       if (elements.length > 0) {
         elements.push(<div key={`br-${i}`} className="h-1.5" />);
       }
