@@ -455,14 +455,13 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         });
 
         if (!res.ok) {
-          const data = await res.json();
-          return { text: data.error || "Something went wrong.", toolCall: null };
+          return { text: "I can't process that right now. Try asking about performance, campaigns, budgets, or optimization — those work best.", toolCall: null };
         }
 
         return await res.json();
       } catch {
         return {
-          text: "Connection error. Check that the dev server is running.",
+          text: "I can't process that right now. Try asking about performance, campaigns, budgets, or optimization — those work best.",
           toolCall: null,
         };
       }
@@ -855,6 +854,81 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
               )
             );
           }
+          setIsLoading(false);
+        }, thinkingSteps.length * stepDelay + 800);
+        return;
+      }
+
+      // --- OPTIMIZATION INTENT ---
+      const isOptimizationIntent =
+        lower.includes("optimization") ||
+        lower.includes("optimize") ||
+        lower.includes("improve") ||
+        (lower.includes("ideas") && (lower.includes("campaign") || lower.includes("ad"))) ||
+        lower.includes("what should i change") ||
+        lower.includes("recommendations");
+
+      if (isOptimizationIntent) {
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+
+        const brand = brandRef.current;
+        const brandName = brand?.name || "your campaigns";
+
+        const thinkingSteps = [
+          `Reviewing ${brandName}'s active campaigns and recent performance`,
+          "Comparing channel-level ROAS and CPA against benchmarks",
+          "Identifying underperforming segments and budget reallocation opportunities",
+          "Checking creative fatigue signals and audience overlap",
+          "Ranking moves by expected impact and confidence level",
+        ];
+
+        const stepDelay = 500;
+        const thinkingId = nextId();
+        const thinkingMsg: ChatMessage = {
+          id: thinkingId,
+          role: "assistant",
+          content: "",
+          thinkingSteps: [],
+        };
+        setMessages((prev) => [...prev, thinkingMsg]);
+
+        thinkingSteps.forEach((step, i) => {
+          setTimeout(() => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? { ...m, thinkingSteps: thinkingSteps.slice(0, i + 1) }
+                  : m
+              )
+            );
+          }, (i + 1) * stepDelay);
+        });
+
+        setTimeout(() => {
+          const moves = brand
+            ? [
+                "**Shift 15% of Meta spend to Google Shopping.** Shopping ROAS is 6.9x vs Meta's 3.8x. Even a small reallocation should improve blended return. *High confidence — 30 days of data.*",
+                "**Pause TikTok prospecting and reallocate to retargeting.** TikTok CPA ($33) is 2x your average. Retargeting the same budget through Meta would likely convert at $18-22 CPA. *Medium confidence — small sample.*",
+                "**Refresh top Meta ad creative.** Your best-performing ad set has been running 18 days — frequency is at 3.2 and CTR dropped 12% this week. New creative variants should recover engagement. *High confidence.*",
+                "**Test branded search on Bing.** Your Google branded search CPA is $7 — Bing CPCs are typically 30-40% lower in this category. Low effort, incremental reach. *Low confidence — no historical data.*",
+              ]
+            : [
+                "**Review channel allocation.** Shift budget toward your highest-ROAS channels and reduce spend on underperformers.",
+                "**Check creative freshness.** Ads running longer than 14 days at high frequency may need new variants.",
+                "**Expand retargeting.** If you're spending heavily on prospecting, reallocating 15-20% to retargeting often improves blended CPA.",
+              ];
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === thinkingId
+                ? {
+                    ...m,
+                    content: `Here are the top optimization moves for ${brandName} right now, ranked by expected impact:\n\n${moves.map((move, i) => `${i + 1}. ${move}`).join("\n\n")}\n\nWant me to build any of these into a plan you can review and approve?`,
+                  }
+                : m
+            )
+          );
           setIsLoading(false);
         }, thinkingSteps.length * stepDelay + 800);
         return;
