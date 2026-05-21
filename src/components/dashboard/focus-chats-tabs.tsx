@@ -516,7 +516,7 @@ export function FocusChatsTabs({
   );
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
-    { id: "focus", label: "Focus", count: focusItems.length },
+    { id: "focus", label: "Priorities", count: focusItems.length },
     { id: "chats", label: "Chats", count: activeSessions.length || undefined },
   ];
 
