@@ -254,8 +254,6 @@ function ReturnVisitHero({
   brand: BrandProfile | null;
   onAction: (prompt: string) => void;
 }) {
-  const [hoveredMetric, setHoveredMetric] = useState<number | null>(null);
-
   const current = perf[perf.length - 1];
   const previous = perf.length > 1 ? perf[perf.length - 2] : current;
 
@@ -321,8 +319,8 @@ function ReturnVisitHero({
       </div>
 
       {/* Metrics grid */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {metrics.map((m, i) => {
+      <div className="grid grid-cols-4 divide-x divide-[#E0E8F2]">
+        {metrics.map((m) => {
           const isPositive = m.invertColor
             ? m.change.direction === "down"
             : m.change.direction === "up";
@@ -333,23 +331,18 @@ function ReturnVisitHero({
           return (
             <div
               key={m.label}
-              className={cn(
-                "group relative flex flex-col gap-2 rounded-lg px-3 py-3 transition-all cursor-default",
-                hoveredMetric === i ? "bg-[#F7F9FB]" : "hover:bg-[#FAFBFC]"
-              )}
-              onMouseEnter={() => setHoveredMetric(i)}
-              onMouseLeave={() => setHoveredMetric(null)}
+              className="min-w-0 px-5 py-3 first:pl-0 last:pr-0"
             >
               <span className="text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
                 {m.label}
               </span>
-              <div className="flex items-end justify-between gap-2">
-                <span className="text-[22px] font-semibold tracking-tight text-[#394859]">
+              <div className="mt-2 flex items-center gap-3">
+                <span className="text-xl font-semibold tracking-tight text-[#394859]">
                   {m.value}
                 </span>
-                <MiniSparkline data={m.sparkData} color={m.color} height={28} width={56} />
+                <MiniSparkline data={m.sparkData} color={m.color} height={24} width={48} />
               </div>
-              <div className="flex items-center gap-1">
+              <div className="mt-1.5 flex items-center gap-1">
                 {m.change.direction === "up" && <TrendingUp className="h-3 w-3" />}
                 {m.change.direction === "down" && <TrendingDown className="h-3 w-3" />}
                 <span
