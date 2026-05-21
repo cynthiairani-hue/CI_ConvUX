@@ -130,7 +130,7 @@ export default function ApprovalsPage() {
       </div>
 
       <div className="shrink-0 pb-6 pt-2">
-        <PageChatInput />
+        <PageChatInput placeholder="Ask about pending reviews or approval status..." />
       </div>
     </div>
   );

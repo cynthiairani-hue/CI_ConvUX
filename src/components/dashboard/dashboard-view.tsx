@@ -14,10 +14,7 @@ import {
   Building2,
   Sparkles,
   ArrowRight,
-  Target,
   BarChart3,
-  Zap,
-  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBrandFromEmail, getCurrentBrand, type BrandProfile } from "@/data/brand-profiles";
@@ -27,7 +24,7 @@ import { SEED_PERFORMANCE } from "@/data/seed-company";
 import type { SeedMonthlyPerformance } from "@/data/seed-company";
 import type { GettingStartedTask } from "@/types/persona";
 import type { LucideIcon } from "lucide-react";
-import type { StrategyPlan } from "@/types/campaign";
+import { FocusChatsTabs } from "./focus-chats-tabs";
 
 const taskIcons: Record<string, LucideIcon> = {
   "first-campaign": Megaphone,
@@ -377,78 +374,6 @@ function ReturnVisitHero({
 }
 
 /* ──────────────────────────────────────────────
-   Return-visit secondary cards
-   ────────────────────────────────────────────── */
-
-function ActiveCampaignCard({
-  strategy,
-  brand,
-  onAction,
-}: {
-  strategy: StrategyPlan;
-  brand: BrandProfile | null;
-  onAction: () => void;
-}) {
-  const imageUrl = brand?.cardImages?.[0];
-  return (
-    <button
-      type="button"
-      onClick={onAction}
-      className="group flex flex-col items-center rounded-xl bg-background px-4 py-6 text-center transition-shadow hover:shadow-sm"
-    >
-      {imageUrl ? (
-        <div className="mb-3 h-9 w-9 overflow-hidden rounded-lg">
-          <img src={imageUrl} alt="" className="h-full w-full object-cover" />
-        </div>
-      ) : (
-        <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-[#EBF5FB]">
-          <Megaphone className="h-4 w-4 text-[#2C9FDD]" />
-        </div>
-      )}
-      <h3 className="text-sm font-medium text-foreground line-clamp-1">{strategy.name}</h3>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {strategy.objective.value || "Campaign running"}
-      </p>
-      <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground">
-        View campaign
-        <ChevronRight className="h-3 w-3" />
-      </span>
-    </button>
-  );
-}
-
-function InsightCard({
-  title,
-  description,
-  icon,
-  cta,
-  onAction,
-}: {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  cta: string;
-  onAction: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onAction}
-      className="group flex flex-col items-center rounded-xl bg-background px-4 py-6 text-center transition-shadow hover:shadow-sm"
-    >
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-[#F7F9FB]">
-        {icon}
-      </div>
-      <h3 className="text-sm font-medium text-foreground">{title}</h3>
-      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{description}</p>
-      <span className="mt-3 inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium text-foreground transition-colors group-hover:bg-accent">
-        {cta}
-      </span>
-    </button>
-  );
-}
-
-/* ──────────────────────────────────────────────
    Task action routing
    ────────────────────────────────────────────── */
 
@@ -489,8 +414,8 @@ function getUserInfo(): UserInfo {
    ────────────────────────────────────────────── */
 
 export function DashboardView() {
-  const { state, openFullscreen, startCampaignFlow, setState } = useAICompanion();
-  const { savedStrategies, setActiveStrategy, activeNarrative, setActiveNarrative } = useCampaign();
+  const { state, openFullscreen, startCampaignFlow } = useAICompanion();
+  const { savedStrategies } = useCampaign();
   const [userInfo, setUserInfo] = useState<UserInfo>({ name: "there", brand: null });
 
   useEffect(() => {
@@ -516,14 +441,6 @@ export function DashboardView() {
     return b ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
   }, [isReturningUser]);
 
-  // Most recent active strategy for the campaign card
-  const latestStrategy = useMemo(() => {
-    if (!savedStrategies?.length) return null;
-    return [...savedStrategies].sort(
-      (a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime()
-    )[0];
-  }, [savedStrategies]);
-
   const essentialTasks = universalTasks.filter((t) => t.priority === "essential");
   const optionalTasks = universalTasks.filter((t) => t.priority === "optional");
 
@@ -538,12 +455,6 @@ export function DashboardView() {
     },
     [startCampaignFlow, openFullscreen]
   );
-
-  function handleOpenStrategy(strategy: StrategyPlan) {
-    if (activeNarrative) setActiveNarrative(null);
-    setActiveStrategy(strategy);
-    setState("split");
-  }
 
   // Personalized greeting — different for returning users
   const greeting = isReturningUser
@@ -582,53 +493,10 @@ export function DashboardView() {
             ))
           )}
 
-          {/* SECONDARY CARDS — morph based on user state */}
-          <div className="grid grid-cols-3 gap-3">
-            {isReturningUser ? (
-              <>
-                {/* Active campaign with image */}
-                {latestStrategy ? (
-                  <ActiveCampaignCard
-                    strategy={latestStrategy}
-                    brand={brand}
-                    onAction={() => handleOpenStrategy(latestStrategy)}
-                  />
-                ) : (
-                  <InsightCard
-                    title="Build a campaign"
-                    description="The AI walks you through targeting, budget, and creative."
-                    icon={<Megaphone className="h-4 w-4 text-[#2C9FDD]" />}
-                    cta="Get started"
-                    onAction={() => startCampaignFlow()}
-                  />
-                )}
-
-                {/* Optimization ideas */}
-                <InsightCard
-                  title="Optimization ideas"
-                  description="AI-powered suggestions to improve your campaigns right now."
-                  icon={<Zap className="h-4 w-4 text-amber-500" />}
-                  cta="See ideas"
-                  onAction={() =>
-                    openFullscreen(
-                      brand
-                        ? `What are the top optimization moves for ${brand.name} right now?`
-                        : "What are my top optimization opportunities?"
-                    )
-                  }
-                />
-
-                {/* Quick report */}
-                <InsightCard
-                  title="Weekly summary"
-                  description="Key metrics, channel trends, and what changed this week."
-                  icon={<Target className="h-4 w-4 text-[#7C5CFC]" />}
-                  cta="Generate"
-                  onAction={() => openFullscreen("Give me a weekly performance summary")}
-                />
-              </>
-            ) : (
-              optionalTasks.map((task) => (
+          {/* SECONDARY — morphs based on user state */}
+          {isReturningUser ? null : (
+            <div className="grid grid-cols-3 gap-3">
+              {optionalTasks.map((task) => (
                 <SecondaryCard
                   key={task.id}
                   task={task}
@@ -639,18 +507,23 @@ export function DashboardView() {
                       : undefined
                   }
                 />
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Focus / Chats tabs — returning users only */}
+      {isReturningUser && (
+        <FocusChatsTabs strategies={savedStrategies} />
+      )}
 
     </div>
     </div>
       {state === "resting" && (
         <div className="shrink-0 px-8 pb-6 pt-2">
           <div className="mx-auto max-w-3xl">
-            <CanvasChatInput />
+            <CanvasChatInput placeholder="Ask about performance, campaigns, or optimization ideas..." />
           </div>
         </div>
       )}

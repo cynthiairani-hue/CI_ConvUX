@@ -4,7 +4,8 @@ import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
-import { Megaphone, Plus, Clock, ChevronRight, Sparkles } from "lucide-react";
+import { Megaphone, Plus, Clock, Sparkles, Copy, Pencil, Share2, Archive, Trash2 } from "lucide-react";
+import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { PageChatInput } from "@/components/ai-companion/page-chat-input";
 import type { StrategyPlan, StrategyPlanStatus } from "@/types/campaign";
 
@@ -28,18 +29,25 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-function StrategyRow({ strategy, onOpen }: { strategy: StrategyPlan; onOpen: () => void }) {
+function StrategyRow({ strategy, onOpen, onAction }: { strategy: StrategyPlan; onOpen: () => void; onAction: (actionId: string) => void }) {
   const config = STATUS_CONFIG[strategy.status];
   const objectiveLabel = strategy.objective.value || "No objective";
   const budget = strategy.budgetSchedule.data.monthlyBudget
     ? `$${strategy.budgetSchedule.data.monthlyBudget.toLocaleString()}/mo`
     : "No budget";
 
+  const actions: OverflowAction[] = [
+    { id: "duplicate", label: "Duplicate", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => onAction("duplicate") },
+    { id: "rename", label: "Rename", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => onAction("rename") },
+    { id: "share", label: "Share", icon: <Share2 className="h-3.5 w-3.5" />, onClick: () => onAction("share") },
+    { id: "archive", label: "Archive", icon: <Archive className="h-3.5 w-3.5" />, onClick: () => onAction("archive") },
+    { id: "delete", label: "Delete", icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: () => onAction("delete") },
+  ];
+
   return (
-    <button
-      type="button"
+    <div
       onClick={onOpen}
-      className="group flex w-full items-center gap-4 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#C4CDD8] hover:shadow-sm"
+      className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#C4CDD8] hover:shadow-sm"
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EBF5FB]">
         <Megaphone className="h-4 w-4 text-[#2C9FDD]" />
@@ -62,8 +70,8 @@ function StrategyRow({ strategy, onOpen }: { strategy: StrategyPlan; onOpen: () 
           </span>
         </div>
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-[#C4CDD8] transition-colors group-hover:text-[#8492A6]" />
-    </button>
+      <CardOverflowMenu actions={actions} />
+    </div>
   );
 }
 
@@ -161,7 +169,7 @@ export default function CampaignsPage() {
                     {strategies
                       .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
                       .map((s) => (
-                        <StrategyRow key={s.id} strategy={s} onOpen={() => handleOpenStrategy(s)} />
+                        <StrategyRow key={s.id} strategy={s} onOpen={() => handleOpenStrategy(s)} onAction={() => {}} />
                       ))}
                   </div>
                 </div>
@@ -172,7 +180,7 @@ export default function CampaignsPage() {
       </div>
 
       <div className="shrink-0 pb-6 pt-2">
-        <PageChatInput />
+        <PageChatInput placeholder="Ask about strategy, budgets, or creative next steps..." />
       </div>
     </div>
   );

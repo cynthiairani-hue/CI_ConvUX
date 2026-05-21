@@ -10,7 +10,7 @@ export default function AudiencesPage() {
   const { openFullscreen } = useAICompanion();
 
   function handleBuildAudience() {
-    openFullscreen("Help me build an audience segment for my campaigns");
+    openFullscreen("Help me build an audience segment");
   }
 
   return (
@@ -51,7 +51,7 @@ export default function AudiencesPage() {
       </div>
 
       <div className="shrink-0 pb-6 pt-2">
-        <PageChatInput />
+        <PageChatInput placeholder="Ask about segments, lookalikes, or targeting..." />
       </div>
     </div>
   );

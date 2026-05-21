@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { GradientBorder } from "@/components/ui/gradient-border";
 import { ChatInputDropdown } from "./chat-input-dropdown";
 
-export function CanvasChatInput() {
+export function CanvasChatInput({ placeholder }: { placeholder?: string }) {
   const { openFullscreen } = useAICompanion();
   const { loadStrategy } = useCampaign();
   const [value, setValue] = useState("");
@@ -53,7 +53,7 @@ export function CanvasChatInput() {
             onChange={(e) => setValue(e.target.value)}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="Ask anything..."
+            placeholder={placeholder || "Ask anything..."}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <button

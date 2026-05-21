@@ -6,7 +6,7 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
 import { GradientBorder } from "@/components/ui/gradient-border";
 
-export function PageChatInput() {
+export function PageChatInput({ placeholder }: { placeholder?: string }) {
   const { openFullscreen } = useAICompanion();
   const [value, setValue] = useState("");
 
@@ -29,7 +29,7 @@ export function PageChatInput() {
             type="text"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Ask anything..."
+            placeholder={placeholder || "Ask anything..."}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <button

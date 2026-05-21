@@ -45,6 +45,8 @@ interface CampaignContextValue {
   setActiveNarrative: (narrative: CFONarrative | null) => void;
   saveNarrative: (narrative: CFONarrative) => void;
   loadNarrative: (id: string) => void;
+  removeNarrative: (id: string) => void;
+  duplicateNarrative: (id: string) => void;
   approvalRequests: ApprovalRequest[];
   sendForApproval: (approverId: string, senderPersonaId: PersonaId) => void;
   resolveApproval: (
@@ -160,6 +162,23 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const loadNarrative = useCallback((id: string) => {
     const found = savedNarratives.find((n) => n.id === id);
     if (found) setActiveNarrative(found);
+  }, [savedNarratives]);
+
+  const removeNarrative = useCallback((id: string) => {
+    setSavedNarratives((prev) => prev.filter((n) => n.id !== id));
+    if (activeNarrative?.id === id) setActiveNarrative(null);
+  }, [activeNarrative]);
+
+  const duplicateNarrative = useCallback((id: string) => {
+    const found = savedNarratives.find((n) => n.id === id);
+    if (!found) return;
+    const copy: CFONarrative = {
+      ...found,
+      id: `narrative-${Date.now()}`,
+      name: `${found.name} (copy)`,
+      lastModifiedAt: new Date().toISOString(),
+    };
+    setSavedNarratives((prev) => [copy, ...prev]);
   }, [savedNarratives]);
 
   const dismissToast = useCallback(() => {
@@ -361,6 +380,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setActiveNarrative,
         saveNarrative,
         loadNarrative,
+        removeNarrative,
+        duplicateNarrative,
       }}
     >
       {children}

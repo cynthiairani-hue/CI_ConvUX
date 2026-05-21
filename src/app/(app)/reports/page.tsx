@@ -11,7 +11,6 @@ import { PageChatInput } from "@/components/ai-companion/page-chat-input";
 import {
   FileText,
   Clock,
-  ChevronRight,
   TrendingUp,
   TrendingDown,
   DollarSign,
@@ -22,7 +21,13 @@ import {
   AlertTriangle,
   ArrowRight,
   Zap,
+  Copy,
+  Pencil,
+  Share2,
+  Archive,
+  Trash2,
 } from "lucide-react";
+import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { cn } from "@/lib/utils";
 
 /* ──────────────────────────────────────────────
@@ -326,9 +331,11 @@ const statusDot: Record<string, string> = {
 function SavedReportsTab({
   narratives,
   onOpen,
+  onAction,
 }: {
   narratives: { id: string; name: string; status: string; advertiserId: string; period: { month: number; year: number }; lastModifiedAt: string }[];
   onOpen: (id: string) => void;
+  onAction: (narrativeId: string, actionId: string) => void;
 }) {
   if (narratives.length === 0) {
     return (
@@ -355,12 +362,19 @@ function SavedReportsTab({
           ? { label: "Final", bg: "bg-emerald-50", text: "text-emerald-600" }
           : { label: "Draft", bg: "bg-[#F3F4F6]", text: "text-[#6B7280]" };
 
+        const actions: OverflowAction[] = [
+          { id: "duplicate", label: "Duplicate", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => onAction(n.id, "duplicate") },
+          { id: "rename", label: "Rename", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => onAction(n.id, "rename") },
+          { id: "share", label: "Share", icon: <Share2 className="h-3.5 w-3.5" />, onClick: () => onAction(n.id, "share") },
+          { id: "archive", label: "Archive", icon: <Archive className="h-3.5 w-3.5" />, onClick: () => onAction(n.id, "archive") },
+          { id: "delete", label: "Delete", icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: () => onAction(n.id, "delete") },
+        ];
+
         return (
-          <button
+          <div
             key={n.id}
-            type="button"
+            className="group flex w-full items-center gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#C4CDD8] hover:shadow-sm cursor-pointer"
             onClick={() => onOpen(n.id)}
-            className="group flex w-full items-center gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#C4CDD8] hover:shadow-sm"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F3F0FF]">
               <FileText className="h-4 w-4 text-[#7C5CFC]" />
@@ -384,8 +398,8 @@ function SavedReportsTab({
                 </span>
               </div>
             </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[#C4CDD8] transition-colors group-hover:text-[#8492A6]" />
-          </button>
+            <CardOverflowMenu actions={actions} />
+          </div>
         );
       })}
     </div>
@@ -410,6 +424,8 @@ export default function ReportsPage() {
     setActiveNarrative,
     activeStrategy,
     setActiveStrategy,
+    removeNarrative,
+    duplicateNarrative,
   } = useCampaign();
   const { openFullscreen, setState } = useAICompanion();
 
@@ -434,6 +450,22 @@ export default function ReportsPage() {
 
   function handleGenerateReport(prompt: string) {
     openFullscreen(prompt);
+  }
+
+  function handleNarrativeAction(narrativeId: string, actionId: string) {
+    switch (actionId) {
+      case "duplicate":
+        duplicateNarrative(narrativeId);
+        break;
+      case "delete":
+        removeNarrative(narrativeId);
+        break;
+      case "archive":
+        removeNarrative(narrativeId);
+        break;
+      default:
+        break;
+    }
   }
 
   const narrativeCount = savedNarratives.length;
@@ -493,6 +525,7 @@ export default function ReportsPage() {
               <SavedReportsTab
                 narratives={savedNarratives}
                 onOpen={handleOpenNarrative}
+                onAction={handleNarrativeAction}
               />
             )}
           </div>
@@ -501,7 +534,7 @@ export default function ReportsPage() {
 
       {/* Chat input — always visible at bottom */}
       <div className="shrink-0 pb-6 pt-2">
-        <PageChatInput />
+        <PageChatInput placeholder="Ask about metrics, trends, or anomalies..." />
       </div>
     </div>
   );

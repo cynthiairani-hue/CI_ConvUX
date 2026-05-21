@@ -208,16 +208,20 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     return loadChatSessionMetas();
   });
 
-  const initNewSession = useCallback(() => {
+  const initNewSession = useCallback((skipWelcome?: boolean) => {
     const sessionId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     setCurrentSessionId(sessionId);
-    setMessages([
-      {
-        id: nextId(),
-        role: "assistant",
-        content: getWelcomeMessage(activePersona.id),
-      },
-    ]);
+    if (skipWelcome) {
+      setMessages([]);
+    } else {
+      setMessages([
+        {
+          id: nextId(),
+          role: "assistant",
+          content: getWelcomeMessage(activePersona.id),
+        },
+      ]);
+    }
     setCampaignIntent(null);
     setStrategyIntent(null);
     setActiveStrategy(null);
@@ -518,17 +522,66 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
       // Check for campaign intent — route to strategy flow instead of API
       const lower = content.toLowerCase();
+
+      // Audience intent — must be checked BEFORE campaign (because "build a" would match "build an audience")
+      const isAudienceIntent =
+        lower.includes("audience") ||
+        lower.includes("segment") ||
+        lower.includes("lookalike") ||
+        lower.includes("retarget site visitor") ||
+        lower.includes("customer list");
+
+      if (isAudienceIntent) {
+        setMessages((prev) => [...prev, userMsg]);
+        const brand = brandRef.current;
+        const brandName = brand?.name || "your brand";
+
+        const ackMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: brand
+            ? `Let's build an audience for ${brand.name}. What kind of segment are you looking for?`
+            : "Let's build your audience segment. What are you looking for?",
+        };
+
+        const choiceMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: "",
+          toolCall: {
+            type: "choices",
+            field: "audience-type",
+            question: "What type of audience do you want to build?",
+            subtitle: `We'll create a segment you can use across ${brandName}'s campaigns.`,
+            step: 1,
+            totalSteps: 1,
+            multiSelect: false,
+            options: [
+              { id: "retargeting", label: "Site visitors", detail: "Retarget people who visited your site in the last 30 days" },
+              { id: "lookalike", label: "Lookalike audience", detail: "Find new customers similar to your best buyers", recommended: true },
+              { id: "customer-list", label: "Customer list", detail: "Upload or sync your existing customer data" },
+              { id: "interest", label: "Interest-based", detail: "Target by interests, behaviors, and demographics" },
+            ],
+          },
+        };
+
+        setMessages((prev) => [...prev, ackMsg, choiceMsg]);
+        return;
+      }
+
       const isCampaignIntent =
-        lower.includes("campaign") ||
-        lower.includes("retargeting") ||
-        lower.includes("re-targeting") ||
-        lower.includes("prospecting") ||
-        lower.includes("awareness") ||
-        lower.includes("lead gen") ||
-        lower.includes("app promotion") ||
-        lower.includes("media plan") ||
-        lower.includes("launch a") ||
-        lower.includes("build a");
+        !isAudienceIntent && (
+          lower.includes("campaign") ||
+          lower.includes("retargeting") ||
+          lower.includes("re-targeting") ||
+          lower.includes("prospecting") ||
+          lower.includes("awareness") ||
+          lower.includes("lead gen") ||
+          lower.includes("app promotion") ||
+          lower.includes("media plan") ||
+          lower.includes("launch a") ||
+          lower.includes("build a")
+        );
 
       if (isCampaignIntent && !currentStrategyIntent) {
         const parsed = parseIntent(content);
@@ -1375,9 +1428,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     (initialMessage?: string) => {
       setState("fullscreen");
       if (initialMessage) {
-        // Start a fresh session for this intent
-        initNewSession();
-        // Small delay so the cleared state renders before sending
+        initNewSession(true);
         setTimeout(() => sendMessage(initialMessage), 0);
       }
     },
