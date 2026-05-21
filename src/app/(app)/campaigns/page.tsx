@@ -100,9 +100,10 @@ export default function CampaignsPage() {
     ? savedStrategies
     : savedStrategies.filter((s) => s.status === statusFilter);
 
-  // Group strategies by advertiser — use company name as the display key
+  // Group strategies by advertiser — normalize name to avoid duplicates (e.g. "Ffern" vs "FFERN")
   const grouped = filtered.reduce<Record<string, StrategyPlan[]>>((acc, s) => {
-    const key = advNames.get(s.advertiserId) || s.advertiserId || "Unassigned";
+    const raw = advNames.get(s.advertiserId) || s.advertiserId || "Unassigned";
+    const key = raw.toUpperCase();
     if (!acc[key]) acc[key] = [];
     acc[key].push(s);
     return acc;

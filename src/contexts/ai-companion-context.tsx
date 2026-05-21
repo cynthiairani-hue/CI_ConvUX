@@ -568,6 +568,87 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const brand = brandRef.current;
         const brandName = brand?.name || "your brand";
 
+        // DIRECT MODE: Build audience immediately with smart defaults
+        if (chatMode === "assisted") {
+          setIsLoading(true);
+
+          // Infer audience type from message
+          let audienceType: AudienceSegmentType = "retargeting";
+          if (lower.includes("lookalike")) audienceType = "lookalike";
+          else if (lower.includes("customer list") || lower.includes("upload")) audienceType = "customer-list";
+          else if (lower.includes("interest")) audienceType = "interest";
+
+          const typeLabels: Record<string, string> = {
+            retargeting: "Site Visitors — Last 30 Days",
+            lookalike: "Lookalike — Top Customers",
+            "customer-list": "Customer List Upload",
+            interest: "Interest-based Targeting",
+          };
+          const rulesMap: Record<string, { label: string; value: string; source: "user_input" | "ai_inferred" }[]> = {
+            retargeting: [
+              { label: "Source", value: "Website visitors", source: "user_input" },
+              { label: "Lookback window", value: "Last 30 days", source: "ai_inferred" },
+              { label: "Exclude", value: "Existing customers (purchased in last 90 days)", source: "ai_inferred" },
+              { label: "Min page views", value: "2+ pages visited", source: "ai_inferred" },
+            ],
+            lookalike: [
+              { label: "Seed audience", value: "Top 20% customers by LTV", source: "ai_inferred" },
+              { label: "Similarity", value: "1-3% lookalike expansion", source: "ai_inferred" },
+              { label: "Geography", value: "Same markets as seed audience", source: "ai_inferred" },
+              { label: "Exclude", value: "Existing customers and recent site visitors", source: "ai_inferred" },
+            ],
+            "customer-list": [
+              { label: "Source", value: "Customer email list", source: "user_input" },
+              { label: "Match type", value: "Email + phone hashed match", source: "ai_inferred" },
+              { label: "Refresh", value: "Syncs daily from CRM", source: "ai_inferred" },
+            ],
+            interest: [
+              { label: "Interests", value: "Luxury goods, natural beauty, artisan products", source: "ai_inferred" },
+              { label: "Demographics", value: "25-54, high household income", source: "ai_inferred" },
+              { label: "Behaviors", value: "Online shoppers, DTC brand buyers", source: "ai_inferred" },
+            ],
+          };
+          const sizeMap: Record<string, string> = {
+            retargeting: "18,400 - 22,100",
+            lookalike: "340,000 - 520,000",
+            "customer-list": "8,200 - 9,500",
+            interest: "1.2M - 2.4M",
+          };
+
+          setTimeout(() => {
+            const segment: AudienceSegment = {
+              id: `aud-${Date.now()}`,
+              name: `${brandName} — ${typeLabels[audienceType] || "Audience Segment"}`,
+              type: audienceType,
+              status: "draft",
+              advertiserId: brand?.name || "Unknown",
+              estimatedSize: sizeMap[audienceType] || "Unknown",
+              rules: (rulesMap[audienceType] || []).map((r) => ({
+                label: r.label,
+                value: r.value,
+                provenance: { source: r.source, reasoning: `Inferred for ${brandName} ${audienceType} audience` },
+              })),
+              platforms: ["Meta", "Google", "TikTok"],
+              createdAt: new Date().toISOString(),
+              lastModifiedAt: new Date().toISOString(),
+            };
+
+            setActiveAudience(segment);
+
+            const ackMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: `Built a ${typeLabels[audienceType]?.toLowerCase() || audienceType} segment for ${brandName}. Your audience is on the canvas — review the targeting rules, edit anything, then save when ready.`,
+            };
+            setMessages((prev) => [...prev, ackMsg]);
+            setIsLoading(false);
+            setState("split");
+            collapseLeftRail();
+          }, 600);
+          return;
+        }
+
+        // GUIDED MODE: Walk through step by step
         const ackMsg: ChatMessage = {
           id: nextId(),
           role: "assistant",
