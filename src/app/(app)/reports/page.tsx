@@ -17,7 +17,7 @@ import {
   Target,
   BarChart3,
   Calendar,
-  Sparkles,
+  Wand2,
   AlertTriangle,
   ArrowRight,
   Zap,
@@ -156,7 +156,7 @@ function PerformanceTab({
           onClick={() => onAsk("Show me how my marketing is performing")}
           className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
         >
-          <Sparkles className="h-4 w-4" />
+          <Wand2 className="h-4 w-4" />
           View performance
         </button>
       </div>
@@ -312,7 +312,7 @@ function TemplatesTab({ onGenerate }: { onGenerate: (prompt: string) => void }) 
             </div>
             <p className="mt-0.5 text-[12px] text-[#8492A6] line-clamp-1">{t.description}</p>
           </div>
-          <Sparkles className="mt-1 h-3.5 w-3.5 shrink-0 text-[#C4CDD8] transition-colors group-hover:text-[#2C9FDD]" />
+          <Wand2 className="mt-1 h-3.5 w-3.5 shrink-0 text-[#C4CDD8] transition-colors group-hover:text-[#2C9FDD]" />
         </button>
       ))}
     </div>
@@ -328,6 +328,9 @@ const statusDot: Record<string, string> = {
   final: "bg-emerald-500",
 };
 
+const REPORT_STATUS_FILTERS = ["all", "draft", "final"] as const;
+const REPORT_STATUS_LABELS: Record<string, string> = { all: "All", draft: "Draft", final: "Final" };
+
 function SavedReportsTab({
   narratives,
   onOpen,
@@ -337,6 +340,8 @@ function SavedReportsTab({
   onOpen: (id: string) => void;
   onAction: (narrativeId: string, actionId: string) => void;
 }) {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
   if (narratives.length === 0) {
     return (
       <div className="flex flex-col items-center rounded-xl bg-white px-8 py-10 text-center">
@@ -351,12 +356,39 @@ function SavedReportsTab({
     );
   }
 
-  const sorted = [...narratives].sort(
+  const filtered = statusFilter === "all"
+    ? narratives
+    : narratives.filter((n) => n.status === statusFilter);
+
+  const sorted = [...filtered].sort(
     (a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime()
   );
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
+      {/* Status filter tabs */}
+      <div className="flex items-center gap-1">
+        {REPORT_STATUS_FILTERS.map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setStatusFilter(f)}
+            className={cn(
+              "rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
+              statusFilter === f
+                ? "bg-[#394859] text-white"
+                : "text-[#8492A6] hover:bg-[#F3F4F6] hover:text-[#394859]"
+            )}
+          >
+            {REPORT_STATUS_LABELS[f] || f}
+          </button>
+        ))}
+      </div>
+
+      {sorted.length === 0 ? (
+        <p className="py-8 text-center text-[13px] text-[#8492A6]">No reports match this filter.</p>
+      ) : (
+      <div className="space-y-2">
       {sorted.map((n) => {
         const config = n.status === "final"
           ? { label: "Final", bg: "bg-emerald-50", text: "text-emerald-600" }
@@ -402,6 +434,8 @@ function SavedReportsTab({
           </div>
         );
       })}
+    </div>
+      )}
     </div>
   );
 }
@@ -473,7 +507,7 @@ export default function ReportsPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-8 py-10">
+        <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
           {/* Page header */}
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>

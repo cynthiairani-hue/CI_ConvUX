@@ -233,6 +233,30 @@ export interface CFONarrative {
   lastModifiedBy: string;
 }
 
+// --- Audience Segments ---
+
+export type AudienceSegmentType = "retargeting" | "lookalike" | "customer-list" | "interest";
+export type AudienceSegmentStatus = "draft" | "ready" | "active";
+
+export interface AudienceRule {
+  label: string;
+  value: string;
+  provenance: SectionProvenance;
+}
+
+export interface AudienceSegment {
+  id: string;
+  name: string;
+  type: AudienceSegmentType;
+  status: AudienceSegmentStatus;
+  advertiserId: string;
+  estimatedSize: string;
+  rules: AudienceRule[];
+  platforms: string[];
+  createdAt: string;
+  lastModifiedAt: string;
+}
+
 // --- Approvals ---
 
 export interface ApprovalRequest {

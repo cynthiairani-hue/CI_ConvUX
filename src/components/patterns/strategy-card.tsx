@@ -16,7 +16,7 @@ import {
   Palette,
   TrendingUp,
   Upload,
-  Sparkles,
+  Wand2,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -669,7 +669,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                             : "hover:border-[#C4CDD8] hover:bg-[#F7F9FB]"
                         )}
                       >
-                        <Sparkles className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
+                        <Wand2 className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
                         {isGenerating ? "Generating..." : "Generate with AI"}
                       </button>
                     </div>

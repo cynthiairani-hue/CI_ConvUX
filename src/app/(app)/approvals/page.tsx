@@ -57,7 +57,7 @@ export default function ApprovalsPage() {
             </div>
           </div>
         ) : (
-          <div className="mx-auto max-w-3xl px-6 py-8">
+          <div className="mx-auto max-w-3xl px-4 sm:px-8 py-8">
             <h1 className="text-lg font-semibold text-foreground">Approvals</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Review and manage approval requests.

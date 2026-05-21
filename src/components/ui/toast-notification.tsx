@@ -3,12 +3,19 @@
 import Link from "next/link";
 import { X } from "lucide-react";
 import { useCampaign } from "@/contexts/campaign-context";
+import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
 
 export function Toast() {
   const { toast, dismissToast } = useCampaign();
+  const { setState } = useAICompanion();
 
   if (!toast.visible) return null;
+
+  function handleActionClick() {
+    setState("resting");
+    dismissToast();
+  }
 
   return (
     <div
@@ -24,7 +31,7 @@ export function Toast() {
       {toast.action && (
         <Link
           href={toast.action.href}
-          onClick={dismissToast}
+          onClick={handleActionClick}
           className="shrink-0 text-sm font-medium text-[#2C9FDD] transition-colors hover:text-[#1A7BB5]"
         >
           {toast.action.label}

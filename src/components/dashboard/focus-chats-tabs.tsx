@@ -11,7 +11,6 @@ import type { StrategyPlan } from "@/types/campaign";
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   ChevronDown,
   DollarSign,
   Megaphone,
@@ -134,10 +133,9 @@ function FocusCard({
           <button
             type="button"
             onClick={() => onAct(item.prompt)}
-            className="flex items-center gap-1 text-[12px] font-medium text-[#2C9FDD] transition-colors hover:text-[#1A7BB5]"
+            className="inline-flex items-center rounded-md border border-[#E0E8F2] px-3 py-1 text-[11px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
           >
             Act on this
-            <ArrowRight className="h-3 w-3" />
           </button>
           <span className="text-[11px] text-[#C4CDD8]">
             {item.confidence} confidence
@@ -471,7 +469,7 @@ function ChatsTabContent({
           </div>
         </div>
       ) : (
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-3 grid grid-cols-4 gap-2">
           {nonEmptyGroups.map((group) => (
             <ChatGroupCard
               key={group}
@@ -492,8 +490,10 @@ function ChatsTabContent({
 
 export function FocusChatsTabs({
   strategies,
+  isReturningUser = true,
 }: {
   strategies: StrategyPlan[];
+  isReturningUser?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>("focus");
   const { openFullscreen, chatSessions, loadChatSession } = useAICompanion();
@@ -516,7 +516,7 @@ export function FocusChatsTabs({
   );
 
   const tabs: { id: TabId; label: string; count?: number }[] = [
-    { id: "focus", label: "Priorities", count: focusItems.length },
+    { id: "focus", label: isReturningUser ? "Priorities" : "Get started", count: focusItems.length },
     { id: "chats", label: "Chats", count: activeSessions.length || undefined },
   ];
 

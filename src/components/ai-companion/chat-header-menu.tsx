@@ -8,19 +8,12 @@ import {
   Trash2,
   Archive,
   MessageSquare,
-  PanelLeft,
-  PanelRight,
-  Maximize2,
-  Columns2,
-  Settings2,
   Clock,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import { useCampaign } from "@/contexts/campaign-context";
 import { estimateTokens } from "@/components/ai-companion/ai-message";
-import type { AICompanionState } from "@/contexts/ai-companion-context";
 import type { ChatSessionMeta } from "@/lib/storage";
 
 /* ──────────────────────────────────────────────
@@ -69,50 +62,27 @@ function groupSessionsByTime(sessions: ChatSessionMeta[]): { label: string; sess
 }
 
 /* ──────────────────────────────────────────────
-   Layout options
-   ────────────────────────────────────────────── */
-
-interface LayoutOption {
-  id: AICompanionState | "docked-left" | "docked-right";
-  label: string;
-  icon: React.ReactNode;
-}
-
-const LAYOUT_OPTIONS: LayoutOption[] = [
-  { id: "docked-left", label: "Sidebar left", icon: <PanelLeft className="h-3.5 w-3.5" /> },
-  { id: "docked-right", label: "Sidebar right", icon: <PanelRight className="h-3.5 w-3.5" /> },
-  { id: "fullscreen", label: "Full screen", icon: <Maximize2 className="h-3.5 w-3.5" /> },
-  { id: "split", label: "Split view", icon: <Columns2 className="h-3.5 w-3.5" /> },
-];
-
-/* ──────────────────────────────────────────────
-   ChatHeaderMenu — Notion-style dropdown
+   ChatHeaderMenu — conversation switcher only
    ────────────────────────────────────────────── */
 
 interface ChatHeaderMenuProps {
-  /** Compact mode for docked panel — narrower, fewer features */
   compact?: boolean;
 }
 
 export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
   const {
-    state, setState, dockSide,
     messages, currentSessionId, chatSessions,
     startNewChat, loadChatSession, renameChatSession, archiveChatSession, deleteChatSession,
   } = useAICompanion();
-  const { activeStrategy, activeNarrative } = useCampaign();
   const [open, setOpen] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const hasPreview = !!(activeStrategy || activeNarrative);
-
   const sessionTokens = useMemo(() => {
     return messages.reduce((sum, msg) => sum + estimateTokens(msg), 0);
   }, [messages]);
 
-  // Close on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -124,7 +94,6 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  // Derive session name
   const sessionName = useMemo(() => {
     if (currentSessionId) {
       const meta = chatSessions.find((s) => s.id === currentSessionId);
@@ -139,7 +108,6 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
     return "New conversation";
   }, [currentSessionId, chatSessions, messages, compact]);
 
-  // Active sessions (not archived), sorted by most recent
   const activeSessions = useMemo(() => {
     return chatSessions
       .filter((s) => s.status === "active" && s.id !== currentSessionId)
@@ -147,31 +115,6 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
   }, [chatSessions, currentSessionId]);
 
   const groupedSessions = useMemo(() => groupSessionsByTime(activeSessions), [activeSessions]);
-
-  // Current layout id
-  const currentLayout = state === "docked"
-    ? dockSide === "left" ? "docked-left" : "docked-right"
-    : state;
-
-  function handleLayoutChange(id: string) {
-    if (id === "docked-left") {
-      setState("docked");
-      // dockSide is toggled via context — we need to ensure it's left
-      // For simplicity, if currently right, toggle; if not docked, set state
-      if (state !== "docked" || dockSide !== "left") {
-        setState("docked");
-        // toggleDockSide is available but we can't guarantee direction here
-        // So we set state to docked — the side will be whatever it was last
-      }
-    } else if (id === "docked-right") {
-      setState("docked");
-    } else if (id === "split") {
-      setState("split");
-    } else if (id === "fullscreen") {
-      setState("fullscreen");
-    }
-    setOpen(false);
-  }
 
   function handleLoadSession(sessionId: string) {
     loadChatSession(sessionId);
@@ -185,15 +128,8 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
     setRenameId(null);
   }
 
-  function handlePersonalize() {
-    // Navigate to settings — for now just close and could open settings
-    setOpen(false);
-    window.location.href = "/settings";
-  }
-
   return (
     <div ref={menuRef} className="relative min-w-0">
-      {/* Trigger + token counter */}
       <div className="flex items-center gap-2 min-w-0">
         <button
           onClick={() => setOpen(!open)}
@@ -219,7 +155,6 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
         )}
       </div>
 
-      {/* Dropdown */}
       {open && (
         <div className={cn(
           "absolute left-0 top-full z-50 mt-1.5 rounded-xl border bg-background shadow-lg",
@@ -236,53 +171,11 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
             </button>
           </div>
 
-          <div className="border-t" />
-
-          {/* Layout options */}
-          <div className="p-1.5">
-            <span className="px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
-              Layout
-            </span>
-            {LAYOUT_OPTIONS
-              .filter((opt) => opt.id !== "split" || hasPreview) // Only show split if there's an artifact
-              .map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => handleLayoutChange(opt.id)}
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors",
-                  currentLayout === opt.id
-                    ? "bg-accent font-medium text-foreground"
-                    : "text-foreground hover:bg-accent"
-                )}
-              >
-                <span className="text-muted-foreground">{opt.icon}</span>
-                {opt.label}
-                {currentLayout === opt.id && (
-                  <span className="ml-auto text-[11px] text-[#2C9FDD]">✓</span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className="border-t" />
-
-          {/* Personalize */}
-          <div className="p-1.5">
-            <button
-              onClick={handlePersonalize}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent"
-            >
-              <Settings2 className="h-4 w-4 text-muted-foreground" />
-              Personalize
-            </button>
-          </div>
-
           {/* Previous conversations */}
           {groupedSessions.length > 0 && (
             <>
               <div className="border-t" />
-              <div className="max-h-[240px] overflow-y-auto p-1.5">
+              <div className="max-h-[320px] overflow-y-auto p-1.5">
                 {groupedSessions.map((group) => (
                   <div key={group.label}>
                     <span className="px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
@@ -319,7 +212,6 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
                                 {timeAgo(session.lastMessageAt)}
                               </span>
                             </div>
-                            {/* Hover actions */}
                             <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/item:opacity-100">
                               <button
                                 type="button"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Clock, MessageSquare, MoreHorizontal, Pencil, Archive, Trash2, Check, X } from "lucide-react";
+import { Wand2, Clock, MessageSquare, MoreHorizontal, Pencil, Archive, Trash2, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
@@ -189,7 +189,7 @@ export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy }: ChatInpu
       {/* Suggested prompts */}
       <div className="px-4 pt-3 pb-2">
         <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
-          <Sparkles className="h-3 w-3" />
+          <Wand2 className="h-3 w-3" />
           Suggested for you
         </div>
         <div className="flex flex-wrap gap-1.5">

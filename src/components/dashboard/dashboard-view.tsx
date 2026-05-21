@@ -12,7 +12,7 @@ import {
   Link,
   DollarSign,
   Building2,
-  Sparkles,
+  Wand2,
   ArrowRight,
   BarChart3,
 } from "lucide-react";
@@ -106,7 +106,7 @@ function HeroCard({
         onClick={onAction}
         className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
       >
-        <Sparkles className="h-4 w-4" />
+        <Wand2 className="h-4 w-4" />
         {task.cta}
       </button>
     </div>
@@ -407,7 +407,7 @@ function getUserInfo(): UserInfo {
    ────────────────────────────────────────────── */
 
 export function DashboardView() {
-  const { state, openFullscreen, startCampaignFlow } = useAICompanion();
+  const { openFullscreen, startCampaignFlow } = useAICompanion();
   const { savedStrategies } = useCampaign();
   const [userInfo, setUserInfo] = useState<UserInfo>({ name: "there", brand: null });
 
@@ -461,7 +461,7 @@ export function DashboardView() {
   return (
     <div className="flex h-full flex-col">
     <div className="flex-1 overflow-y-auto">
-    <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 sm:px-8 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-foreground">
         {greeting}
       </h1>
@@ -506,20 +506,17 @@ export function DashboardView() {
         </div>
       </div>
 
-      {/* Focus / Chats tabs — returning users only */}
       {isReturningUser && (
         <FocusChatsTabs strategies={savedStrategies} />
       )}
 
     </div>
     </div>
-      {state === "resting" && (
-        <div className="shrink-0 px-8 pb-6 pt-2">
-          <div className="mx-auto max-w-3xl">
-            <CanvasChatInput placeholder="Ask about performance, campaigns, or optimization ideas..." />
-          </div>
+      <div className="shrink-0 pb-6 pt-2">
+        <div className="mx-auto max-w-3xl px-4 sm:px-8">
+          <CanvasChatInput placeholder="Ask about performance, campaigns, or optimization ideas..." />
         </div>
-      )}
+      </div>
     </div>
   );
 }

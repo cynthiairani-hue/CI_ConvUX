@@ -44,7 +44,7 @@ export const universalTasks: GettingStartedTask[] = [
     title: "Let's build your first campaign",
     description:
       "The AI will walk you through targeting, budget, and creative — step by step.",
-    cta: "Get started",
+    cta: "Build campaign",
     status: "not-started",
     priority: "essential",
   },

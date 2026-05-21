@@ -24,7 +24,7 @@ import {
   type StrategyIntent,
   type StrategyFlowTool,
 } from "@/data/campaign-flow";
-import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestrictedCategory, ChatMode, DetailLevel } from "@/types/campaign";
+import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestrictedCategory, ChatMode, DetailLevel, AudienceSegment, AudienceSegmentType } from "@/types/campaign";
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
 import { useCampaign } from "./campaign-context";
 import { useLayout } from "./layout-context";
@@ -45,7 +45,7 @@ import {
   type ChatSessionMeta,
 } from "@/lib/storage";
 
-export type AICompanionState = "resting" | "fullscreen" | "docked" | "split";
+export type AICompanionState = "resting" | "fullscreen" | "docked" | "split" | "floating";
 export type DockSide = "right" | "left";
 
 export interface ToolCallChoices {
@@ -135,6 +135,7 @@ interface AICompanionContextValue {
   minimize: () => void;
   close: () => void;
   expand: () => void;
+  setDockSide: (side: DockSide) => void;
   toggleDockSide: () => void;
   sendMessage: (content: string, files?: { name: string; type: string; size: number; preview?: string }[]) => void;
   submitChoice: (messageId: string, field: string, selected: string[]) => void;
@@ -166,10 +167,34 @@ function nextId() {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
-  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative } = useCampaign();
+  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience } = useCampaign();
   const { collapseLeftRail } = useLayout();
-  const [state, setState] = useState<AICompanionState>("resting");
-  const [dockSide, setDockSide] = useState<DockSide>("left");
+  const [state, setStateRaw] = useState<AICompanionState>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("fuseiq-layout-state") as AICompanionState | null;
+      // Restore persistent layouts on load; fullscreen and split don't persist across sessions
+      if (saved === "docked" || saved === "floating") return saved;
+    }
+    return "resting";
+  });
+  const setState = useCallback((s: AICompanionState) => {
+    setStateRaw(s);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fuseiq-layout-state", s);
+    }
+  }, []);
+  const [dockSide, setDockSideRaw] = useState<DockSide>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("fuseiq-dock-side") as DockSide) || "left";
+    }
+    return "left";
+  });
+  const setDockSide = useCallback((side: DockSide) => {
+    setDockSideRaw(side);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fuseiq-dock-side", side);
+    }
+  }, []);
   const [chatMode, setChatModeState] = useState<ChatMode>(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("fuseiq-chat-mode") as ChatMode) || "assisted";
@@ -226,8 +251,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     setStrategyIntent(null);
     setActiveStrategy(null);
     setActiveNarrative(null);
+    setActiveAudience(null);
     return sessionId;
-  }, [activePersona.id, setActiveStrategy, setActiveNarrative]);
+  }, [activePersona.id, setActiveStrategy, setActiveNarrative, setActiveAudience]);
 
   useEffect(() => {
     initNewSession();
@@ -399,6 +425,12 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     brandRef.current = getCurrentBrand();
   }, []);
 
+  // Ref for detailLevel so callAPI closure always has current value
+  const detailLevelRef = useRef<DetailLevel>(detailLevel);
+  useEffect(() => {
+    detailLevelRef.current = detailLevel;
+  }, [detailLevel]);
+
   const callAPI = useCallback(
     async (allMessages: ChatMessage[]) => {
       const apiMessages = allMessages
@@ -457,7 +489,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: apiMessages, brandContext }),
+          body: JSON.stringify({ messages: apiMessages, brandContext, detailLevel: detailLevelRef.current }),
         });
 
         if (!res.ok) {
@@ -617,6 +649,49 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
         setMessages((prev) => [...prev, userMsg]);
 
+        // DIRECT MODE: Skip guided steps, build strategy immediately with defaults
+        if (chatMode === "assisted") {
+          setIsLoading(true);
+          const directIntent: StrategyIntent = {
+            ...intent,
+            objective: parsed.objective || "sales", // default to sales if not specified
+            selectedKeywords: [], // skip keyword selection
+            allKeywords: [],
+          };
+
+          const adv = advertiser || {
+            id: `adv-${Date.now()}`,
+            companyName: brand?.name || "Company",
+            websiteUrl: brand?.domain || "example.com",
+            industry: (brand ? mapBrandIndustryToIAB(brand.industry) : "other") as IABIndustry,
+            restrictedCategories: [] as IABRestrictedCategory[],
+          };
+
+          if (!advertiser && brand) {
+            setAdvertiser(adv);
+          }
+
+          // Simulate brief thinking delay for Direct mode
+          setTimeout(() => {
+            const strategy = buildStrategyFromIntent(directIntent, adv);
+            strategy.keywords = [];
+            setActiveStrategy(strategy);
+            saveStrategy(strategy);
+
+            const ackMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: `Built a ${directIntent.objective} strategy for ${adv.companyName} with recommended defaults. Your media plan is on the canvas — review each section, edit anything, then save or send for approval when ready.`,
+            };
+            setMessages((prev) => [...prev, ackMsg]);
+            setIsLoading(false);
+            setState("split");
+            collapseLeftRail();
+          }, 600);
+          return;
+        }
+
+        // GUIDED MODE: Walk through step by step
         const ackMsg: ChatMessage = {
           id: nextId(),
           role: "assistant",
@@ -961,29 +1036,58 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         });
 
         setTimeout(() => {
-          const moves = brand
-            ? [
-                "**Shift 15% of Meta spend to Google Shopping.** Shopping ROAS is 6.9x vs Meta's 3.8x. Even a small reallocation should improve blended return. *High confidence — 30 days of data.*",
-                "**Pause TikTok prospecting and reallocate to retargeting.** TikTok CPA ($33) is 2x your average. Retargeting the same budget through Meta would likely convert at $18-22 CPA. *Medium confidence — small sample.*",
-                "**Refresh top Meta ad creative.** Your best-performing ad set has been running 18 days — frequency is at 3.2 and CTR dropped 12% this week. New creative variants should recover engagement. *High confidence.*",
-                "**Test branded search on Bing.** Your Google branded search CPA is $7 — Bing CPCs are typically 30-40% lower in this category. Low effort, incremental reach. *Low confidence — no historical data.*",
-              ]
-            : [
-                "**Review channel allocation.** Shift budget toward your highest-ROAS channels and reduce spend on underperformers.",
-                "**Check creative freshness.** Ads running longer than 14 days at high frequency may need new variants.",
-                "**Expand retargeting.** If you're spending heavily on prospecting, reallocating 15-20% to retargeting often improves blended CPA.",
-              ];
-
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === thinkingId
-                ? {
-                    ...m,
-                    content: `Here are the top optimization moves for ${brandName} right now, ranked by expected impact:\n\n${moves.map((move, i) => `${i + 1}. ${move}`).join("\n")}\n\nWant me to build any of these into a plan you can review and approve?`,
-                  }
-                : m
-            )
-          );
+          if (brand) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? {
+                      ...m,
+                      content: `Here are the top optimization moves for ${brandName}, ranked by expected impact.`,
+                      performanceSnapshot: {
+                        title: `${brandName} — Optimization Moves`,
+                        period: "May 2026",
+                        metrics: [
+                          {
+                            label: "Shift 15% of Meta spend to Google Shopping",
+                            value: "Shopping ROAS 6.9x vs Meta 3.8x",
+                            change: { direction: "up" as const, text: "+$2.1K/mo" },
+                            context: "High confidence — 30 days of data",
+                          },
+                          {
+                            label: "Pause TikTok prospecting → retargeting",
+                            value: "TikTok CPA $33 vs retargeting $18-22",
+                            change: { direction: "down" as const, text: "-38% CPA" },
+                            context: "Medium confidence — small sample",
+                          },
+                          {
+                            label: "Refresh top Meta ad creative",
+                            value: "Frequency 3.2, CTR dropped 12% this week",
+                            change: { direction: "down" as const, text: "-12% CTR" },
+                            context: "High confidence — 18 days running",
+                          },
+                          {
+                            label: "Test branded search on Bing",
+                            value: "Google branded CPA $7, Bing 30-40% cheaper",
+                            context: "Low confidence — no historical data",
+                          },
+                        ],
+                      },
+                    }
+                  : m
+              )
+            );
+          } else {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? {
+                      ...m,
+                      content: `Here are optimization moves for ${brandName}:\n\n1. **Review channel allocation.** Shift budget toward your highest-ROAS channels.\n2. **Check creative freshness.** Ads running 14+ days at high frequency may need new variants.\n3. **Expand retargeting.** Reallocating 15-20% from prospecting to retargeting often improves CPA.`,
+                    }
+                  : m
+              )
+            );
+          }
           setIsLoading(false);
         }, thinkingSteps.length * stepDelay + 800);
         return;
@@ -1033,7 +1137,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         }
       );
     },
-    [strategyIntent, campaignIntent, evaluateStrategyFlow, evaluateAndRespond, callAPI, setActivePlan, saveNarrative, setActiveNarrative, collapseLeftRail, advertiser, setAdvertiser]
+    [strategyIntent, campaignIntent, evaluateStrategyFlow, evaluateAndRespond, callAPI, setActivePlan, saveNarrative, setActiveNarrative, collapseLeftRail, advertiser, setAdvertiser, chatMode, setActiveStrategy, saveStrategy]
   );
 
   const submitChoice = useCallback(
@@ -1118,13 +1222,27 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
         setTimeout(() => {
           setIsLoading(false);
-          const aiMsg: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            content: brand
-              ? `Got it — ${label} monthly. Here's a starting allocation for ${brand.name}:\n\n1. **Google Shopping** — 45% of budget. Highest ROAS channel for DTC fragrance\n2. **Meta retargeting** — 30%. Re-engage site visitors and past purchasers\n3. **Meta prospecting** — 20%. Lookalike audiences from your customer list\n4. **Brand search** — 5%. Protect branded terms, low CPC\n\nThis is a draft pacing plan — I'll adjust as performance data comes in.`
-              : `Got it — ${label} monthly. I'll set up a pacing plan across your platforms.`,
-          };
+          const aiMsg: ChatMessage = brand
+            ? {
+                id: nextId(),
+                role: "assistant",
+                content: `Got it — ${label} monthly. Here's a starting allocation for ${brand.name}. This is a draft pacing plan — I'll adjust as performance data comes in.`,
+                performanceSnapshot: {
+                  title: `${brand.name} — Monthly Allocation`,
+                  period: label,
+                  metrics: [
+                    { label: "Google Shopping", value: "45% of budget", context: "Highest ROAS channel for DTC fragrance" },
+                    { label: "Meta retargeting", value: "30%", context: "Re-engage site visitors and past purchasers" },
+                    { label: "Meta prospecting", value: "20%", context: "Lookalike audiences from your customer list" },
+                    { label: "Brand search", value: "5%", context: "Protect branded terms, low CPC" },
+                  ],
+                },
+              }
+            : {
+                id: nextId(),
+                role: "assistant",
+                content: `Got it — ${label} monthly. I'll set up a pacing plan across your platforms.`,
+              };
           const nextMsg: ChatMessage = {
             id: nextId(),
             role: "assistant",
@@ -1148,6 +1266,85 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           }, 400);
         }, 600);
         return;
+      } else if (field === "audience-type") {
+        const brand = brandRef.current;
+        const brandName = brand?.name || "your brand";
+        const audienceType = selected[0] as AudienceSegmentType;
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+
+        const typeLabels: Record<string, string> = {
+          retargeting: "Site Visitors — Last 30 Days",
+          lookalike: "Lookalike — Top Customers",
+          "customer-list": "Customer List Upload",
+          interest: "Interest-based Targeting",
+        };
+
+        const rulesMap: Record<string, { label: string; value: string; source: "user_input" | "ai_inferred" }[]> = {
+          retargeting: [
+            { label: "Source", value: "Website visitors", source: "user_input" },
+            { label: "Lookback window", value: "Last 30 days", source: "ai_inferred" },
+            { label: "Exclude", value: "Existing customers (purchased in last 90 days)", source: "ai_inferred" },
+            { label: "Min page views", value: "2+ pages visited", source: "ai_inferred" },
+          ],
+          lookalike: [
+            { label: "Seed audience", value: "Top 20% customers by LTV", source: "ai_inferred" },
+            { label: "Similarity", value: "1-3% lookalike expansion", source: "ai_inferred" },
+            { label: "Geography", value: "Same markets as seed audience", source: "ai_inferred" },
+            { label: "Exclude", value: "Existing customers and recent site visitors", source: "ai_inferred" },
+          ],
+          "customer-list": [
+            { label: "Source", value: "Customer email list", source: "user_input" },
+            { label: "Match type", value: "Email + phone hashed match", source: "ai_inferred" },
+            { label: "Refresh", value: "Syncs daily from CRM", source: "ai_inferred" },
+          ],
+          interest: [
+            { label: "Interests", value: "Luxury goods, natural beauty, artisan products", source: "ai_inferred" },
+            { label: "Demographics", value: "25-54, high household income", source: "ai_inferred" },
+            { label: "Behaviors", value: "Online shoppers, DTC brand buyers", source: "ai_inferred" },
+          ],
+        };
+
+        const sizeMap: Record<string, string> = {
+          retargeting: "18,400 - 22,100",
+          lookalike: "340,000 - 520,000",
+          "customer-list": "8,200 - 9,500",
+          interest: "1.2M - 2.4M",
+        };
+
+        setTimeout(() => {
+          setIsLoading(false);
+
+          const segment: AudienceSegment = {
+            id: `aud-${Date.now()}`,
+            name: `${brandName} — ${typeLabels[audienceType] || label}`,
+            type: audienceType,
+            status: "draft",
+            advertiserId: brand?.name || "Unknown",
+            estimatedSize: sizeMap[audienceType] || "Unknown",
+            rules: (rulesMap[audienceType] || []).map((r) => ({
+              label: r.label,
+              value: r.value,
+              provenance: { source: r.source, reasoning: `Inferred for ${brandName} ${audienceType} audience` },
+            })),
+            platforms: ["Meta", "Google", "TikTok"],
+            createdAt: new Date().toISOString(),
+            lastModifiedAt: new Date().toISOString(),
+          };
+
+          setActiveAudience(segment);
+
+          const ackMsg: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: `Built a ${label.toLowerCase()} segment for ${brandName}. Your audience is on the canvas — review the targeting rules, edit anything, then save when ready.`,
+          };
+          setMessages((prev) => [...prev, ackMsg]);
+
+          setState("split");
+          collapseLeftRail();
+        }, 800);
+        return;
       } else if (strategyIntent) {
         const updated: StrategyIntent = { ...strategyIntent, [field]: resolved };
         evaluateStrategyFlow(updated, userMsg);
@@ -1158,7 +1355,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         evaluateAndRespond(updated, userMsg);
       }
     },
-    [strategyIntent, campaignIntent, messages, evaluateStrategyFlow, evaluateAndRespond, sendMessage, callAPI]
+    [strategyIntent, campaignIntent, messages, evaluateStrategyFlow, evaluateAndRespond, sendMessage, callAPI, setActiveAudience, collapseLeftRail]
   );
 
   const skipChoice = useCallback(
@@ -1400,6 +1597,47 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         restrictedCategories: [],
       };
     }
+
+    // DIRECT MODE: Skip guided steps, build immediately with defaults
+    if (chatMode === "assisted") {
+      const directIntent: StrategyIntent = {
+        ...intent,
+        objective: "sales", // default objective
+        selectedKeywords: [],
+        allKeywords: [],
+      };
+
+      const adv = advertiser || {
+        id: `adv-${Date.now()}`,
+        companyName: brand?.name || "Company",
+        websiteUrl: brand?.domain || "example.com",
+        industry: (brand ? mapBrandIndustryToIAB(brand.industry) : "other") as IABIndustry,
+        restrictedCategories: [] as IABRestrictedCategory[],
+      };
+
+      if (!advertiser && brand) {
+        setAdvertiser(adv);
+      }
+
+      const aiMsg: ChatMessage = {
+        id: nextId(),
+        role: "assistant",
+        content: brand
+          ? `Built a sales campaign for ${brand.name} with recommended defaults. Review and edit on the canvas.`
+          : "Built a campaign with recommended defaults. Review and edit on the canvas.",
+      };
+
+      const strategy = buildStrategyFromIntent(directIntent, adv);
+      strategy.keywords = [];
+      setActiveStrategy(strategy);
+      saveStrategy(strategy);
+      setMessages([aiMsg]);
+      setState("split");
+      collapseLeftRail();
+      return;
+    }
+
+    // GUIDED MODE: Walk through step by step
     setStrategyIntent(intent);
 
     const aiMsg: ChatMessage = {
@@ -1422,7 +1660,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     } else {
       setMessages([aiMsg]);
     }
-  }, [advertiser, setAdvertiser]);
+  }, [advertiser, setAdvertiser, chatMode, setActiveStrategy, saveStrategy, collapseLeftRail]);
 
   const openFullscreen = useCallback(
     (initialMessage?: string) => {
@@ -1432,17 +1670,29 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setTimeout(() => sendMessage(initialMessage), 0);
       }
     },
-    [sendMessage, initNewSession]
+    [sendMessage, initNewSession, setState]
   );
 
   const minimize = useCallback(() => {
-    setState("docked");
-    collapseLeftRail();
-  }, [collapseLeftRail]);
-  const close = useCallback(() => setState("resting"), []);
-  const expand = useCallback(() => setState("fullscreen"), []);
+    // If user's preferred layout is floating, go back to floating instead of docked
+    const preferred = typeof window !== "undefined" ? localStorage.getItem("fuseiq-layout-state") : null;
+    if (preferred === "floating") {
+      setState("floating");
+    } else {
+      setState("docked");
+      collapseLeftRail();
+    }
+  }, [collapseLeftRail, setState]);
+  const close = useCallback(() => setState("resting"), [setState]);
+  const expand = useCallback(() => setState("fullscreen"), [setState]);
   const toggleDockSide = useCallback(
-    () => setDockSide((prev) => (prev === "right" ? "left" : "right")),
+    () => {
+      setDockSideRaw((prev) => {
+        const next = prev === "right" ? "left" : "right";
+        if (typeof window !== "undefined") localStorage.setItem("fuseiq-dock-side", next);
+        return next;
+      });
+    },
     []
   );
 
@@ -1470,9 +1720,10 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       setStrategyIntent(null);
       setActiveStrategy(null);
       setActiveNarrative(null);
+      setActiveAudience(null);
       setState("fullscreen");
     },
-    [setActiveStrategy, setActiveNarrative]
+    [setActiveStrategy, setActiveNarrative, setActiveAudience]
   );
 
   const handleRenameChatSession = useCallback(
@@ -1520,6 +1771,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         minimize,
         close,
         expand,
+        setDockSide,
         toggleDockSide,
         sendMessage,
         submitChoice,

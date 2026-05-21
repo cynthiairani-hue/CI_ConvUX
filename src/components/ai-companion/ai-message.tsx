@@ -3,11 +3,10 @@
 import { type ReactNode, useState } from "react";
 import { ClipboardList, Forward, ChevronDown, Brain, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PlanCard } from "@/components/patterns/plan-card";
+// Legacy PlanCard removed — all campaigns now use StrategyCard
 import { StrategyCard } from "@/components/patterns/strategy-card";
 import { PerformanceSnapshotCard } from "./performance-snapshot-card";
 import { useCampaign } from "@/contexts/campaign-context";
-import { usePersona } from "@/contexts/persona-context";
 import type { ChatMessage } from "@/contexts/ai-companion-context";
 import type { StrategyPlan } from "@/types/campaign";
 
@@ -212,8 +211,7 @@ function renderInline(text: string): ReactNode {
 
 export function AIMessage({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
-  const { updateSection, sendForApproval, activePlan, activeStrategy } = useCampaign();
-  const { activePersona } = usePersona();
+  const { activeStrategy } = useCampaign();
 
   if (message.toolCall) return null;
   if (!message.content && !message.artifact && !message.performanceSnapshot && !message.thinkingSteps?.length) return null;
@@ -221,15 +219,11 @@ export function AIMessage({ message }: { message: ChatMessage }) {
   const artifact = message.artifact;
   const isStrategy = artifact && isStrategyPlan(artifact);
 
-  const legacyPlan = !isStrategy && artifact
-    ? (activePlan && activePlan.id === artifact.id ? activePlan : artifact)
-    : null;
-
   const strategyPlan = isStrategy
     ? (activeStrategy && activeStrategy.id === artifact.id ? activeStrategy : artifact)
     : null;
 
-  const hasArtifact = !!legacyPlan || !!strategyPlan || !!message.performanceSnapshot;
+  const hasArtifact = !!strategyPlan || !!message.performanceSnapshot;
 
   return (
     <div
@@ -266,17 +260,6 @@ export function AIMessage({ message }: { message: ChatMessage }) {
         )}
         {message.content && (isUser ? message.content : renderMarkdown(message.content))}
         {!isUser && message.content && <MessageActions content={message.content} tokenCount={estimateTokens(message)} />}
-        {legacyPlan && (
-          <div className="mt-3">
-            <PlanCard
-              plan={legacyPlan}
-              onUpdate={updateSection}
-              onSendForApproval={(approverId) =>
-                sendForApproval(approverId, activePersona.id)
-              }
-            />
-          </div>
-        )}
         {strategyPlan && (
           <div className="mt-3">
             <StrategyCard plan={strategyPlan} />

@@ -8,7 +8,7 @@ import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
 import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
-import { ChatModeSelector } from "./chat-mode-selector";
+import { ChatSettingsMenu } from "./chat-settings-menu";
 import { ChatHeaderMenu } from "./chat-header-menu";
 import { PlatformConnectionCard } from "./platform-connection-card";
 import { ArtifactPreviewCard } from "./artifact-preview-card";
@@ -104,7 +104,7 @@ export function AIFullscreen() {
       <header className="flex h-14 items-center justify-between px-6">
         <ChatHeaderMenu />
         <div className="flex items-center gap-0.5">
-          <ChatModeSelector />
+          <ChatSettingsMenu />
           <button
             onClick={minimize}
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

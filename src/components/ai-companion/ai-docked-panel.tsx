@@ -2,18 +2,19 @@
 
 import { useRef, useEffect, useMemo } from "react";
 import { X, Maximize2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
 import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
-import { ChatModeSelector } from "./chat-mode-selector";
+import { ChatSettingsMenu } from "./chat-settings-menu";
 import { ChatHeaderMenu } from "./chat-header-menu";
 import { PlatformConnectionCard } from "./platform-connection-card";
 import { ArtifactPreviewCard } from "./artifact-preview-card";
 
-export function AIDockedPanel() {
+export function AIDockedPanel({ side = "right", width }: { side?: "left" | "right"; width?: number }) {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
     submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close,
@@ -101,11 +102,14 @@ export function AIDockedPanel() {
   }
 
   return (
-    <aside className="flex h-screen w-80 flex-col border-l bg-background">
+    <aside
+      className={cn("flex h-screen flex-col bg-background", side === "left" ? "border-r" : "border-l")}
+      style={{ width: width ? `${width}px` : "320px", minWidth: 280, maxWidth: 640, flexShrink: 0 }}
+    >
       <header className="flex h-14 items-center justify-between px-4">
         <ChatHeaderMenu compact />
         <div className="flex items-center gap-0.5">
-          <ChatModeSelector />
+          <ChatSettingsMenu />
           <button
             onClick={expand}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

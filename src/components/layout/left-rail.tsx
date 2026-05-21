@@ -16,20 +16,24 @@ import { cn } from "@/lib/utils";
 export function LeftRail() {
   const { leftRailCollapsed, toggleLeftRail } = useLayout();
   const pathname = usePathname();
-  const { getPendingForPersona, savedNarratives, setActiveStrategy, setActiveNarrative } = useCampaign();
-  const { state, close } = useAICompanion();
+  const { getPendingForPersona, savedNarratives, setActiveStrategy, setActiveNarrative, setActiveAudience } = useCampaign();
+  const { state, setState: setAIState } = useAICompanion();
   const { activePersona } = usePersona();
   const prevPathname = useRef(pathname);
 
-  // Exit split mode when user navigates to a different page via nav
+  // When navigating to a new page, convert split view → floating so chat follows the user.
+  // Floating, docked, fullscreen all persist across navigation untouched.
   useEffect(() => {
-    if (prevPathname.current !== pathname && state === "split") {
-      close();
-      setActiveStrategy(null);
-      setActiveNarrative(null);
+    if (prevPathname.current !== pathname) {
+      if (state === "split") {
+        setAIState("floating");
+        setActiveStrategy(null);
+        setActiveNarrative(null);
+        setActiveAudience(null);
+      }
     }
     prevPathname.current = pathname;
-  }, [pathname, state, close, setActiveStrategy, setActiveNarrative]);
+  }, [pathname, state, setAIState, setActiveStrategy, setActiveNarrative, setActiveAudience]);
 
   const pendingCount = getPendingForPersona(activePersona.id).length;
   const narrativeCount = savedNarratives.length;

@@ -15,6 +15,7 @@ import type {
   Advertiser,
   StrategyPlan,
   CFONarrative,
+  AudienceSegment,
 } from "@/types/campaign";
 import { approvers } from "@/data/approvers";
 import { personas } from "@/data/personas";
@@ -26,6 +27,8 @@ import {
   persistAdvertisers,
   loadNarratives,
   persistNarratives,
+  loadAudiences,
+  persistAudiences,
 } from "@/lib/storage";
 
 interface CampaignContextValue {
@@ -47,6 +50,11 @@ interface CampaignContextValue {
   loadNarrative: (id: string) => void;
   removeNarrative: (id: string) => void;
   duplicateNarrative: (id: string) => void;
+  activeAudience: AudienceSegment | null;
+  setActiveAudience: (audience: AudienceSegment | null) => void;
+  savedAudiences: AudienceSegment[];
+  saveAudience: (audience: AudienceSegment) => void;
+  loadAudience: (id: string) => void;
   approvalRequests: ApprovalRequest[];
   sendForApproval: (approverId: string, senderPersonaId: PersonaId) => void;
   resolveApproval: (
@@ -75,6 +83,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [savedAdvertisers, setSavedAdvertisers] = useState<Advertiser[]>([]);
   const [savedNarratives, setSavedNarratives] = useState<CFONarrative[]>([]);
   const [activeNarrative, setActiveNarrative] = useState<CFONarrative | null>(null);
+  const [activeAudience, setActiveAudience] = useState<AudienceSegment | null>(null);
+  const [savedAudiences, setSavedAudiences] = useState<AudienceSegment[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>(
     []
   );
@@ -88,6 +98,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setSavedStrategies(loadStrategies());
     setSavedAdvertisers(loadAdvertisers());
     setSavedNarratives(loadNarratives());
+    setSavedAudiences(loadAudiences());
     setHydrated(true);
   }, []);
 
@@ -105,6 +116,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (hydrated) persistNarratives(savedNarratives);
   }, [savedNarratives, hydrated]);
+
+  // Persist audiences to localStorage on change
+  useEffect(() => {
+    if (hydrated) persistAudiences(savedAudiences);
+  }, [savedAudiences, hydrated]);
 
   const setAdvertiser = useCallback((adv: Advertiser) => {
     setAdvertiserState(adv);
@@ -180,6 +196,26 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     };
     setSavedNarratives((prev) => [copy, ...prev]);
   }, [savedNarratives]);
+
+  const saveAudience = useCallback((audience: AudienceSegment) => {
+    setSavedAudiences((prev) => {
+      const exists = prev.findIndex((a) => a.id === audience.id);
+      let next: AudienceSegment[];
+      if (exists >= 0) {
+        next = [...prev];
+        next[exists] = audience;
+      } else {
+        next = [...prev, audience];
+      }
+      persistAudiences(next);
+      return next;
+    });
+  }, []);
+
+  const loadAudience = useCallback((id: string) => {
+    const found = savedAudiences.find((a) => a.id === id);
+    if (found) setActiveAudience(found);
+  }, [savedAudiences]);
 
   const dismissToast = useCallback(() => {
     setToast({ message: "", visible: false });
@@ -362,6 +398,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setAdvertiser,
         activeStrategy,
         setActiveStrategy,
+        activeAudience,
+        setActiveAudience,
+        savedAudiences,
+        saveAudience,
+        loadAudience,
         approvalRequests,
         sendForApproval,
         resolveApproval,

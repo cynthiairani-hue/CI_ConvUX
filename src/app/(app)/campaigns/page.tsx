@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
-import { Megaphone, Plus, Clock, Sparkles, Copy, Pencil, Share2, Archive, Trash2 } from "lucide-react";
+import { Megaphone, Plus, Clock, Wand2, Copy, Pencil, Share2, Archive, Trash2 } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { PageChatInput } from "@/components/ai-companion/page-chat-input";
 import type { StrategyPlan, StrategyPlanStatus } from "@/types/campaign";
@@ -31,10 +32,10 @@ function timeAgo(iso: string): string {
 
 function StrategyRow({ strategy, onOpen, onAction }: { strategy: StrategyPlan; onOpen: () => void; onAction: (actionId: string) => void }) {
   const config = STATUS_CONFIG[strategy.status];
-  const objectiveLabel = strategy.objective.value || "No objective";
-  const budget = strategy.budgetSchedule.data.monthlyBudget
+  const objectiveLabel = strategy.objective?.value || "No objective";
+  const budget = strategy.budgetSchedule?.data?.monthlyBudget
     ? `$${strategy.budgetSchedule.data.monthlyBudget.toLocaleString()}/mo`
-    : "No budget";
+    : strategy.budgetSchedule?.value || "No budget";
 
   const actions: OverflowAction[] = [
     { id: "duplicate", label: "Duplicate", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => onAction("duplicate") },
@@ -75,15 +76,32 @@ function StrategyRow({ strategy, onOpen, onAction }: { strategy: StrategyPlan; o
   );
 }
 
+const FILTER_OPTIONS: (StrategyPlanStatus | "all")[] = ["all", "draft", "pending-approval", "approved", "active", "paused", "archived"];
+const FILTER_LABELS: Record<string, string> = {
+  all: "All",
+  draft: "Draft",
+  "pending-approval": "Pending",
+  approved: "Approved",
+  active: "Active",
+  paused: "Paused",
+  archived: "Archived",
+};
+
 export default function CampaignsPage() {
-  const { savedStrategies, savedAdvertisers, setActiveStrategy, activeNarrative, setActiveNarrative } = useCampaign();
+  const { savedStrategies, savedAdvertisers, setActiveStrategy, activeNarrative, setActiveNarrative, showToast } = useCampaign();
   const { openFullscreen, setState } = useAICompanion();
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   // Build advertiser name lookup
   const advNames = new Map(savedAdvertisers.map((a) => [a.id, a.companyName]));
 
+  // Filter by status
+  const filtered = statusFilter === "all"
+    ? savedStrategies
+    : savedStrategies.filter((s) => s.status === statusFilter);
+
   // Group strategies by advertiser — use company name as the display key
-  const grouped = savedStrategies.reduce<Record<string, StrategyPlan[]>>((acc, s) => {
+  const grouped = filtered.reduce<Record<string, StrategyPlan[]>>((acc, s) => {
     const key = advNames.get(s.advertiserId) || s.advertiserId || "Unassigned";
     if (!acc[key]) acc[key] = [];
     acc[key].push(s);
@@ -108,13 +126,27 @@ export default function CampaignsPage() {
     openFullscreen("Build me a campaign");
   }
 
+  function handleAction(_strategy: StrategyPlan, actionId: string) {
+    if (actionId === "share") {
+      showToast("Share link copied to clipboard");
+    } else if (actionId === "duplicate") {
+      showToast("Campaign duplicated");
+    } else if (actionId === "rename") {
+      showToast("Rename coming soon");
+    } else if (actionId === "archive") {
+      showToast("Campaign archived");
+    } else if (actionId === "delete") {
+      showToast("Campaign deleted");
+    }
+  }
+
   const isEmpty = savedStrategies.length === 0;
   const brand = getCurrentBrand();
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-8 py-10">
+        <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-foreground">Campaigns</h1>
@@ -126,13 +158,34 @@ export default function CampaignsPage() {
               <button
                 type="button"
                 onClick={handleNewCampaign}
-                className="flex items-center gap-1.5 rounded-lg bg-[#2C9FDD] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1A7BB5]"
+                className="flex items-center gap-1.5 rounded-lg bg-[#394859] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#2D3A47]"
               >
                 <Plus className="h-4 w-4" />
                 New campaign
               </button>
             )}
           </div>
+
+          {/* Status filter tabs */}
+          {!isEmpty && (
+            <div className="mt-4 flex items-center gap-1 overflow-x-auto">
+              {FILTER_OPTIONS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setStatusFilter(f)}
+                  className={cn(
+                    "shrink-0 rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
+                    statusFilter === f
+                      ? "bg-[#394859] text-white"
+                      : "text-[#8492A6] hover:bg-[#F3F4F6] hover:text-[#394859]"
+                  )}
+                >
+                  {FILTER_LABELS[f] || f}
+                </button>
+              ))}
+            </div>
+          )}
 
           {isEmpty ? (
             <div className="mt-10 flex flex-col items-center rounded-xl bg-white px-8 py-10 text-center">
@@ -154,26 +207,30 @@ export default function CampaignsPage() {
                 onClick={handleNewCampaign}
                 className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
               >
-                <Sparkles className="h-4 w-4" />
+                <Wand2 className="h-4 w-4" />
                 Get started
               </button>
             </div>
           ) : (
-            <div className="mt-6 space-y-6">
-              {groupEntries.map(([advertiser, strategies]) => (
-                <div key={advertiser}>
-                  <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[#8492A6]">
-                    {advertiser}
-                  </h3>
-                  <div className="space-y-2">
-                    {strategies
-                      .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
-                      .map((s) => (
-                        <StrategyRow key={s.id} strategy={s} onOpen={() => handleOpenStrategy(s)} onAction={() => {}} />
-                      ))}
+            <div className="mt-4 space-y-6">
+              {groupEntries.length === 0 ? (
+                <p className="py-8 text-center text-[13px] text-[#8492A6]">No campaigns match this filter.</p>
+              ) : (
+                groupEntries.map(([advertiser, strategies]) => (
+                  <div key={advertiser}>
+                    <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[#8492A6]">
+                      {advertiser}
+                    </h3>
+                    <div className="space-y-2">
+                      {strategies
+                        .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
+                        .map((s) => (
+                          <StrategyRow key={s.id} strategy={s} onOpen={() => handleOpenStrategy(s)} onAction={(actionId) => handleAction(s, actionId)} />
+                        ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           )}
         </div>

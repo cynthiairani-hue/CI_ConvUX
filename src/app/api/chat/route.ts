@@ -50,8 +50,45 @@ EVERY INTERACTION LEADS TO AN ARTIFACT:
 - Account connections → confirmation, then immediately surface useful data
 - Never end a flow with just text. Always produce something the user can review and act on.`;
 
-function buildSystemPrompt(brandContext?: BrandContext): string {
-  if (!brandContext) return BASE_SYSTEM_PROMPT;
+const DETAIL_LEVEL_INSTRUCTIONS: Record<string, string> = {
+  normal: "", // default behavior, no extra instructions
+  thinking: `
+RESPONSE STYLE — THINKING MODE:
+Show your reasoning process before giving the answer. Structure your response as:
+1. First, briefly state what you're analyzing (1 sentence)
+2. Then show 2-4 key considerations or data points you're weighing
+3. Then give your recommendation or answer
+Use phrases like "Looking at...", "Considering...", "The data suggests...", "Weighing these factors..."
+Keep the thinking section concise — it should add clarity, not length.`,
+  verbose: `
+RESPONSE STYLE — VERBOSE MODE:
+Provide maximum detail in your responses. Include:
+- Detailed reasoning for every recommendation
+- Specific numbers, benchmarks, and data points
+- Channel-by-channel breakdowns where relevant
+- Confidence levels and data freshness for each claim
+- Alternative approaches you considered and why you didn't recommend them
+- Edge cases or risks to watch for
+Aim for thorough, comprehensive responses. 6-10 sentences is fine.`,
+  summary: `
+RESPONSE STYLE — SUMMARY MODE:
+Be extremely concise. Maximum 2 sentences per response.
+- Lead with the answer or recommendation, no preamble
+- Skip reasoning unless the user asks for it
+- Use bullet points for lists, not paragraphs
+- Numbers over words: "$3K → Shopping 45%, Meta 30%, TikTok 25%" not "I'd recommend allocating..."`,
+};
+
+function buildSystemPrompt(brandContext?: BrandContext, detailLevel?: string): string {
+  let prompt = BASE_SYSTEM_PROMPT;
+
+  // Add detail level instructions
+  const levelInstructions = DETAIL_LEVEL_INSTRUCTIONS[detailLevel || "normal"] || "";
+  if (levelInstructions) {
+    prompt += levelInstructions;
+  }
+
+  if (!brandContext) return prompt;
 
   const brandSection = `
 
@@ -69,7 +106,7 @@ USE THIS CONTEXT EVERYWHERE:
 - If they ask about performance, simulate ${brandContext.name}-specific metrics immediately
 - If they ask about budget, propose ${brandContext.name}-appropriate allocations`;
 
-  return BASE_SYSTEM_PROMPT + brandSection;
+  return prompt + brandSection;
 }
 
 interface BrandContext {
@@ -140,16 +177,17 @@ interface ContentBlock {
 
 export async function POST(request: Request) {
   try {
-    const { messages, brandContext } = (await request.json()) as {
+    const { messages, brandContext, detailLevel } = (await request.json()) as {
       messages: ChatRequestMessage[];
       brandContext?: BrandContext;
+      detailLevel?: string;
     };
 
     const client = getClient();
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
-      system: buildSystemPrompt(brandContext),
+      system: buildSystemPrompt(brandContext, detailLevel),
       tools,
       messages: messages.map((m) => {
         // If content is a string, pass as-is. If it's an array (multimodal), pass the blocks.

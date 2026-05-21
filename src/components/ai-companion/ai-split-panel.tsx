@@ -1,21 +1,21 @@
 "use client";
 
 import { useRef, useEffect, useMemo } from "react";
-import { X, Maximize2 } from "lucide-react";
+import { Minus, Maximize2 } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
 import { ChatChoices } from "./chat-choices";
 import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
-import { ChatModeSelector } from "./chat-mode-selector";
+import { ChatSettingsMenu } from "./chat-settings-menu";
 import { ChatHeaderMenu } from "./chat-header-menu";
 import { PlatformConnectionCard } from "./platform-connection-card";
 
-export function AISplitPanel({ width }: { width?: number }) {
+export function AISplitPanel({ width, onMinimize }: { width?: number; onMinimize?: () => void }) {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
-    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand,
   } = useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -107,7 +107,7 @@ export function AISplitPanel({ width }: { width?: number }) {
       <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
         <ChatHeaderMenu compact />
         <div className="flex items-center gap-0.5">
-          <ChatModeSelector />
+          <ChatSettingsMenu />
           <button
             onClick={expand}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -115,13 +115,15 @@ export function AISplitPanel({ width }: { width?: number }) {
           >
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
-          <button
-            onClick={close}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="Close"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          {onMinimize && (
+            <button
+              onClick={onMinimize}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Minimize chat"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </header>
 

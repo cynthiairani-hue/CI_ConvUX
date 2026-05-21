@@ -1,8 +1,9 @@
-import type { StrategyPlan, Advertiser, CFONarrative } from "@/types/campaign";
+import type { StrategyPlan, Advertiser, CFONarrative, AudienceSegment } from "@/types/campaign";
 
 const STRATEGIES_KEY = "fuseiq-strategies";
 const ADVERTISERS_KEY = "fuseiq-advertisers";
 const NARRATIVES_KEY = "fuseiq-narratives";
+const AUDIENCES_KEY = "fuseiq-audiences";
 const CHAT_SESSIONS_KEY = "fuseiq-chat-sessions";
 
 /* ── Chat session types ── */
@@ -109,6 +110,14 @@ export function loadNarratives(): CFONarrative[] {
 
 export function persistNarratives(narratives: CFONarrative[]): void {
   safeSet(NARRATIVES_KEY, narratives);
+}
+
+export function loadAudiences(): AudienceSegment[] {
+  return safeGet<AudienceSegment[]>(AUDIENCES_KEY, []);
+}
+
+export function persistAudiences(audiences: AudienceSegment[]): void {
+  safeSet(AUDIENCES_KEY, audiences);
 }
 
 /* ── Chat session persistence ── */
