@@ -18,6 +18,9 @@ import {
   Upload,
   Wand2,
   X,
+  Calendar,
+  Hash,
+  MinusCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -25,10 +28,26 @@ import type {
   StrategySection,
   ReadinessState,
   PlacementType,
+  AudienceTargetingMode,
+  OptimizationTarget,
 } from "@/types/campaign";
 import { PLACEMENT_TYPES } from "@/data/iab-categories";
 import { OBJECTIVE_OPTIONS } from "@/data/campaign-flow";
 import { getCurrentBrand } from "@/data/brand-profiles";
+
+const OPTIMIZATION_TARGETS: { id: OptimizationTarget; label: string }[] = [
+  { id: "conversions", label: "Conversions" },
+  { id: "clicks", label: "Clicks" },
+  { id: "impressions", label: "Impressions" },
+  { id: "reach", label: "Reach" },
+  { id: "video-views", label: "Video views" },
+];
+
+const TARGETING_MODES: { id: AudienceTargetingMode; label: string }[] = [
+  { id: "accounts", label: "Accounts" },
+  { id: "contacts", label: "Contacts" },
+  { id: "lookalike", label: "Lookalike" },
+];
 
 interface CreativeAsset {
   id: string;
@@ -125,10 +144,13 @@ function PlacementGrid({ placements, onToggle }: {
 
 function ForecastTable({ forecast }: { forecast: StrategyPlan["forecast"]["data"] }) {
   const rows = [
-    { label: "Daily reach", value: forecast.dailyReach.toLocaleString() },
+    ...(forecast.potentialAudienceSize ? [{ label: "Potential audience", value: forecast.potentialAudienceSize.toLocaleString() }] : []),
     { label: "Weekly reach", value: forecast.weeklyReach.toLocaleString() },
-    { label: "Daily impressions", value: forecast.dailyImpressions.toLocaleString() },
+    { label: "Daily reach", value: forecast.dailyReach.toLocaleString() },
     { label: "Weekly impressions", value: forecast.weeklyImpressions.toLocaleString() },
+    { label: "Daily impressions", value: forecast.dailyImpressions.toLocaleString() },
+    ...(forecast.estimatedCPM ? [{ label: "Est. CPM", value: `$${forecast.estimatedCPM.toFixed(2)}` }] : []),
+    ...(forecast.estimatedFrequency ? [{ label: "Frequency", value: `${forecast.estimatedFrequency.toFixed(1)}x` }] : []),
     { label: "Est. households", value: forecast.estimatedHouseholds.toLocaleString() },
   ];
 
@@ -412,6 +434,8 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
     (o) => o.value === plan.objective.value
   )?.id;
 
+  const hasKeywords = plan.keywords && plan.keywords.length > 0;
+
   return (
     <div className="space-y-4">
       {sections.map(({ key, section }) => {
@@ -537,12 +561,77 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                       </button>
                       <span className="text-[12px] text-[#394859]">Always on</span>
                     </div>
+
+                    {/* Schedule — start / end dates */}
+                    {!plan.budgetSchedule.data.alwaysOn && (
+                      <div className="rounded-lg border border-[#E0E8F2] p-3">
+                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-[#8492A6]">
+                          <Calendar className="h-3 w-3" />
+                          Schedule
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-medium text-[#8492A6] mb-1">Start date</label>
+                            <input
+                              type="date"
+                              defaultValue={plan.budgetSchedule.data.startDate || ""}
+                              onBlur={(e) => {
+                                const currentData = plan.budgetSchedule.data;
+                                updateSection("budgetSchedule", {
+                                  data: { ...currentData, startDate: e.target.value || null },
+                                });
+                              }}
+                              className="w-full rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-[13px] text-[#394859] outline-none focus:border-[#2C9FDD]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-medium text-[#8492A6] mb-1">End date</label>
+                            <input
+                              type="date"
+                              defaultValue={plan.budgetSchedule.data.endDate || ""}
+                              onBlur={(e) => {
+                                const currentData = plan.budgetSchedule.data;
+                                updateSection("budgetSchedule", {
+                                  data: { ...currentData, endDate: e.target.value || null },
+                                });
+                              }}
+                              className="w-full rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-[13px] text-[#394859] outline-none focus:border-[#2C9FDD]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Audience — form fields */}
                 {key === "audience" && (
                   <div className="space-y-3 text-[12px]">
+                    {/* Targeting mode tabs */}
+                    <div className="flex items-center gap-1 rounded-lg bg-[#F7F9FB] p-0.5">
+                      {TARGETING_MODES.map((mode) => {
+                        const isActive = (plan.audience.data.targetingMode || "accounts") === mode.id;
+                        return (
+                          <button
+                            key={mode.id}
+                            type="button"
+                            onClick={() => {
+                              const currentData = plan.audience.data;
+                              updateSection("audience", { data: { ...currentData, targetingMode: mode.id } });
+                            }}
+                            className={cn(
+                              "flex-1 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
+                              isActive
+                                ? "bg-white text-[#394859] shadow-sm"
+                                : "text-[#8492A6] hover:text-[#394859]"
+                            )}
+                          >
+                            {mode.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     <div>
                       <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">Locations</label>
                       <div className="flex flex-wrap gap-1.5">
@@ -612,6 +701,42 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                         </div>
                       </div>
                     )}
+
+                    {/* Contextual keywords */}
+                    {(plan.audience.data.contextualKeywords?.length ?? 0) > 0 && (
+                      <div>
+                        <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">
+                          <Hash className="mr-1 inline h-3 w-3" />
+                          Contextual keywords
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {plan.audience.data.contextualKeywords!.map((kw) => (
+                            <span key={kw} className="inline-flex items-center gap-1 rounded-full bg-[#F3F4F6] px-2.5 py-1 text-[#394859]">
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Exclude segments */}
+                    <div className="rounded-lg border border-dashed border-[#E0E8F2] p-3">
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#8492A6]">
+                        <MinusCircle className="h-3 w-3" />
+                        Exclude
+                      </div>
+                      {(plan.audience.data.excludeSegments?.length ?? 0) > 0 ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {plan.audience.data.excludeSegments!.map((seg) => (
+                            <span key={seg} className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[12px] text-red-600">
+                              {seg}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-[12px] text-[#C4CDD8]">No excluded segments. Click to add.</p>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -623,15 +748,46 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                   />
                 )}
 
-                {/* Bidding — selectable for v1 */}
+                {/* Bidding — bid strategy + optimization target */}
                 {key === "bidding" && (
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-lg border border-[#2C9FDD] bg-[#EBF5FB] px-3 py-1.5 text-[12px] font-medium text-[#1A7BB5]">
-                      Automatic
-                    </span>
-                    <span className="rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] text-[#C4CDD8]">
-                      Manual (coming soon)
-                    </span>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">Bid strategy</label>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-lg border border-[#2C9FDD] bg-[#EBF5FB] px-3 py-1.5 text-[12px] font-medium text-[#1A7BB5]">
+                          Automatic
+                        </span>
+                        <span className="rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] text-[#C4CDD8]">
+                          Manual (coming soon)
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">Optimization target</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {OPTIMIZATION_TARGETS.map((opt) => {
+                          const isActive = (plan.bidding.data.optimizationTarget || "conversions") === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => {
+                                const currentData = plan.bidding.data;
+                                updateSection("bidding", { data: { ...currentData, optimizationTarget: opt.id } });
+                              }}
+                              className={cn(
+                                "rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                                isActive
+                                  ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
+                                  : "border-[#E0E8F2] text-[#8492A6] hover:text-[#394859]"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -744,6 +900,41 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
           </div>
         );
       })}
+
+      {/* Keywords section — separate from the collapsible sections */}
+      {hasKeywords && (
+        <div className="rounded-xl border border-[#E0E8F2] bg-white">
+          <div className="flex items-center gap-2 px-4 py-3">
+            <Hash className="h-4 w-4 text-[#8492A6]" />
+            <span className="flex-1 text-[13px] font-medium text-[#394859]">
+              Keywords
+            </span>
+            <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-medium text-[#8492A6]">
+              {plan.keywords.length}
+            </span>
+          </div>
+          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
+            <div className="flex flex-wrap gap-1.5">
+              {plan.keywords.map((kw) => (
+                <span
+                  key={kw.id}
+                  className={cn(
+                    "rounded-full px-2.5 py-1 text-[12px]",
+                    kw.selected
+                      ? "bg-[#EBF5FB] text-[#1A7BB5]"
+                      : "bg-[#F3F4F6] text-[#8492A6]"
+                  )}
+                >
+                  {kw.label}
+                  <span className="ml-1 text-[10px] opacity-60 capitalize">
+                    {kw.category}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

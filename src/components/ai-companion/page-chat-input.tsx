@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowUp, Mic, SlidersHorizontal, Check, MessageSquare, LayoutList, Plus, Upload, Plug, Wand2, Bot, Database, ChevronDown } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ArrowUp, Mic, SlidersHorizontal, Check, MessageSquare, LayoutList, Plus, Upload, Plug, Wand2, Bot, Database, ChevronDown, Sparkles } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { cn } from "@/lib/utils";
 import { GradientBorder } from "@/components/ui/gradient-border";
+import { getPagePrompts, filterPagePrompts, type PageContext, type PagePrompt } from "@/data/suggested-prompts";
 import type { ChatMode } from "@/types/campaign";
 
 const MODE_OPTIONS: { id: ChatMode; label: string; description: string; icon: React.ReactNode }[] = [
@@ -125,11 +127,95 @@ function PageModePopover() {
   );
 }
 
+/** Derive the page context from the current pathname */
+function getPageContext(pathname: string): PageContext | null {
+  if (pathname.includes("/campaigns")) return "campaigns";
+  if (pathname.includes("/audiences")) return "audiences";
+  if (pathname.includes("/reports")) return "reports";
+  if (pathname.includes("/approvals")) return "approvals";
+  if (pathname.includes("/settings")) return "settings";
+  return null;
+}
+
+function PagePromptDropdown({
+  prompts,
+  onSelect,
+  isFiltered,
+}: {
+  prompts: PagePrompt[];
+  onSelect: (label: string) => void;
+  isFiltered: boolean;
+}) {
+  if (prompts.length === 0) return null;
+
+  return (
+    <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-[#E0E8F2] bg-white shadow-[0px_4px_16px_rgba(71,88,114,0.12)]">
+      {!isFiltered && (
+        <div className="px-4 pt-3 pb-1.5">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+            <Sparkles className="h-3 w-3" />
+            Suggested
+          </div>
+        </div>
+      )}
+      <div className={isFiltered ? "py-1.5" : "px-2 pb-2"}>
+        {isFiltered ? (
+          // Autocomplete list — vertical items
+          prompts.slice(0, 5).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelect(p.label);
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-[13px] text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+            >
+              <Sparkles className="h-3 w-3 shrink-0 text-[#8492A6]" />
+              <span>{p.label}</span>
+            </button>
+          ))
+        ) : (
+          // Focus state — pill chips
+          <div className="flex flex-wrap gap-1.5 px-2 pb-1">
+            {prompts.slice(0, 6).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onSelect(p.label);
+                }}
+                className="rounded-full border border-[#E0E8F2] px-3 py-1 text-[12px] text-[#394859] transition-colors hover:border-[#2C9FDD] hover:bg-[#EBF5FB] hover:text-[#1A7BB5]"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PageChatInput({ placeholder }: { placeholder?: string }) {
   const { openFullscreen, chatMode, setChatMode, state } = useAICompanion();
   const [value, setValue] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { isListening, hasSpeechAPI, toggleVoice } = useVoiceInput(value, setValue);
+  const pathname = usePathname();
+  const pageContext = getPageContext(pathname);
+
+  // Compute prompts: all on focus (empty), filtered on typing
+  const trimmed = value.trim();
+  const showDropdown = isFocused && pageContext !== null;
+  const filteredPrompts = pageContext
+    ? trimmed
+      ? filterPagePrompts(pageContext, trimmed)
+      : getPagePrompts(pageContext)
+    : [];
+  const isFiltered = trimmed.length > 0;
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -145,9 +231,9 @@ export function PageChatInput({ placeholder }: { placeholder?: string }) {
 
   function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    openFullscreen(trimmed);
+    const t = value.trim();
+    if (!t) return;
+    openFullscreen(t);
     setValue("");
   }
 
@@ -158,69 +244,86 @@ export function PageChatInput({ placeholder }: { placeholder?: string }) {
     }
   }
 
+  function handleSelectPrompt(text: string) {
+    openFullscreen(text);
+    setIsFocused(false);
+    setValue("");
+  }
+
   const currentMode = MODE_OPTIONS.find((m) => m.id === chatMode) || MODE_OPTIONS[0];
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 sm:px-8">
-      <GradientBorder className="rounded-2xl bg-white shadow-sm">
-        <div className="px-5 pt-4 pb-3">
-          <form onSubmit={handleSubmit}>
-            <textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder || "Ask about performance, campaigns, or optimization ideas..."}
-              rows={1}
-              className="w-full resize-none bg-transparent text-[15px] leading-6 outline-none placeholder:text-muted-foreground/70"
-              style={{ minHeight: "24px", maxHeight: "120px" }}
-            />
-            <div className="mt-1 flex items-center justify-between">
-              <div className="flex items-center">
-                <PageToolsPopover />
-                <PageModePopover />
-              </div>
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => setChatMode(chatMode === "conversational" ? "assisted" : "conversational")}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  {currentMode.label}
-                  <ChevronDown className="h-3 w-3" />
-                </button>
-                {hasSpeechAPI && (
+      <div className="relative">
+        {showDropdown && filteredPrompts.length > 0 && (
+          <PagePromptDropdown
+            prompts={filteredPrompts}
+            onSelect={handleSelectPrompt}
+            isFiltered={isFiltered}
+          />
+        )}
+        <GradientBorder className="rounded-2xl bg-white shadow-sm">
+          <div className="px-5 pt-4 pb-3">
+            <form onSubmit={handleSubmit}>
+              <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholder || "Ask about performance, campaigns, or optimization ideas..."}
+                rows={1}
+                className="w-full resize-none bg-transparent text-[15px] leading-6 outline-none placeholder:text-muted-foreground/70"
+                style={{ minHeight: "24px", maxHeight: "120px" }}
+              />
+              <div className="mt-1 flex items-center justify-between">
+                <div className="flex items-center">
+                  <PageToolsPopover />
+                  <PageModePopover />
+                </div>
+                <div className="flex items-center gap-0.5">
                   <button
                     type="button"
-                    onClick={toggleVoice}
+                    onClick={() => setChatMode(chatMode === "conversational" ? "assisted" : "conversational")}
+                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    {currentMode.label}
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                  {hasSpeechAPI && (
+                    <button
+                      type="button"
+                      onClick={toggleVoice}
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                        isListening
+                          ? "bg-red-50 text-red-500 hover:bg-red-100"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      )}
+                      title={isListening ? "Stop listening" : "Voice input"}
+                    >
+                      <Mic className="h-[18px] w-[18px]" />
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={!value.trim()}
                     className={cn(
                       "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-                      isListening
-                        ? "bg-red-50 text-red-500 hover:bg-red-100"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      value.trim()
+                        ? "bg-foreground text-background hover:bg-foreground/90"
+                        : "bg-muted text-muted-foreground"
                     )}
-                    title={isListening ? "Stop listening" : "Voice input"}
                   >
-                    <Mic className="h-[18px] w-[18px]" />
+                    <ArrowUp className="h-[18px] w-[18px]" />
                   </button>
-                )}
-                <button
-                  type="submit"
-                  disabled={!value.trim()}
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-                    value.trim()
-                      ? "bg-foreground text-background hover:bg-foreground/90"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  <ArrowUp className="h-[18px] w-[18px]" />
-                </button>
+                </div>
               </div>
-            </div>
-          </form>
-        </div>
-      </GradientBorder>
+            </form>
+          </div>
+        </GradientBorder>
+      </div>
     </div>
   );
 }

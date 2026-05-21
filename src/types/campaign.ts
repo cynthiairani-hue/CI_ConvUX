@@ -77,6 +77,10 @@ export interface ForecastEstimate {
   dailyImpressions: number;
   estimatedHouseholds: number;
   confidenceLevel: "low" | "medium" | "high";
+  /** Additional metrics from Figma ABMCampaign reference */
+  potentialAudienceSize?: number;
+  estimatedCPM?: number;
+  estimatedFrequency?: number;
 }
 
 export interface BudgetScheduleData {
@@ -87,6 +91,8 @@ export interface BudgetScheduleData {
   alwaysOn: boolean;
 }
 
+export type AudienceTargetingMode = "accounts" | "contacts" | "lookalike";
+
 export interface AudienceData {
   locations: string[];
   marketInterests: string[];
@@ -94,11 +100,20 @@ export interface AudienceData {
   ageRange: { min: number; max: number };
   gender: "all" | "male" | "female";
   demographics: string[];
+  /** Targeting mode tabs from Figma reference */
+  targetingMode?: AudienceTargetingMode;
+  /** Exclude segments */
+  excludeSegments?: string[];
+  /** Contextual keywords */
+  contextualKeywords?: string[];
 }
+
+export type OptimizationTarget = "conversions" | "clicks" | "impressions" | "reach" | "video-views";
 
 export interface BiddingData {
   strategy: "automatic" | "manual";
   manualCpm: number | null;
+  optimizationTarget?: OptimizationTarget;
 }
 
 export interface CreativeAsset {

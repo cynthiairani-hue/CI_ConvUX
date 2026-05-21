@@ -70,12 +70,23 @@ export function generateForecast(
   if (dailyBudget >= 100 && placements.length >= 2) confidenceLevel = "high";
   else if (dailyBudget < 30 || placements.length < 2) confidenceLevel = "low";
 
+  // Blended CPM across active placements
+  const blendedCPM = placements.reduce((sum, p) => sum + CPM_BY_PLACEMENT[p], 0) / placements.length;
+
+  // Frequency = total weekly impressions / weekly reach (capped at reasonable range)
+  const weeklyImpressions = Math.round(totalDailyImpressions * 7);
+  const weeklyReach = Math.round(totalDailyReach * 6.2);
+  const frequency = weeklyReach > 0 ? Math.min(weeklyImpressions / weeklyReach, 12) : 0;
+
   return {
     dailyReach: Math.round(totalDailyReach),
-    weeklyReach: Math.round(totalDailyReach * 6.2),
+    weeklyReach,
     dailyImpressions: Math.round(totalDailyImpressions),
-    weeklyImpressions: Math.round(totalDailyImpressions * 7),
+    weeklyImpressions,
     estimatedHouseholds: households,
     confidenceLevel,
+    potentialAudienceSize: audienceSize,
+    estimatedCPM: Math.round(blendedCPM * 100) / 100,
+    estimatedFrequency: Math.round(frequency * 10) / 10,
   };
 }
