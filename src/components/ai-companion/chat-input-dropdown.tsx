@@ -65,7 +65,7 @@ function SessionActions({
             if (e.key === "Escape") setIsRenaming(false);
           }}
           autoFocus
-          className="w-24 rounded border border-[#D5DDE5] px-1.5 py-0.5 text-[12px] text-[#394859] outline-none focus:border-[#2C9FDD]"
+          className="w-24 rounded border border-[#E0E8F2] px-1.5 py-0.5 text-[12px] text-[#394859] outline-none focus:border-[#2C9FDD]"
           onClick={(e) => e.stopPropagation()}
         />
         <button
@@ -134,7 +134,7 @@ function SessionActions({
               setShowMenu(false);
               onDelete(sessionId);
             }}
-            className="flex w-full items-center gap-2 border-t border-[#EDF1F5] px-3 py-2 text-[12px] text-red-500 hover:bg-red-50"
+            className="flex w-full items-center gap-2 border-t border-[#E0E8F2] px-3 py-2 text-[12px] text-red-500 hover:bg-red-50"
           >
             <Trash2 className="h-3 w-3" /> Delete
           </button>
@@ -211,7 +211,7 @@ export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy }: ChatInpu
 
       {/* Recent chats grouped by affinity */}
       {activeSessions.length > 0 && (
-        <div className="border-t border-[#EDF1F5] px-4 pt-2 pb-2">
+        <div className="border-t border-[#E0E8F2] px-4 pt-2 pb-2">
           <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
             <MessageSquare className="h-3 w-3" />
             Recent chats
@@ -256,7 +256,7 @@ export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy }: ChatInpu
 
       {/* Recent strategies */}
       {recentStrategies.length > 0 && (
-        <div className="border-t border-[#EDF1F5] px-4 pt-2 pb-2">
+        <div className="border-t border-[#E0E8F2] px-4 pt-2 pb-2">
           <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
             <Clock className="h-3 w-3" />
             Recent strategies

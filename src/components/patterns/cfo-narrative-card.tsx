@@ -86,10 +86,10 @@ function SpendTable({ narrative, perfData }: { narrative: CFONarrative; perfData
   if (!current) return null;
 
   return (
-    <div className="mt-2 overflow-hidden rounded-lg border border-[#EDF1F5]">
+    <div className="mt-2 overflow-hidden rounded-lg border border-[#E0E8F2]">
       <table className="w-full text-[12px]">
         <thead>
-          <tr className="border-b border-[#EDF1F5] bg-[#FAFBFC]">
+          <tr className="border-b border-[#E0E8F2] bg-[#FAFBFC]">
             <th className="px-3 py-2 text-left font-medium text-[#8492A6]">Channel</th>
             <th className="px-3 py-2 text-right font-medium text-[#8492A6]">Spend</th>
             <th className="px-3 py-2 text-right font-medium text-[#8492A6]">% of Total</th>
@@ -104,7 +104,7 @@ function SpendTable({ narrative, perfData }: { narrative: CFONarrative; perfData
               : 0;
             const pct = ((ch.monthlySpend / current.totalSpend) * 100).toFixed(0);
             return (
-              <tr key={ch.id} className="border-b border-[#EDF1F5] last:border-b-0">
+              <tr key={ch.id} className="border-b border-[#E0E8F2] last:border-b-0">
                 <td className="px-3 py-2 font-medium text-[#394859]">
                   <div className="flex items-center gap-1.5">
                     {ch.status === "anomaly" && (
@@ -163,10 +163,10 @@ function AttributionTable({ narrative, perfData }: { narrative: CFONarrative; pe
   if (!current) return null;
 
   return (
-    <div className="mt-2 overflow-hidden rounded-lg border border-[#EDF1F5]">
+    <div className="mt-2 overflow-hidden rounded-lg border border-[#E0E8F2]">
       <table className="w-full text-[12px]">
         <thead>
-          <tr className="border-b border-[#EDF1F5] bg-[#FAFBFC]">
+          <tr className="border-b border-[#E0E8F2] bg-[#FAFBFC]">
             <th className="px-3 py-2 text-left font-medium text-[#8492A6]">Channel</th>
             <th className="px-3 py-2 text-right font-medium text-[#8492A6]">Conversions</th>
             <th className="px-3 py-2 text-right font-medium text-[#8492A6]">CPA</th>
@@ -179,7 +179,7 @@ function AttributionTable({ narrative, perfData }: { narrative: CFONarrative; pe
             const revenueShare = (ch.attributedRevenuePercent / 100) * current.totalRevenue;
             const roas = revenueShare / ch.monthlySpend;
             return (
-              <tr key={ch.id} className="border-b border-[#EDF1F5] last:border-b-0">
+              <tr key={ch.id} className="border-b border-[#E0E8F2] last:border-b-0">
                 <td className="px-3 py-2 font-medium text-[#394859]">{ch.name}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-[#394859]">{ch.conversions}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-[#394859]">${ch.cpa}</td>
@@ -204,7 +204,7 @@ function AttributionTable({ narrative, perfData }: { narrative: CFONarrative; pe
           </tr>
         </tbody>
       </table>
-      <div className="border-t border-[#EDF1F5] px-3 py-1.5 text-[11px] text-[#8492A6]">
+      <div className="border-t border-[#E0E8F2] px-3 py-1.5 text-[11px] text-[#8492A6]">
         Attribution: Shapley-derived, 90-day lookback window
       </div>
     </div>
@@ -354,7 +354,7 @@ export function CFONarrativeCard({ narrative, seedData, hideHeaderActions, onSen
   return (
     <div className="overflow-hidden rounded-xl border border-[#E0E8F2] bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#EDF1F5] px-4 py-3">
+      <div className="flex items-center justify-between border-b border-[#E0E8F2] px-4 py-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-[14px] font-semibold text-[#394859] truncate">
             {narrative.name}
@@ -391,7 +391,7 @@ export function CFONarrativeCard({ narrative, seedData, hideHeaderActions, onSen
         const Icon = sectionIcons[key];
 
         return (
-          <div key={key} className="border-b border-[#EDF1F5] last:border-b-0">
+          <div key={key} className="border-b border-[#E0E8F2] last:border-b-0">
             {/* Section header row */}
             <div className="flex items-center gap-2 px-4 py-2.5">
               <Icon className="h-4 w-4 text-[#8492A6]" />
@@ -441,7 +441,7 @@ export function CFONarrativeCard({ narrative, seedData, hideHeaderActions, onSen
 
             {/* Expanded content */}
             {isExpanded && (
-              <div className="border-t border-[#EDF1F5] px-4 pb-3 pt-2 pl-10">
+              <div className="border-t border-[#E0E8F2] px-4 pb-3 pt-2 pl-10">
                 {key === "spendByChannel" && <SpendTable narrative={narrative} perfData={perfData} />}
                 {key === "attributionByChannel" && <AttributionTable narrative={narrative} perfData={perfData} />}
                 {key === "whatChanged" && <BulletList text={section.value} variant="changes" />}
@@ -454,7 +454,7 @@ export function CFONarrativeCard({ narrative, seedData, hideHeaderActions, onSen
       })}
 
       {/* Footer */}
-      <div className="border-t border-[#EDF1F5] px-4 py-3">
+      <div className="border-t border-[#E0E8F2] px-4 py-3">
         <div className="flex items-center justify-between">
           {onSendToCFO && narrative.status === "draft" && (
             <button

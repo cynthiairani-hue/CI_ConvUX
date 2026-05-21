@@ -94,7 +94,7 @@ export function PlatformConnectionCard({
           return (
             <div
               key={meta.id}
-              className="flex items-center gap-3 border-t border-[#EDF1F5] px-5 py-3"
+              className="flex items-center gap-3 border-t border-[#E0E8F2] px-5 py-3"
             >
               {/* Platform brand dot */}
               <div
@@ -121,7 +121,7 @@ export function PlatformConnectionCard({
               {state === "idle" && (
                 <button
                   onClick={() => handleConnect(meta.id)}
-                  className="flex items-center gap-1.5 rounded-lg border border-[#D5DDE5] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB] hover:border-[#BFCCD9]"
+                  className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB] hover:border-[#E0E8F2]"
                 >
                   <ExternalLink className="h-3 w-3" />
                   Connect
@@ -134,7 +134,7 @@ export function PlatformConnectionCard({
                 </div>
               )}
               {state === "connected" && (
-                <div className="flex items-center gap-1.5 rounded-lg border border-[#D1FAE5] bg-[#ECFDF5] px-3 py-1.5 text-[12px] font-medium text-[#065F46]">
+                <div className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] bg-[#ECFDF5] px-3 py-1.5 text-[12px] font-medium text-[#065F46]">
                   <Check className="h-3 w-3" />
                   Connected
                 </div>
@@ -145,7 +145,7 @@ export function PlatformConnectionCard({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-[#EDF1F5] px-5 py-3 flex items-center gap-2">
+      <div className="border-t border-[#E0E8F2] px-5 py-3 flex items-center gap-2">
         {!hasAtLeastOne ? (
           <>
             {platforms.filter((p) => states[p.id] === "idle").length > 1 && (

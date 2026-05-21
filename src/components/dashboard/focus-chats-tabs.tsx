@@ -115,7 +115,7 @@ function FocusCard({
   onAct: (prompt: string) => void;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 transition-all hover:border-[#C4CDD8] hover:shadow-sm">
+    <div className="flex items-start gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 transition-all hover:border-[#E0E8F2] hover:shadow-sm">
       <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", item.iconBg)}>
         {item.icon}
       </div>
@@ -229,7 +229,7 @@ function ChatGroupCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col rounded-xl border border-[#E0E8F2] bg-white p-4 text-left transition-all hover:border-[#C4CDD8] hover:shadow-sm"
+      className="group flex flex-col rounded-xl border border-[#E0E8F2] bg-white p-4 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm"
     >
       <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", meta.color)}>
         {meta.icon}
@@ -419,7 +419,7 @@ function ChatsTabContent({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search chats..."
-            className="w-full rounded-lg border border-[#E0E8F2] bg-white py-2 pl-8 pr-3 text-[12px] outline-none placeholder:text-[#C4CDD8] focus:border-[#C4CDD8]"
+            className="w-full rounded-lg border border-[#E0E8F2] bg-white py-2 pl-8 pr-3 text-[12px] outline-none placeholder:text-[#C4CDD8] focus:border-[#E0E8F2]"
           />
         </div>
 
@@ -446,7 +446,7 @@ function ChatsTabContent({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search all chats..."
-          className="w-full rounded-lg border border-[#E0E8F2] bg-white py-2 pl-8 pr-3 text-[12px] outline-none placeholder:text-[#C4CDD8] focus:border-[#C4CDD8]"
+          className="w-full rounded-lg border border-[#E0E8F2] bg-white py-2 pl-8 pr-3 text-[12px] outline-none placeholder:text-[#C4CDD8] focus:border-[#E0E8F2]"
         />
       </div>
 

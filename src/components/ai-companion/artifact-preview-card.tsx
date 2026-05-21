@@ -45,7 +45,7 @@ export function ArtifactPreviewCard() {
     <button
       type="button"
       onClick={handleOpenCanvas}
-      className="group flex w-full items-center gap-3 rounded-lg border border-[#E0E8F2] bg-[#FAFBFC] px-3 py-2.5 text-left transition-all hover:border-[#C4CDD8] hover:bg-[#F5F7FA]"
+      className="group flex w-full items-center gap-3 rounded-lg border border-[#E0E8F2] bg-[#FAFBFC] px-3 py-2.5 text-left transition-all hover:border-[#E0E8F2] hover:bg-[#F5F7FA]"
     >
       <div
         className={cn(

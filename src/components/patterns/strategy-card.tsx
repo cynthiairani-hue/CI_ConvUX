@@ -112,7 +112,7 @@ function PlacementGrid({ placements, onToggle }: {
               "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12px] transition-all",
               active
                 ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                : "border-[#E0E8F2] text-[#8492A6] hover:border-[#C4CDD8]"
+                : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2]"
             )}
           >
             <span className="font-medium">{pt.label}</span>
@@ -140,13 +140,13 @@ function ForecastTable({ forecast }: { forecast: StrategyPlan["forecast"]["data"
 
   return (
     <div>
-      <div className="rounded-lg border border-[#EDF1F5] overflow-hidden">
+      <div className="rounded-lg border border-[#E0E8F2] overflow-hidden">
         {rows.map((row, i) => (
           <div
             key={row.label}
             className={cn(
               "flex items-center justify-between px-3 py-1.5 text-[12px]",
-              i > 0 && "border-t border-[#EDF1F5]"
+              i > 0 && "border-t border-[#E0E8F2]"
             )}
           >
             <span className="text-[#8492A6]">{row.label}</span>
@@ -463,7 +463,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
 
             {/* Section content — always visible unless collapsed */}
             {!isCollapsed && (
-              <div className="border-t border-[#EDF1F5] px-4 pb-4 pt-3">
+              <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
                 {/* Objective — selectable buttons */}
                 {key === "objective" && (
                   <div className="space-y-2">
@@ -478,7 +478,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                             "rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
                             currentObjectiveId === opt.id
                               ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                              : "border-[#E0E8F2] text-[#8492A6] hover:border-[#C4CDD8] hover:text-[#394859]"
+                              : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2] hover:text-[#394859]"
                           )}
                         >
                           {opt.label}
@@ -590,7 +590,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                                 "rounded-lg border px-3 py-1.5 text-[12px] font-medium capitalize transition-colors",
                                 plan.audience.data.gender === g
                                   ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                                  : "border-[#E0E8F2] text-[#8492A6] hover:border-[#C4CDD8]"
+                                  : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2]"
                               )}
                             >
                               {g === "all" ? "All" : g.charAt(0).toUpperCase() + g.slice(1)}
@@ -653,7 +653,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors hover:border-[#C4CDD8] hover:bg-[#F7F9FB]"
+                        className="flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors hover:border-[#E0E8F2] hover:bg-[#F7F9FB]"
                       >
                         <Upload className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
                         Upload creative
@@ -666,7 +666,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                           "flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors",
                           isGenerating
                             ? "animate-pulse bg-[#F7F9FB]"
-                            : "hover:border-[#C4CDD8] hover:bg-[#F7F9FB]"
+                            : "hover:border-[#E0E8F2] hover:bg-[#F7F9FB]"
                         )}
                       >
                         <Wand2 className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />

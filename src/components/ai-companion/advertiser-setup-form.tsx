@@ -74,7 +74,7 @@ export function AdvertiserSetupForm({
           {onSkip && (
             <button
               onClick={onSkip}
-              className="rounded-full border border-[#D5DDE5] px-3 py-0.5 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F9FAFB] hover:text-[#394859]"
+              className="rounded-full border border-[#E0E8F2] px-3 py-0.5 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F9FAFB] hover:text-[#394859]"
             >
               Skip
             </button>
@@ -84,7 +84,7 @@ export function AdvertiserSetupForm({
 
       <form onSubmit={handleSubmit}>
         {/* Company name */}
-        <div className="border-t border-[#EDF1F5] px-5 py-3">
+        <div className="border-t border-[#E0E8F2] px-5 py-3">
           <label className="mb-1.5 block text-[12px] font-medium text-[#8492A6] uppercase tracking-wider">
             Company name
           </label>
@@ -98,7 +98,7 @@ export function AdvertiserSetupForm({
         </div>
 
         {/* Website URL */}
-        <div className="border-t border-[#EDF1F5] px-5 py-3">
+        <div className="border-t border-[#E0E8F2] px-5 py-3">
           <label className="mb-1.5 block text-[12px] font-medium text-[#8492A6] uppercase tracking-wider">
             Website
           </label>
@@ -112,7 +112,7 @@ export function AdvertiserSetupForm({
         </div>
 
         {/* Industry */}
-        <div className="border-t border-[#EDF1F5] px-5 py-3">
+        <div className="border-t border-[#E0E8F2] px-5 py-3">
           <label className="mb-1.5 block text-[12px] font-medium text-[#8492A6] uppercase tracking-wider">
             Industry
           </label>
@@ -136,7 +136,7 @@ export function AdvertiserSetupForm({
         </div>
 
         {/* Restricted categories */}
-        <div className="border-t border-[#EDF1F5] px-5 py-3">
+        <div className="border-t border-[#E0E8F2] px-5 py-3">
           <button
             type="button"
             onClick={() => setShowRestricted(!showRestricted)}
@@ -167,7 +167,7 @@ export function AdvertiserSetupForm({
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleRestricted(cat.id)}
-                      className="h-3.5 w-3.5 rounded border-[#C4CDD8] text-[#2C9FDD] focus:ring-[#2C9FDD]/20"
+                      className="h-3.5 w-3.5 rounded border-[#E0E8F2] text-[#2C9FDD] focus:ring-[#2C9FDD]/20"
                     />
                     <span className="text-[13px] text-[#394859]">{cat.label}</span>
                   </label>
@@ -178,7 +178,7 @@ export function AdvertiserSetupForm({
         </div>
 
         {/* Submit */}
-        <div className="border-t border-[#EDF1F5] px-5 py-3">
+        <div className="border-t border-[#E0E8F2] px-5 py-3">
           <button
             type="submit"
             disabled={!isValid}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, type FormEvent, type KeyboardEvent } from "react";
-import { ArrowUp, Mic, SlidersHorizontal, Check, MessageSquare, LayoutList, Plus, Upload, Plug, Wand2, Bot, Database } from "lucide-react";
+import { ArrowUp, Mic, SlidersHorizontal, Check, MessageSquare, LayoutList, Plus, Upload, Plug, Wand2, Bot, Database, ChevronDown } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useVoiceInput } from "@/hooks/use-voice-input";
@@ -128,7 +128,7 @@ function CanvasModePopover() {
 }
 
 export function CanvasChatInput({ placeholder }: { placeholder?: string }) {
-  const { openFullscreen, chatMode, state } = useAICompanion();
+  const { openFullscreen, chatMode, setChatMode, state } = useAICompanion();
   const { loadStrategy } = useCampaign();
   const [value, setValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -205,9 +205,14 @@ export function CanvasChatInput({ placeholder }: { placeholder?: string }) {
                 <CanvasModePopover />
               </div>
               <div className="flex items-center gap-0.5">
-                <span className="text-[13px] font-medium text-muted-foreground px-2">
+                <button
+                  type="button"
+                  onClick={() => setChatMode(chatMode === "conversational" ? "assisted" : "conversational")}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
                   {currentMode.label}
-                </span>
+                  <ChevronDown className="h-3 w-3" />
+                </button>
                 {hasSpeechAPI && (
                   <button
                     type="button"

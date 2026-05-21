@@ -86,7 +86,7 @@ export function KeywordChipSelector({
           {onSkip && (
             <button
               onClick={onSkip}
-              className="rounded-full border border-[#D5DDE5] px-3 py-0.5 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F9FAFB] hover:text-[#394859]"
+              className="rounded-full border border-[#E0E8F2] px-3 py-0.5 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F9FAFB] hover:text-[#394859]"
             >
               Skip
             </button>
@@ -96,7 +96,7 @@ export function KeywordChipSelector({
 
       {/* Keywords by category */}
       {grouped.map((group) => (
-        <div key={group.category} className="border-t border-[#EDF1F5] px-5 py-3">
+        <div key={group.category} className="border-t border-[#E0E8F2] px-5 py-3">
           <span className="mb-2 block text-[12px] font-medium text-[#8492A6] uppercase tracking-wider">
             {group.label}
           </span>
@@ -110,7 +110,7 @@ export function KeywordChipSelector({
                   "rounded-full border px-3 py-1 text-[13px] transition-all",
                   kw.selected
                     ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                    : "border-[#E0E8F2] bg-white text-[#8492A6] hover:border-[#C4CDD8]"
+                    : "border-[#E0E8F2] bg-white text-[#8492A6] hover:border-[#E0E8F2]"
                 )}
               >
                 {kw.label}
@@ -121,7 +121,7 @@ export function KeywordChipSelector({
       ))}
 
       {/* Footer: select all / continue */}
-      <div className="flex items-center justify-between border-t border-[#EDF1F5] px-5 py-3">
+      <div className="flex items-center justify-between border-t border-[#E0E8F2] px-5 py-3">
         <div className="flex items-center gap-3">
           <button
             type="button"

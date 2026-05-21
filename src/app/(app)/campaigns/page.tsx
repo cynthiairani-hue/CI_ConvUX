@@ -5,7 +5,7 @@ import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
-import { Megaphone, Plus, Clock, Wand2, Copy, Pencil, Share2, Archive, Trash2 } from "lucide-react";
+import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2 } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { PageChatInput } from "@/components/ai-companion/page-chat-input";
 import type { StrategyPlan, StrategyPlanStatus } from "@/types/campaign";
@@ -48,7 +48,7 @@ function StrategyRow({ strategy, onOpen, onAction }: { strategy: StrategyPlan; o
   return (
     <div
       onClick={onOpen}
-      className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#C4CDD8] hover:shadow-sm"
+      className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm"
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EBF5FB]">
         <Megaphone className="h-4 w-4 text-[#2C9FDD]" />
@@ -205,9 +205,8 @@ export default function CampaignsPage() {
               <button
                 type="button"
                 onClick={handleNewCampaign}
-                className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+                className="mt-5 inline-flex items-center rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
               >
-                <Wand2 className="h-4 w-4" />
                 Get started
               </button>
             </div>

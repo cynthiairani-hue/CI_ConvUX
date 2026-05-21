@@ -89,7 +89,7 @@ function ThinkingBlock({ steps }: { steps: string[] }) {
     <button
       type="button"
       onClick={() => setExpanded(!expanded)}
-      className="mb-2 flex w-full flex-col rounded-lg border border-[#EDF1F5] bg-[#FAFBFC] px-3 py-2 text-left transition-colors hover:bg-[#F5F7FA]"
+      className="mb-2 flex w-full flex-col rounded-lg border border-[#E0E8F2] bg-[#FAFBFC] px-3 py-2 text-left transition-colors hover:bg-[#F5F7FA]"
     >
       <div className="flex items-center gap-1.5">
         <Brain className="h-3 w-3 text-[#8492A6]" />
@@ -102,7 +102,7 @@ function ThinkingBlock({ steps }: { steps: string[] }) {
         )} />
       </div>
       {expanded && (
-        <div className="mt-2 space-y-1 border-t border-[#EDF1F5] pt-2">
+        <div className="mt-2 space-y-1 border-t border-[#E0E8F2] pt-2">
           {steps.map((step, i) => (
             <div key={i} className="flex items-start gap-1.5 text-[11px] text-[#8492A6]">
               <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-[#C4CDD8]" />

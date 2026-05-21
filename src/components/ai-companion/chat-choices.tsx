@@ -130,7 +130,7 @@ export function ChatChoices({
           {onSkip && (
             <button
               onClick={onSkip}
-              className="rounded-full border border-[#D5DDE5] px-3 py-0.5 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F9FAFB] hover:text-[#394859]"
+              className="rounded-full border border-[#E0E8F2] px-3 py-0.5 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F9FAFB] hover:text-[#394859]"
             >
               Skip
             </button>
@@ -149,7 +149,7 @@ export function ChatChoices({
                 onClick={() => handleSelect(option.id)}
                 disabled={submitted}
                 className={cn(
-                  "flex w-full items-center gap-2.5 border-t border-[#EDF1F5] px-5 py-3 text-left transition-all",
+                  "flex w-full items-center gap-2.5 border-t border-[#E0E8F2] px-5 py-3 text-left transition-all",
                   isSelected
                     ? "bg-[#EBF5FB]"
                     : "hover:bg-[#F7F9FB]",
@@ -187,7 +187,7 @@ export function ChatChoices({
               onClick={() => setFreeTextMode(true)}
               disabled={submitted}
               className={cn(
-                "flex w-full items-center gap-2 border-t border-[#EDF1F5] px-5 py-3 text-left transition-all",
+                "flex w-full items-center gap-2 border-t border-[#E0E8F2] px-5 py-3 text-left transition-all",
                 submitted ? "opacity-50" : "hover:bg-[#F7F9FB]"
               )}
             >
@@ -200,7 +200,7 @@ export function ChatChoices({
 
           {/* Multi-select: Continue button */}
           {multiSelect && !submitted && (
-            <div className="border-t border-[#EDF1F5] px-5 py-3">
+            <div className="border-t border-[#E0E8F2] px-5 py-3">
               <button
                 onClick={handleMultiSubmit}
                 disabled={selected.size === 0}
@@ -221,7 +221,7 @@ export function ChatChoices({
 
       {/* Custom amount input */}
       {customInputMode && (
-        <form onSubmit={handleCustomSubmit} className="flex items-center gap-2 border-t border-[#EDF1F5] px-5 py-3">
+        <form onSubmit={handleCustomSubmit} className="flex items-center gap-2 border-t border-[#E0E8F2] px-5 py-3">
           <span className="text-[14px] font-medium text-[#394859]">$</span>
           <input
             ref={customInputRef}
@@ -249,7 +249,7 @@ export function ChatChoices({
 
       {/* Free text input mode */}
       {freeTextMode && (
-        <form onSubmit={handleFreeTextSubmit} className="flex items-center gap-2 border-t border-[#EDF1F5] px-5 py-3">
+        <form onSubmit={handleFreeTextSubmit} className="flex items-center gap-2 border-t border-[#E0E8F2] px-5 py-3">
           <Pencil className="h-3.5 w-3.5 shrink-0 text-[#8492A6]" />
           <input
             ref={inputRef}

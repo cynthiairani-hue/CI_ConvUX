@@ -154,9 +154,8 @@ function PerformanceTab({
         <button
           type="button"
           onClick={() => onAsk("Show me how my marketing is performing")}
-          className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+          className="mt-5 inline-flex items-center rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
         >
-          <Wand2 className="h-4 w-4" />
           View performance
         </button>
       </div>
@@ -293,7 +292,7 @@ function TemplatesTab({ onGenerate }: { onGenerate: (prompt: string) => void }) 
           key={t.id}
           type="button"
           onClick={() => onGenerate(t.prompt)}
-          className="group flex items-start gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#C4CDD8] hover:shadow-sm"
+          className="group flex items-start gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm"
         >
           <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F7F9FB]">
             {t.icon}
@@ -405,7 +404,7 @@ function SavedReportsTab({
         return (
           <div
             key={n.id}
-            className="group flex w-full items-center gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#C4CDD8] hover:shadow-sm cursor-pointer"
+            className="group flex w-full items-center gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm cursor-pointer"
             onClick={() => onOpen(n.id)}
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F3F0FF]">

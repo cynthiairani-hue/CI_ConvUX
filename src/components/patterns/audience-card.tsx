@@ -178,13 +178,13 @@ function ReachForecast({
       </div>
 
       {/* Forecast table */}
-      <div className="rounded-lg border border-[#EDF1F5] overflow-hidden">
+      <div className="rounded-lg border border-[#E0E8F2] overflow-hidden">
         {rows.map((row, i) => (
           <div
             key={row.label}
             className={cn(
               "flex items-center justify-between px-3 py-1.5 text-[12px]",
-              i > 0 && "border-t border-[#EDF1F5]"
+              i > 0 && "border-t border-[#E0E8F2]"
             )}
           >
             <span className="text-[#8492A6]">{row.label}</span>
@@ -332,7 +332,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
           onToggle={() => toggleCollapse("type")}
         />
         {!collapsedSections.has("type") && (
-          <div className="border-t border-[#EDF1F5] px-4 pb-4 pt-3">
+          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
             <div className="flex flex-wrap gap-1.5">
               {(Object.entries(TYPE_CONFIG) as [AudienceSegmentType, typeof config][]).map(
                 ([type, cfg]) => (
@@ -344,7 +344,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                       "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
                       segment.type === type
                         ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                        : "border-[#E0E8F2] text-[#8492A6] hover:border-[#C4CDD8] hover:text-[#394859]"
+                        : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2] hover:text-[#394859]"
                     )}
                   >
                     {cfg.label}
@@ -365,7 +365,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
           onToggle={() => toggleCollapse("size")}
         />
         {!collapsedSections.has("size") && (
-          <div className="border-t border-[#EDF1F5] px-4 pb-4 pt-3">
+          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
             <div className="flex items-center rounded-lg border border-[#E0E8F2] px-3 py-2 focus-within:border-[#2C9FDD]">
               <input
                 type="text"
@@ -403,7 +403,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
         )}
 
         {!collapsedSections.has("rules") && (
-          <div className="border-t border-[#EDF1F5] px-4 pb-4 pt-3">
+          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
             <div className="space-y-2.5">
               {segment.rules.map((rule, i) => (
                 <div key={i} className="group rounded-lg border border-[#E0E8F2] bg-[#F7F9FB] px-3.5 py-2.5">
@@ -502,7 +502,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                 <button
                   type="button"
                   onClick={() => setAddingRule(true)}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0E8F2] py-2.5 text-[12px] text-[#8492A6] transition-colors hover:border-[#C4CDD8] hover:bg-[#F7F9FB]"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0E8F2] py-2.5 text-[12px] text-[#8492A6] transition-colors hover:border-[#E0E8F2] hover:bg-[#F7F9FB]"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add targeting rule
@@ -531,7 +531,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
         )}
 
         {!collapsedSections.has("forecast") && (
-          <div className="border-t border-[#EDF1F5] px-4 pb-4 pt-3">
+          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
             <ReachForecast
               audienceSize={parsedSize}
               platformCount={segment.platforms.length}
@@ -550,7 +550,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
           onToggle={() => toggleCollapse("platforms")}
         />
         {!collapsedSections.has("platforms") && (
-          <div className="border-t border-[#EDF1F5] px-4 pb-4 pt-3">
+          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
             <div className="flex flex-wrap gap-1.5">
               {ALL_PLATFORMS.map((platform) => {
                 const active = segment.platforms.includes(platform);
@@ -563,7 +563,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                       "flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] font-medium transition-all",
                       active
                         ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                        : "border-[#E0E8F2] text-[#8492A6] hover:border-[#C4CDD8]"
+                        : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2]"
                     )}
                   >
                     {platform}

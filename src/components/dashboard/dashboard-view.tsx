@@ -12,7 +12,6 @@ import {
   Link,
   DollarSign,
   Building2,
-  Wand2,
   ArrowRight,
   BarChart3,
 } from "lucide-react";
@@ -104,9 +103,8 @@ function HeroCard({
       </p>
       <button
         onClick={onAction}
-        className="mt-5 inline-flex items-center gap-2 rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+        className="mt-5 inline-flex items-center rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
       >
-        <Wand2 className="h-4 w-4" />
         {task.cta}
       </button>
     </div>
@@ -331,7 +329,7 @@ function ReturnVisitHero({
           return (
             <div
               key={m.label}
-              className="min-w-0 px-5 py-3 first:pl-0 last:pr-0"
+              className="min-w-0 px-5 py-3"
             >
               <span className="text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
                 {m.label}
