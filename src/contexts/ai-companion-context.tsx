@@ -50,6 +50,20 @@ import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
 
+/**
+ * The layout the chat opens in when launched from an "outside" input bar
+ * (any page input or CTA). Defaults to fullscreen and is ONLY changed by an
+ * explicit user choice in the ChatLayoutPicker — never by automatic system
+ * splits (e.g. auto-split on artifact). This keeps "type in the bar → fullscreen"
+ * the default everywhere unless the user deliberately changes it.
+ */
+const ENTRY_LAYOUT_KEY = "fuseiq-entry-layout";
+function readEntryLayout(): AICompanionState {
+  if (typeof window === "undefined") return "fullscreen";
+  const pref = localStorage.getItem(ENTRY_LAYOUT_KEY);
+  return pref === "split" || pref === "floating" ? pref : "fullscreen";
+}
+
 export interface ToolCallChoices {
   type: "choices";
   field: string;
@@ -125,6 +139,8 @@ export interface ChatMessage {
 interface AICompanionContextValue {
   state: AICompanionState;
   setState: (state: AICompanionState) => void;
+  /** Persist the user's explicit default layout for opening chat from an input bar. */
+  setEntryLayout: (layout: AICompanionState) => void;
   dockSide: DockSide;
   chatMode: ChatMode;
   setChatMode: (mode: ChatMode) => void;
@@ -184,6 +200,16 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     // preferred layout (floating, split, fullscreen).
     if (typeof window !== "undefined" && s !== "resting") {
       localStorage.setItem("fuseiq-layout-state", s);
+    }
+  }, []);
+  // Explicit default layout for launching chat from an input bar. Only the
+  // ChatLayoutPicker calls this — automatic splits never touch it.
+  const setEntryLayout = useCallback((layout: AICompanionState) => {
+    if (
+      typeof window !== "undefined" &&
+      (layout === "fullscreen" || layout === "split" || layout === "floating")
+    ) {
+      localStorage.setItem(ENTRY_LAYOUT_KEY, layout);
     }
   }, []);
   const [dockSide, setDockSideRaw] = useState<DockSide>("left");
@@ -2000,12 +2026,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   // Continue campaign flow AFTER mode is chosen (or when mode is already known)
   // Start the NEW strategy-based campaign flow
   const startCampaignFlow = useCallback(() => {
-    // Open in user's preferred layout
-    const preferred = typeof window !== "undefined"
-      ? localStorage.getItem("fuseiq-layout-state") as AICompanionState | null
-      : null;
-    const targetState = (preferred === "split" || preferred === "floating") ? preferred : "fullscreen";
-    setState(targetState);
+    // Open in the user's explicit entry layout (fullscreen by default)
+    setState(readEntryLayout());
     setMessages([]);
 
     // Check if user has explicitly chosen a mode before
@@ -2061,24 +2083,16 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           // Chat is already open — continue in the current conversation and layout
           setTimeout(() => sendMessage(initialMessage), 0);
         } else {
-          // Chat is closed — open a new session in the user's preferred layout
-          const preferred = typeof window !== "undefined"
-            ? localStorage.getItem("fuseiq-layout-state") as AICompanionState | null
-            : null;
-          const targetState = (preferred === "split" || preferred === "floating") ? preferred : "fullscreen";
-          setState(targetState);
+          // Chat is closed — open a new session in the user's explicit entry layout
+          setState(readEntryLayout());
           initNewSession(true);
           // Let intent routing run — user-typed messages and programmatic
           // messages like "Build me a campaign" should all be routed correctly.
           setTimeout(() => sendMessage(initialMessage), 0);
         }
       } else {
-        // No message — just open the chat in preferred layout
-        const preferred = typeof window !== "undefined"
-          ? localStorage.getItem("fuseiq-layout-state") as AICompanionState | null
-          : null;
-        const targetState = (preferred === "split" || preferred === "floating") ? preferred : "fullscreen";
-        setState(targetState);
+        // No message — just open the chat in the user's explicit entry layout
+        setState(readEntryLayout());
       }
     },
     [state, sendMessage, initNewSession, setState]
@@ -2170,6 +2184,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       value={{
         state,
         setState,
+        setEntryLayout,
         dockSide,
         chatMode,
         setChatMode,

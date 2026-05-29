@@ -240,9 +240,11 @@ export default function SignupPage() {
     localStorage.removeItem("fuseiq-advertisers");
     localStorage.removeItem("fuseiq-narratives");
     localStorage.removeItem("fuseiq-audiences");
+    localStorage.removeItem("fuseiq-approvals");
     localStorage.removeItem("fuseiq-chat-mode");
     localStorage.removeItem("fuseiq-detail-level");
     localStorage.removeItem("fuseiq-layout-state");
+    localStorage.removeItem("fuseiq-entry-layout");
     localStorage.removeItem("fuseiq-floating-panel");
     localStorage.removeItem("fuseiq-dock-side");
     localStorage.removeItem("fuseiq-chat-sessions");

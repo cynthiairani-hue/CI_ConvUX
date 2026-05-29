@@ -75,7 +75,7 @@ function getIconForLayout(id: LayoutId) {
 }
 
 export function ChatLayoutPicker() {
-  const { state, setState, dockSide, setDockSide } = useAICompanion();
+  const { state, setState, setEntryLayout, dockSide, setDockSide } = useAICompanion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -90,16 +90,23 @@ export function ChatLayoutPicker() {
   }, [open]);
 
   function handleSelect(id: LayoutId) {
+    // Picking a layout here is an EXPLICIT choice — record it as the default
+    // the chat opens in from any input bar (setEntryLayout). Automatic splits
+    // elsewhere never call setEntryLayout, so they can't change this default.
     if (id === "fullscreen") {
       setState("fullscreen");
+      setEntryLayout("fullscreen");
     } else if (id === "split-left") {
       setDockSide("left");
       setState("split");
+      setEntryLayout("split");
     } else if (id === "split-right") {
       setDockSide("right");
       setState("split");
+      setEntryLayout("split");
     } else if (id === "floating") {
       setState("floating");
+      setEntryLayout("floating");
     }
     setOpen(false);
   }
