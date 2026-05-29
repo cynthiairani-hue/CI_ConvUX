@@ -360,7 +360,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           "Assembling your media plan",
         ] : [
           `Analyzing brief — ${objLabel} campaign for ${advName}`,
-          `Setting ${intent.objective === "traffic" || intent.objective === "sales" ? "conversion" : "awareness"} targeting based on ${brand ? brand.industry.toLowerCase() : "your industry"}`,
+          `Setting ${({ traffic: "traffic", sales: "conversion", leads: "lead-gen", retargeting: "retargeting", "app-promotion": "app-install" } as Record<string, string>)[intent.objective || ""] || "awareness"} targeting based on ${brand ? brand.industry.toLowerCase() : "your industry"}`,
           "Allocating budget across recommended placements",
           "Calculating audience reach and frequency estimates",
           "Building forecast with confidence scores",

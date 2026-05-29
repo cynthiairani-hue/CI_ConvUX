@@ -10,6 +10,11 @@ import type {
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
 import { generateKeywordsForIndustry } from "./keyword-mocks";
 import { getCurrentBrand } from "./brand-profiles";
+import {
+  getCapabilities,
+  evaluateAudienceReadiness,
+  evaluateCreativeReadiness,
+} from "./prerequisites";
 import { generateForecast } from "./forecast-mocks";
 
 export interface CampaignIntent {
@@ -438,19 +443,13 @@ export function buildStrategyFromIntent(
 
   const now = new Date().toISOString();
 
-  // --- Prerequisites: readiness is a function of the objective ---
-  // Platform-provided capability (DSP/buying) is assumed connected. We model
-  // only USER-OWNED first-party signal + assets as real prerequisites.
-  // Demo seed for an asset-rich brand whose ad signal is still cold:
-  const hasSitePixel = false; // pixel not yet installed → gates signal-dependent objectives
-  const hasCreativeAssets = true; // mature brand → assets pullable from their site
+  // --- Prerequisites: readiness is a function of the objective (see prerequisites.ts) ---
   const objId = intent.objective || "sales";
-
-  // Objectives that require a site pixel (retargeting + conversion optimization)
-  const needsPixel = objId === "retargeting" || objId === "leads" || objId === "sales";
-  const audienceBlocked = needsPixel && !hasSitePixel;
-
   const siteDomain = advertiser.websiteUrl || "your site";
+  const caps = getCapabilities();
+  const audienceReadiness = evaluateAudienceReadiness(objId, caps, siteDomain);
+  const creativeReadiness = evaluateCreativeReadiness(caps, siteDomain);
+  const audienceBlocked = audienceReadiness.readiness === "blocked";
 
   return {
     id: `strategy-${Date.now()}`,
@@ -489,15 +488,17 @@ export function buildStrategyFromIntent(
       value: audienceBlocked
         ? `Retargeting needs your site pixel — not yet installed on ${siteDomain}`
         : `${audience.locations.join(", ")} · Ages ${audience.ageRange.min}-${audience.ageRange.max} · ${audience.gender === "all" ? "All genders" : audience.gender}`,
-      provenance: audienceBlocked
-        ? { source: "default", reasoning: `A ${objId} campaign optimizes against on-site behavior, which requires the site pixel firing on ${siteDomain}. Awareness and traffic objectives don't need it — this prerequisite is specific to signal-dependent objectives.`, confidence: "high" }
-        : { source: "ai_inferred", reasoning: "Audience quality is the single biggest lever for campaign performance. Higher-intent segments convert at 3-5x the rate of broad targeting.", confidence: "medium" },
-      readiness: audienceBlocked ? "blocked" : "ready",
+      provenance: {
+        source: audienceBlocked ? "default" : "ai_inferred",
+        reasoning: audienceReadiness.reason,
+        confidence: audienceBlocked ? "high" : "medium",
+      },
+      readiness: audienceReadiness.readiness,
       editable: true,
       authorshipState: "proposed",
       filled: !audienceBlocked,
       editHistory: [],
-      ...(audienceBlocked ? { prerequisite: { requires: "site-pixel", connectLabel: "Connect your site pixel" } } : {}),
+      ...(audienceReadiness.prerequisite ? { prerequisite: audienceReadiness.prerequisite } : {}),
       data: audience,
     },
     placements: {
@@ -532,11 +533,11 @@ export function buildStrategyFromIntent(
         manualCpm: null,
       },
     },
-    creative: hasCreativeAssets
+    creative: caps.hasCreativeAssets
       ? {
           label: "Creative",
           value: `3 assets pulled from ${siteDomain} — review before launch`,
-          provenance: { source: "brief_extracted", reasoning: `Pulled brand video and imagery from ${siteDomain}. For an awareness campaign, creative is the only hard prerequisite — and you already have production-grade assets, so you're ready to launch.`, confidence: "high" },
+          provenance: { source: "brief_extracted", reasoning: creativeReadiness.reason, confidence: "high" },
           readiness: "ready",
           editable: true,
           authorshipState: "proposed",
