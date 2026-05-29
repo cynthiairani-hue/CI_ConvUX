@@ -245,4 +245,6 @@ For each item:
 - Accessibility audit (deferred to polish)
 - Server-side persistence
 
-Phase 9 is polish, copy refinement, and Loom recording. No new features.
+Phase 9 (see `PHASE-9.md`) captures the North Star follow-ups from the
+2026-05-29 ELT demo. Phase 10 is polish, copy refinement, and the Loom
+recording — no new features.
