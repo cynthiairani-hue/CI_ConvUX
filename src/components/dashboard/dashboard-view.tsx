@@ -12,6 +12,7 @@ import {
   DollarSign,
   Building2,
   ArrowRight,
+  Swords,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBrandFromEmail, getCurrentBrand, type BrandProfile } from "@/data/brand-profiles";
@@ -25,6 +26,7 @@ import { FocusChatsTabs } from "./focus-chats-tabs";
 
 const taskIcons: Record<string, LucideIcon> = {
   "first-campaign": Megaphone,
+  "competitive-intel": Swords,
   "see-performance": TrendingUp,
   "connect-accounts": Link,
   "plan-spend": DollarSign,
@@ -84,10 +86,13 @@ function HeroCard({
   brand: BrandProfile | null;
 }) {
   const Icon = taskIcons[task.id] || Building2;
+  // Only the campaign path leads with the brand carousel; other paths (e.g.
+  // competitive) use an icon so the two activation paths read as distinct.
+  const showCarousel = brand && task.id === "first-campaign";
 
   return (
     <div className="flex flex-col items-center rounded-xl bg-background px-8 py-10 text-center">
-      {brand ? (
+      {showCarousel ? (
         <div className="mb-5 w-full max-w-md">
           <HeroCarousel images={brand.heroImages} />
         </div>
@@ -355,6 +360,7 @@ function ReturnVisitHero({
 
 const taskActions: Record<string, string> = {
   "first-campaign": "campaign",
+  "competitive-intel": "How am I positioned against competitors?",
   "see-performance": "Show me how my marketing is performing",
   "connect-accounts": "Help me connect my ad accounts",
   "plan-spend": "Help me plan my monthly spend",

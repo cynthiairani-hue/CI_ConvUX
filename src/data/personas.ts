@@ -41,10 +41,19 @@ export const personas: Persona[] = [
 export const universalTasks: GettingStartedTask[] = [
   {
     id: "first-campaign",
-    title: "Let's build your first campaign",
+    title: "Launch a campaign now",
     description:
-      "The AI will walk you through targeting, budget, and creative — step by step.",
+      "The AI will walk you through targeting, budget, and creative — step by step. Fastest path to live.",
     cta: "Build campaign",
+    status: "not-started",
+    priority: "essential",
+  },
+  {
+    id: "competitive-intel",
+    title: "See who you're up against",
+    description:
+      "Get an instant competitive read — top rivals, where they're winning, and your white space. No pixel needed.",
+    cta: "See competitors",
     status: "not-started",
     priority: "essential",
   },

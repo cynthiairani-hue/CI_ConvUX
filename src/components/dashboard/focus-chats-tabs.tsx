@@ -22,6 +22,8 @@ import {
   Zap,
   RefreshCw,
   Users,
+  Sparkles,
+  Swords,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +35,7 @@ type TabId = "focus" | "chats";
 
 interface FocusItem {
   id: string;
-  type: "anomaly" | "optimization" | "creative" | "pacing";
+  type: "anomaly" | "optimization" | "creative" | "pacing" | "upsell";
   title: string;
   description: string;
   confidence: string;
@@ -101,6 +103,30 @@ function buildFocusItems(
       });
     }
   }
+
+  // Upsell recommendations — keyed to setup/goals, artifact-shaped, dismissible (PLG, Phase 9B)
+  items.push({
+    id: "upsell-dooh",
+    type: "upsell",
+    title: "Extend your CTV launch with DOOH",
+    description: "Add digital out-of-home to the Summer 25 CTV campaign — pair living-room reach with high-traffic screens.",
+    confidence: "medium",
+    impact: "Premium reach",
+    icon: <Sparkles className="h-3.5 w-3.5 text-foreground" />,
+    iconBg: "bg-[#EBF5FB]",
+    prompt: `Add DOOH placements to ${brandName}'s CTV awareness campaign`,
+  });
+  items.push({
+    id: "upsell-competitive",
+    type: "upsell",
+    title: "See where competitors are winning",
+    description: "An instant competitive read — top rivals, share trends, and your white space. No pixel needed.",
+    confidence: "high",
+    impact: "Free",
+    icon: <Swords className="h-3.5 w-3.5 text-foreground" />,
+    iconBg: "bg-[#EBF5FB]",
+    prompt: "How am I positioned against competitors?",
+  });
 
   return items;
 }
