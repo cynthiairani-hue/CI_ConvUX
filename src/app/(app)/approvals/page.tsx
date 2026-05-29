@@ -12,18 +12,11 @@ export default function ApprovalsPage() {
     approvalRequests,
     resolveApproval,
     addComment,
-    activatePlan,
+    activateStrategy,
+    getPendingForPersona,
   } = useCampaign();
 
-  const pendingForMe = approvalRequests.filter(
-    (req) => {
-      const approverIdMap: Record<string, string> = {
-        "marcus-patel": "marcus-patel",
-        "jordan-reyes": "jordan-reyes",
-      };
-      return req.sentTo === approverIdMap[activePersona.id] && !req.resolution;
-    }
-  );
+  const pendingForMe = getPendingForPersona(activePersona.id);
 
   const sentByMe = approvalRequests.filter((req) =>
     req.sentBy === activePersona.id
@@ -99,7 +92,7 @@ export default function ApprovalsPage() {
                       isSender={true}
                       onResolve={() => {}}
                       onComment={(content) => addComment(req.id, activePersona.id, content)}
-                      onActivate={() => activatePlan(req.id)}
+                      onActivate={() => activateStrategy(req.id)}
                     />
                   ))}
                 </div>

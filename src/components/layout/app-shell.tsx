@@ -1,8 +1,10 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { Share2, FileDown, Sparkles, Clock, X } from "lucide-react";
+import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { approvers } from "@/data/approvers";
+import { usePersona } from "@/contexts/persona-context";
 import { LeftRail } from "./left-rail";
 import { MainCanvas } from "./main-canvas";
 import { AIFullscreen } from "@/components/ai-companion/ai-fullscreen";
@@ -34,6 +36,55 @@ function StatusBadge({ status }: { status: string }) {
     <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize", color)}>
       {label}
     </span>
+  );
+}
+
+/** Approver picker → sends the strategy for approval. Only shown for drafts. */
+function SendForApprovalButton({ onSend }: { onSend: (approverId: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+      >
+        <Send className="h-3.5 w-3.5" />
+        Send for Approval
+        <ChevronDown className="h-3 w-3 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-lg border border-border bg-white py-1 shadow-[0px_4px_12px_rgba(71,88,114,0.15)]">
+          <div className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Send to
+          </div>
+          {approvers.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => {
+                onSend(a.id);
+                setOpen(false);
+              }}
+              className="flex w-full flex-col items-start px-3 py-2 text-left transition-colors hover:bg-accent"
+            >
+              <span className="text-[13px] font-medium text-foreground">{a.name}</span>
+              <span className="text-[11px] text-muted-foreground">{a.role}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -134,12 +185,20 @@ function ReturnVisitBanner({ strategy, onDismiss }: { strategy: StrategyPlan; on
 }
 
 function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof useCampaign>["activeStrategy"]> }) {
-  const { saveStrategy, setActiveStrategy, showToast } = useCampaign();
+  const { saveStrategy, setActiveStrategy, showToast, sendForApproval } = useCampaign();
   const { setState } = useAICompanion();
+  const { activePersona } = usePersona();
   const [showReturnBanner, setShowReturnBanner] = useState(true);
 
+  function handleSendForApproval(approverId: string) {
+    // Ensure the strategy is persisted before it enters the approval queue.
+    const saved = { ...strategy, lastModifiedAt: new Date().toISOString() };
+    saveStrategy(saved);
+    sendForApproval(saved.id, approverId, activePersona.id);
+  }
+
   function handleSave() {
-    saveStrategy({ ...strategy, status: "draft", lastModifiedAt: new Date().toISOString() });
+    saveStrategy({ ...strategy, lastModifiedAt: new Date().toISOString() });
     showToast("Strategy saved", { label: "View in Campaigns", href: "/campaigns" });
   }
 
@@ -175,6 +234,9 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={strategy.status} />
+          {strategy.status === "draft" && (
+            <SendForApprovalButton onSend={handleSendForApproval} />
+          )}
           <button
             type="button"
             onClick={handleShare}

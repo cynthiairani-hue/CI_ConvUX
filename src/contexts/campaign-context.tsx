@@ -29,6 +29,8 @@ import {
   persistNarratives,
   loadAudiences,
   persistAudiences,
+  loadApprovals,
+  persistApprovals,
 } from "@/lib/storage";
 
 interface CampaignContextValue {
@@ -65,7 +67,7 @@ interface CampaignContextValue {
   archiveAudience: (id: string) => void;
   removeAudience: (id: string) => void;
   approvalRequests: ApprovalRequest[];
-  sendForApproval: (approverId: string, senderPersonaId: PersonaId) => void;
+  sendForApproval: (strategyId: string, approverId: string, senderPersonaId: PersonaId) => void;
   resolveApproval: (
     requestId: string,
     resolution: "approved" | "changes-requested" | "rejected",
@@ -73,7 +75,7 @@ interface CampaignContextValue {
     resolverPersonaId?: PersonaId
   ) => void;
   addComment: (requestId: string, authorId: PersonaId, content: string) => void;
-  activatePlan: (requestId: string) => void;
+  activateStrategy: (requestId: string) => void;
   getPendingForPersona: (personaId: PersonaId) => ApprovalRequest[];
   toast: { message: string; visible: boolean; action?: { label: string; href: string } };
   dismissToast: () => void;
@@ -110,6 +112,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setSavedAdvertisers(loadAdvertisers());
     setSavedNarratives(loadNarratives());
     setSavedAudiences(loadAudiences());
+    setApprovalRequests(loadApprovals());
     setHydrated(true);
   }, []);
 
@@ -132,6 +135,12 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (hydrated) persistAudiences(savedAudiences);
   }, [savedAudiences, hydrated]);
+
+  // Persist approval requests to localStorage on change — without this the
+  // cross-persona handoff is lost when switching persona reloads the app.
+  useEffect(() => {
+    if (hydrated) persistApprovals(approvalRequests);
+  }, [approvalRequests, hydrated]);
 
   const setAdvertiser = useCallback((adv: Advertiser) => {
     setAdvertiserState(adv);
@@ -360,22 +369,41 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const sendForApproval = useCallback(
-    (approverId: string, senderPersonaId: PersonaId) => {
-      if (!activePlan) return;
+  // Update a saved strategy's status in place (and active/persist).
+  const setStrategyStatus = useCallback(
+    (strategyId: string, status: StrategyPlan["status"]) => {
+      setSavedStrategies((prev) => {
+        const next = prev.map((s) =>
+          s.id === strategyId
+            ? { ...s, status, lastModifiedAt: new Date().toISOString() }
+            : s
+        );
+        persistStrategies(next);
+        return next;
+      });
+      setActiveStrategy((prev) =>
+        prev && prev.id === strategyId ? { ...prev, status } : prev
+      );
+    },
+    []
+  );
 
+  const sendForApproval = useCallback(
+    (strategyId: string, approverId: string, senderPersonaId: PersonaId) => {
+      const strategy = savedStrategies.find((s) => s.id === strategyId);
       const approver = approvers.find((a) => a.id === approverId);
       const sender = personas.find((p) => p.id === senderPersonaId);
-      if (!approver || !sender) return;
+      if (!strategy || !approver || !sender) return;
 
-      const updatedPlan: CampaignPlan = {
-        ...activePlan,
+      const updatedStrategy: StrategyPlan = {
+        ...strategy,
         status: "pending-approval",
+        lastModifiedAt: new Date().toISOString(),
       };
 
       const request: ApprovalRequest = {
         id: `approval-${Date.now()}`,
-        plan: updatedPlan,
+        strategy: updatedStrategy,
         sentBy: senderPersonaId,
         sentByName: sender.name,
         sentTo: approverId,
@@ -384,11 +412,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         comments: [],
       };
 
-      setActivePlan(updatedPlan);
+      setStrategyStatus(strategyId, "pending-approval");
       setApprovalRequests((prev) => [...prev, request]);
       showToast(`Sent to ${approver.name} for approval`);
     },
-    [activePlan, showToast]
+    [savedStrategies, setStrategyStatus, showToast]
   );
 
   const resolveApproval = useCallback(
@@ -398,6 +426,9 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       comment?: string,
       resolverPersonaId?: PersonaId
     ) => {
+      const newStatus: StrategyPlan["status"] =
+        resolution === "approved" ? "approved" : "draft";
+
       setApprovalRequests((prev) =>
         prev.map((req) => {
           if (req.id !== requestId) return req;
@@ -414,35 +445,27 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             });
           }
 
-          const newStatus =
-            resolution === "approved" ? "approved" : "draft";
+          // Sync the request's strategy snapshot status too.
+          setStrategyStatus(req.strategy.id, newStatus);
 
           return {
             ...req,
             resolution,
             resolvedAt: new Date().toLocaleString(),
             comments: newComments,
-            plan: { ...req.plan, status: newStatus as CampaignPlan["status"] },
+            strategy: { ...req.strategy, status: newStatus },
           };
         })
       );
 
-      // Also update activePlan status
-      setActivePlan((prev) => {
-        if (!prev) return prev;
-        const newStatus =
-          resolution === "approved" ? "approved" : "draft";
-        return { ...prev, status: newStatus as CampaignPlan["status"] };
-      });
-
       const labels = {
-        approved: "Plan approved",
+        approved: "Strategy approved",
         "changes-requested": "Changes requested",
-        rejected: "Plan rejected",
+        rejected: "Strategy rejected",
       };
       showToast(labels[resolution]);
     },
-    [showToast]
+    [setStrategyStatus, showToast]
   );
 
   const addComment = useCallback(
@@ -470,24 +493,21 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const activatePlan = useCallback(
+  const activateStrategy = useCallback(
     (requestId: string) => {
       setApprovalRequests((prev) =>
         prev.map((req) => {
           if (req.id !== requestId) return req;
+          setStrategyStatus(req.strategy.id, "active");
           return {
             ...req,
-            plan: { ...req.plan, status: "activated" },
+            strategy: { ...req.strategy, status: "active" },
           };
         })
       );
-      setActivePlan((prev) => {
-        if (!prev) return prev;
-        return { ...prev, status: "activated" };
-      });
       showToast("Campaign activated");
     },
-    [showToast]
+    [setStrategyStatus, showToast]
   );
 
   const getPendingForPersona = useCallback(
@@ -529,7 +549,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         sendForApproval,
         resolveApproval,
         addComment,
-        activatePlan,
+        activateStrategy,
         getPendingForPersona,
         toast,
         dismissToast,

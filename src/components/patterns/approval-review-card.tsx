@@ -15,10 +15,29 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   ApprovalRequest,
-  CampaignPlanSectionKey,
   ReadinessState,
-  PlanSection,
+  StrategyPlan,
 } from "@/types/campaign";
+
+/** Minimal shape shared by every renderable section (label + readiness + value). */
+interface ReviewSection {
+  label: string;
+  value: string;
+  readiness: ReadinessState;
+}
+
+/** Pull the 7 StrategyPlan sections into a flat, ordered list for review. */
+function strategySections(strategy: StrategyPlan): ReviewSection[] {
+  return [
+    strategy.objective,
+    strategy.budgetSchedule,
+    strategy.audience,
+    strategy.placements,
+    strategy.bidding,
+    strategy.creative,
+    strategy.forecast,
+  ].map((s) => ({ label: s.label, value: s.value, readiness: s.readiness }));
+}
 
 const readinessConfig: Record<
   ReadinessState,
@@ -57,7 +76,7 @@ function ReadinessBadge({ state }: { state: ReadinessState }) {
   );
 }
 
-function ReviewSectionRow({ section }: { section: PlanSection }) {
+function ReviewSectionRow({ section }: { section: ReviewSection }) {
   return (
     <div className="border-b last:border-b-0 px-5 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -99,13 +118,11 @@ export function ApprovalReviewCard({
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [changesComment, setChangesComment] = useState("");
 
-  const sectionKeys = Object.keys(
-    request.plan.sections
-  ) as CampaignPlanSectionKey[];
+  const sections = strategySections(request.strategy);
 
-  const readyCounts = sectionKeys.reduce(
-    (acc, key) => {
-      acc[request.plan.sections[key].readiness]++;
+  const readyCounts = sections.reduce(
+    (acc, section) => {
+      acc[section.readiness]++;
       return acc;
     },
     { ready: 0, limited: 0, blocked: 0 }
@@ -128,7 +145,7 @@ export function ApprovalReviewCard({
       <div className="flex items-center justify-between border-b px-5 py-4">
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-foreground">
-            {request.plan.name}
+            {request.strategy.name}
           </h3>
           <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
@@ -169,10 +186,10 @@ export function ApprovalReviewCard({
         </span>
       </div>
 
-      {/* Plan sections */}
+      {/* Strategy sections */}
       <div>
-        {sectionKeys.map((key) => (
-          <ReviewSectionRow key={key} section={request.plan.sections[key]} />
+        {sections.map((section) => (
+          <ReviewSectionRow key={section.label} section={section} />
         ))}
       </div>
 
@@ -286,7 +303,7 @@ export function ApprovalReviewCard({
       )}
 
       {/* Sender sees approved → activate (gated by readiness) */}
-      {isSender && request.resolution === "approved" && request.plan.status !== "activated" && (
+      {isSender && request.resolution === "approved" && request.strategy.status !== "active" && (
         <div className="border-t px-5 py-4">
           {readyCounts.blocked > 0 || readyCounts.limited > 0 ? (
             <div className="space-y-2">
@@ -308,17 +325,17 @@ export function ApprovalReviewCard({
                   </p>
                 )}
                 <ul className="mt-1 ml-3 list-disc text-muted-foreground">
-                  {sectionKeys
-                    .filter((key) => request.plan.sections[key].readiness !== "ready")
-                    .map((key) => (
-                      <li key={key}>
-                        {request.plan.sections[key].label}
+                  {sections
+                    .filter((section) => section.readiness !== "ready")
+                    .map((section) => (
+                      <li key={section.label}>
+                        {section.label}
                         <span className={
-                          request.plan.sections[key].readiness === "blocked"
+                          section.readiness === "blocked"
                             ? " text-red-500"
                             : " text-amber-600"
                         }>
-                          {" "}— {request.plan.sections[key].readiness}
+                          {" "}— {section.readiness}
                         </span>
                       </li>
                     ))}
@@ -337,7 +354,7 @@ export function ApprovalReviewCard({
       )}
 
       {/* Activated state */}
-      {request.plan.status === "activated" && (
+      {request.strategy.status === "active" && (
         <div className="border-t px-5 py-4">
           <div className="flex items-center gap-2 text-sm text-emerald-600">
             <CheckCircle2 className="h-4 w-4" />

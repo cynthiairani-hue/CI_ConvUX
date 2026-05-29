@@ -283,7 +283,7 @@ export interface AudienceSegment {
 
 export interface ApprovalRequest {
   id: string;
-  plan: CampaignPlan;
+  strategy: StrategyPlan;
   sentBy: string;
   sentByName: string;
   sentTo: string;
