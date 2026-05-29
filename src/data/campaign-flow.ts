@@ -438,6 +438,20 @@ export function buildStrategyFromIntent(
 
   const now = new Date().toISOString();
 
+  // --- Prerequisites: readiness is a function of the objective ---
+  // Platform-provided capability (DSP/buying) is assumed connected. We model
+  // only USER-OWNED first-party signal + assets as real prerequisites.
+  // Demo seed for an asset-rich brand whose ad signal is still cold:
+  const hasSitePixel = false; // pixel not yet installed → gates signal-dependent objectives
+  const hasCreativeAssets = true; // mature brand → assets pullable from their site
+  const objId = intent.objective || "sales";
+
+  // Objectives that require a site pixel (retargeting + conversion optimization)
+  const needsPixel = objId === "retargeting" || objId === "leads" || objId === "sales";
+  const audienceBlocked = needsPixel && !hasSitePixel;
+
+  const siteDomain = advertiser.websiteUrl || "your site";
+
   return {
     id: `strategy-${Date.now()}`,
     name: `${advertiser.companyName} — ${obj.name}`,
@@ -472,13 +486,18 @@ export function buildStrategyFromIntent(
     },
     audience: {
       label: "Audience",
-      value: `${audience.locations.join(", ")} · Ages ${audience.ageRange.min}-${audience.ageRange.max} · ${audience.gender === "all" ? "All genders" : audience.gender}`,
-      provenance: { source: "ai_inferred", reasoning: "Audience quality is the single biggest lever for campaign performance. Higher-intent segments convert at 3-5x the rate of broad targeting.", confidence: "medium" },
-      readiness: "ready",
+      value: audienceBlocked
+        ? `Retargeting needs your site pixel — not yet installed on ${siteDomain}`
+        : `${audience.locations.join(", ")} · Ages ${audience.ageRange.min}-${audience.ageRange.max} · ${audience.gender === "all" ? "All genders" : audience.gender}`,
+      provenance: audienceBlocked
+        ? { source: "default", reasoning: `A ${objId} campaign optimizes against on-site behavior, which requires the site pixel firing on ${siteDomain}. Awareness and traffic objectives don't need it — this prerequisite is specific to signal-dependent objectives.`, confidence: "high" }
+        : { source: "ai_inferred", reasoning: "Audience quality is the single biggest lever for campaign performance. Higher-intent segments convert at 3-5x the rate of broad targeting.", confidence: "medium" },
+      readiness: audienceBlocked ? "blocked" : "ready",
       editable: true,
       authorshipState: "proposed",
-      filled: true,
+      filled: !audienceBlocked,
       editHistory: [],
+      ...(audienceBlocked ? { prerequisite: { requires: "site-pixel", connectLabel: "Connect your site pixel" } } : {}),
       data: audience,
     },
     placements: {
@@ -513,20 +532,39 @@ export function buildStrategyFromIntent(
         manualCpm: null,
       },
     },
-    creative: {
-      label: "Creative",
-      value: "No assets yet — upload or generate with AI",
-      provenance: { source: "default", reasoning: "Multiple creative variations enable A/B testing. I'll rotate top performers and pause underperformers automatically." },
-      readiness: "limited",
-      editable: true,
-      authorshipState: "proposed",
-      filled: false,
-      editHistory: [],
-      data: {
-        status: "not-started",
-        assets: [],
-      },
-    },
+    creative: hasCreativeAssets
+      ? {
+          label: "Creative",
+          value: `3 assets pulled from ${siteDomain} — review before launch`,
+          provenance: { source: "brief_extracted", reasoning: `Pulled brand video and imagery from ${siteDomain}. For an awareness campaign, creative is the only hard prerequisite — and you already have production-grade assets, so you're ready to launch.`, confidence: "high" },
+          readiness: "ready",
+          editable: true,
+          authorshipState: "proposed",
+          filled: true,
+          editHistory: [],
+          data: {
+            status: "uploaded" as const,
+            assets: [
+              { id: "asset-1", type: "video" as const, name: "Brand film — 30s" },
+              { id: "asset-2", type: "video" as const, name: "Brand film — 15s" },
+              { id: "asset-3", type: "image" as const, name: "Hero still" },
+            ],
+          },
+        }
+      : {
+          label: "Creative",
+          value: "No assets yet — upload or generate with AI",
+          provenance: { source: "default", reasoning: "Multiple creative variations enable A/B testing. I'll rotate top performers and pause underperformers automatically." },
+          readiness: "limited",
+          editable: true,
+          authorshipState: "proposed",
+          filled: false,
+          editHistory: [],
+          data: {
+            status: "not-started",
+            assets: [],
+          },
+        },
     forecast: {
       label: "Forecast",
       value: `~${forecast.dailyReach.toLocaleString()} daily reach · ~${forecast.dailyImpressions.toLocaleString()} daily impressions`,

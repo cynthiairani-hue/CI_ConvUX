@@ -612,6 +612,33 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
             {/* Section content — always visible unless collapsed */}
             {!isCollapsed && (
               <div className="border-t border-border px-4 pb-4 pt-3">
+                {/* Blocked on a missing prerequisite — Notice → Propose → Authorize */}
+                {section.readiness === "blocked" && section.prerequisite && (
+                  <div className="mb-3 rounded-lg border border-red-100 bg-red-50/60 px-3 py-3">
+                    <p className="text-[13px] font-medium text-foreground">
+                      {section.value}
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-muted-foreground">
+                      {section.provenance.reasoning}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateSection(key, {
+                          readiness: "ready",
+                          filled: true,
+                          prerequisite: undefined,
+                          value: `${plan.audience.data.locations.join(", ")} · Ages ${plan.audience.data.ageRange.min}-${plan.audience.data.ageRange.max} · ${plan.audience.data.gender === "all" ? "All genders" : plan.audience.data.gender}`,
+                          provenance: { source: "user_input", reasoning: "Site pixel connected — retargeting audience is now building from your site traffic.", confidence: "high" },
+                        })
+                      }
+                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90"
+                    >
+                      {section.prerequisite.connectLabel}
+                    </button>
+                  </div>
+                )}
+
                 {/* Objective — selectable buttons */}
                 {key === "objective" && (
                   <div className="space-y-2">

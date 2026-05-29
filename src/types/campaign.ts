@@ -167,6 +167,12 @@ export interface StrategySection {
   authorshipState: AuthorshipState;
   filled: boolean;
   editHistory: SectionEdit[];
+  /**
+   * Set when this section is blocked on a missing prerequisite the user must
+   * connect (e.g. a site pixel for retargeting). Drives the inline "Connect"
+   * resolution action on the StrategyCard.
+   */
+  prerequisite?: { requires: string; connectLabel: string };
 }
 
 export interface StrategyPlan {
