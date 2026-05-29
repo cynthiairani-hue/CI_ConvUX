@@ -37,11 +37,20 @@ const DEFAULT_GEOMETRY: FloatingGeometry = {
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 360;
 
+function isValidGeometry(g: unknown): g is FloatingGeometry {
+  if (!g || typeof g !== "object") return false;
+  const { x, y, width, height } = g as Record<string, unknown>;
+  return [x, y, width, height].every((n) => typeof n === "number" && Number.isFinite(n));
+}
+
 function loadGeometry(): FloatingGeometry {
   if (typeof window === "undefined") return DEFAULT_GEOMETRY;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (isValidGeometry(parsed)) return parsed;
+    }
   } catch {}
   return DEFAULT_GEOMETRY;
 }
@@ -108,13 +117,17 @@ export function AIFloatingPanel() {
   const dragState = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
   const onDragMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragState.current) return;
-    const dx = e.clientX - dragState.current.startX;
-    const dy = e.clientY - dragState.current.startY;
+    // Capture the drag state into a local BEFORE setGeo. The functional updater
+    // runs later during render — if mouseup nulled the ref by then, dereferencing
+    // dragState.current! would throw and crash the whole tree. The local is safe.
+    const ds = dragState.current;
+    if (!ds) return;
+    const dx = e.clientX - ds.startX;
+    const dy = e.clientY - ds.startY;
     setGeo((prev) => ({
       ...prev,
-      x: Math.max(0, Math.min(window.innerWidth - prev.width, dragState.current!.origX + dx)),
-      y: Math.max(0, Math.min(window.innerHeight - 40, dragState.current!.origY + dy)),
+      x: Math.max(0, Math.min(window.innerWidth - prev.width, ds.origX + dx)),
+      y: Math.max(0, Math.min(window.innerHeight - 40, ds.origY + dy)),
     }));
   }, []);
 
@@ -156,20 +169,24 @@ export function AIFloatingPanel() {
 
     setGeo((prev) => {
       let { x, y, width, height } = prev;
+      const maxW = typeof window !== "undefined" ? window.innerWidth : 4096;
+      const maxH = typeof window !== "undefined" ? window.innerHeight : 4096;
 
       if (rs.edge.includes("e")) {
-        width = Math.max(MIN_WIDTH, rs.origW + dx);
+        // Don't let the panel extend past the right edge.
+        width = Math.max(MIN_WIDTH, Math.min(rs.origW + dx, maxW - rs.origX));
       }
       if (rs.edge.includes("w")) {
-        const newW = Math.max(MIN_WIDTH, rs.origW - dx);
+        // Clamp so the left edge can't cross 0 (newW capped at origX + origW).
+        const newW = Math.max(MIN_WIDTH, Math.min(rs.origW - dx, rs.origX + rs.origW));
         x = rs.origX + (rs.origW - newW);
         width = newW;
       }
       if (rs.edge.includes("s")) {
-        height = Math.max(MIN_HEIGHT, rs.origH + dy);
+        height = Math.max(MIN_HEIGHT, Math.min(rs.origH + dy, maxH - rs.origY));
       }
       if (rs.edge.includes("n")) {
-        const newH = Math.max(MIN_HEIGHT, rs.origH - dy);
+        const newH = Math.max(MIN_HEIGHT, Math.min(rs.origH - dy, rs.origY + rs.origH));
         y = rs.origY + (rs.origH - newH);
         height = newH;
       }
