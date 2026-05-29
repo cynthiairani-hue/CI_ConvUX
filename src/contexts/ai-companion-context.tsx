@@ -46,6 +46,7 @@ import {
   type ChatSessionMeta,
 } from "@/lib/storage";
 import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
+import { ensureReturningSeed } from "@/data/seed-returning";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
@@ -262,6 +263,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [chatSessions, setChatSessions] = useState<ChatSessionMeta[]>(() => {
     if (typeof window === "undefined") return [];
+    // Populate the returning-user workspace (idempotent) before reading sessions,
+    // so a returning user lands with past chats / campaigns / reports already there.
+    ensureReturningSeed();
     return loadChatSessionMetas();
   });
 

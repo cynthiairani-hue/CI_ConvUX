@@ -32,6 +32,7 @@ import {
   loadApprovals,
   persistApprovals,
 } from "@/lib/storage";
+import { ensureReturningSeed } from "@/data/seed-returning";
 
 interface CampaignContextValue {
   activePlan: CampaignPlan | null;
@@ -108,6 +109,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
 
   // Hydrate from localStorage on mount
   useEffect(() => {
+    // Ensure the returning-user workspace is populated before hydrating (idempotent).
+    ensureReturningSeed();
     setSavedStrategies(loadStrategies());
     setSavedAdvertisers(loadAdvertisers());
     setSavedNarratives(loadNarratives());

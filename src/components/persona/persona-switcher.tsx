@@ -5,6 +5,7 @@ import { ChevronUp, User, RotateCcw } from "lucide-react";
 import { usePersona } from "@/contexts/persona-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { SEEDED_KEYS } from "@/data/seed-returning";
 
 type DemoUserState = "returning" | "first-time";
 
@@ -52,6 +53,12 @@ export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
   function handleUserStateChange(state: DemoUserState) {
     setUserState(state);
     setDemoUserState(state);
+    // First-time = empty workspace: clear the seeded artifacts so the cold-start
+    // experience is genuine. Returning = reload triggers ensureReturningSeed to
+    // repopulate. (Demo mode — resetting state is expected.)
+    if (state === "first-time") {
+      SEEDED_KEYS.forEach((k) => localStorage.removeItem(k));
+    }
     setOpen(false);
     // Reload the page to reflect the new state everywhere
     window.location.reload();
