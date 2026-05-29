@@ -17,6 +17,7 @@ import type {
   CFONarrative,
   AudienceSegment,
   CompetitiveBrief,
+  OperatorPlan,
 } from "@/types/campaign";
 import { approvers } from "@/data/approvers";
 import { personas } from "@/data/personas";
@@ -63,6 +64,8 @@ interface CampaignContextValue {
   setActiveBrief: (brief: CompetitiveBrief | null) => void;
   saveBrief: (brief: CompetitiveBrief) => void;
   loadBrief: (id: string) => void;
+  activeOperator: OperatorPlan | null;
+  setActiveOperator: (operator: OperatorPlan | null) => void;
   removeNarrative: (id: string) => void;
   duplicateNarrative: (id: string) => void;
   renameNarrative: (id: string, name: string) => void;
@@ -107,6 +110,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [activeNarrative, setActiveNarrative] = useState<CFONarrative | null>(null);
   const [savedBriefs, setSavedBriefs] = useState<CompetitiveBrief[]>([]);
   const [activeBrief, setActiveBrief] = useState<CompetitiveBrief | null>(null);
+  const [activeOperator, setActiveOperator] = useState<OperatorPlan | null>(null);
   const [activeAudience, setActiveAudience] = useState<AudienceSegment | null>(null);
   const [savedAudiences, setSavedAudiences] = useState<AudienceSegment[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>(
@@ -611,6 +615,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setActiveBrief,
         saveBrief,
         loadBrief,
+        activeOperator,
+        setActiveOperator,
         removeNarrative,
         duplicateNarrative,
         renameNarrative,

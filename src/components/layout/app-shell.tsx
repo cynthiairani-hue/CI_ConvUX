@@ -1,10 +1,11 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown } from "lucide-react";
+import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { approvers } from "@/data/approvers";
 import { usePersona } from "@/contexts/persona-context";
+import { buildOperatorPlan } from "@/data/operator-flow";
 import { LeftRail } from "./left-rail";
 import { MainCanvas } from "./main-canvas";
 import { AIFullscreen } from "@/components/ai-companion/ai-fullscreen";
@@ -17,6 +18,7 @@ import { StrategyCard } from "@/components/patterns/strategy-card";
 import type { StrategyPlan } from "@/types/campaign";
 import { CFONarrativeCard } from "@/components/patterns/cfo-narrative-card";
 import { CompetitiveBriefCard } from "@/components/patterns/competitive-brief-card";
+import { OperatorAuthorizationCard } from "@/components/patterns/operator-authorization-card";
 import { AudienceCard } from "@/components/patterns/audience-card";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { FFERN_SEED_PERFORMANCE } from "@/data/seed-ffern";
@@ -186,7 +188,7 @@ function ReturnVisitBanner({ strategy, onDismiss }: { strategy: StrategyPlan; on
 }
 
 function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof useCampaign>["activeStrategy"]> }) {
-  const { saveStrategy, setActiveStrategy, showToast, sendForApproval } = useCampaign();
+  const { saveStrategy, setActiveStrategy, showToast, sendForApproval, setActiveOperator } = useCampaign();
   const { setState } = useAICompanion();
   const { activePersona } = usePersona();
   const [showReturnBanner, setShowReturnBanner] = useState(true);
@@ -196,6 +198,11 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
     const saved = { ...strategy, lastModifiedAt: new Date().toISOString() };
     saveStrategy(saved);
     sendForApproval(saved.id, approverId, activePersona.id);
+  }
+
+  function handleRunWithAI() {
+    saveStrategy({ ...strategy, lastModifiedAt: new Date().toISOString() });
+    setActiveOperator(buildOperatorPlan(strategy));
   }
 
   function handleSave() {
@@ -238,6 +245,14 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
           {strategy.status === "draft" && (
             <SendForApprovalButton onSend={handleSendForApproval} />
           )}
+          <button
+            type="button"
+            onClick={handleRunWithAI}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <Bot className="h-3.5 w-3.5" />
+            Run with AI
+          </button>
           <button
             type="button"
             onClick={handleShare}
@@ -413,6 +428,53 @@ function ResizeDivider({ onDrag }: { onDrag: (deltaX: number) => void }) {
   );
 }
 
+function SplitOperatorCanvas({ operator }: { operator: NonNullable<ReturnType<typeof useCampaign>["activeOperator"]> }) {
+  const { setActiveOperator, showToast } = useCampaign();
+  const { setState } = useAICompanion();
+
+  function handleAuthorize(guardrails: typeof operator.guardrails) {
+    setActiveOperator({ ...operator, mode: "operator", guardrails, status: "active" });
+    showToast(`Operator authorized — managing ${operator.strategyName} within your guardrails`);
+  }
+
+  function handleManual() {
+    showToast("Staying manual — I'll keep proposing, you approve every change");
+    setActiveOperator(null);
+    setState("fullscreen");
+  }
+
+  function handleTakeControl() {
+    showToast("Control returned to you");
+    setActiveOperator(null);
+    setState("fullscreen");
+  }
+
+  return (
+    <main className="flex flex-1 flex-col overflow-hidden">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
+        <h1 className="truncate text-[14px] font-semibold text-foreground">Run with AI — {operator.strategyName}</h1>
+        <button
+          type="button"
+          onClick={() => { setActiveOperator(null); setState("fullscreen"); }}
+          className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          Close
+        </button>
+      </header>
+      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
+        <div className="mx-auto max-w-2xl">
+          <OperatorAuthorizationCard
+            plan={operator}
+            onAuthorize={handleAuthorize}
+            onManual={handleManual}
+            onTakeControl={handleTakeControl}
+          />
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function SplitBriefCanvas({ brief }: { brief: NonNullable<ReturnType<typeof useCampaign>["activeBrief"]> }) {
   const { setActiveBrief, showToast } = useCampaign();
   const { setState } = useAICompanion();
@@ -529,11 +591,11 @@ function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<type
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { state, dockSide, setState } = useAICompanion();
-  const { activeStrategy, savedStrategies, activeNarrative, activeAudience, activeBrief } = useCampaign();
+  const { activeStrategy, savedStrategies, activeNarrative, activeAudience, activeBrief, activeOperator } = useCampaign();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
 
   const strategy = activeStrategy || savedStrategies[savedStrategies.length - 1];
-  const hasArtifact = !!(activeStrategy || activeNarrative || activeAudience || activeBrief);
+  const hasArtifact = !!(activeStrategy || activeNarrative || activeAudience || activeBrief || activeOperator);
   const { collapseLeftRail } = useLayout();
   // Track whether the user manually closed the AI panel this session
   const userClosedRef = useRef(false);
@@ -591,6 +653,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   const renderSplitCanvas = () => {
+    if (activeOperator) {
+      return <SplitOperatorCanvas operator={activeOperator} />;
+    }
     if (activeBrief) {
       return <SplitBriefCanvas brief={activeBrief} />;
     }

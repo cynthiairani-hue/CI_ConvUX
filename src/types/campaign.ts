@@ -287,6 +287,37 @@ export interface CompetitiveBrief {
   lastModifiedBy: string;
 }
 
+// --- Operator (delegated agentic execution) ---
+
+export type OperatorScope =
+  | "bids"
+  | "budget-shifts"
+  | "creative-rotation"
+  | "audience-expansion";
+export type OperatorFrequency = "daily" | "weekly";
+export type OperatorMode = "operator" | "manual";
+export type OperatorStatus = "proposed" | "active";
+
+export interface OperatorGuardrails {
+  /** Monthly spend ceiling the operator may never exceed. */
+  budgetCap: number;
+  /** How often the operator may make optimization moves. */
+  frequency: OperatorFrequency;
+  /** Which levers the operator is allowed to adjust. */
+  scope: OperatorScope[];
+}
+
+export interface OperatorPlan {
+  id: string;
+  strategyId: string;
+  strategyName: string;
+  /** null until the user picks a path. */
+  mode: OperatorMode | null;
+  guardrails: OperatorGuardrails;
+  status: OperatorStatus;
+  createdAt: string;
+}
+
 // --- Audience Segments ---
 
 export type AudienceSegmentType = "retargeting" | "lookalike" | "customer-list" | "interest";

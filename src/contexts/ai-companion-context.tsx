@@ -48,6 +48,7 @@ import {
 import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
 import { ensureReturningSeed } from "@/data/seed-returning";
 import { buildCompetitiveBrief } from "@/data/competitive-flow";
+import { buildOperatorPlan } from "@/data/operator-flow";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
@@ -187,7 +188,7 @@ function nextId() {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
-  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief } = useCampaign();
+  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator } = useCampaign();
   const { collapseLeftRail } = useLayout();
   // Defer localStorage reads to useEffect to prevent hydration mismatches
   const [state, setStateRaw] = useState<AICompanionState>("resting");
@@ -308,8 +309,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     setActiveNarrative(null);
     setActiveAudience(null);
     setActiveBrief(null);
+    setActiveOperator(null);
     return sessionId;
-  }, [activePersona.id, setActiveStrategy, setActiveNarrative, setActiveAudience, setActiveBrief]);
+  }, [activePersona.id, setActiveStrategy, setActiveNarrative, setActiveAudience, setActiveBrief, setActiveOperator]);
 
   useEffect(() => {
     initNewSession();
@@ -768,6 +770,54 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           setState("split");
           collapseLeftRail();
         }, 600);
+        return;
+      }
+
+      // Operator intent — delegate execution to the AI within guardrails (Phase 9D).
+      // Checked before campaign so "run my campaign" routes here.
+      const isOperatorIntent =
+        lower.includes("let the ai run") ||
+        lower.includes("let ai run") ||
+        lower.includes("run it for me") ||
+        lower.includes("run this for me") ||
+        lower.includes("run my campaign") ||
+        lower.includes("run with ai") ||
+        lower.includes("autopilot") ||
+        lower.includes("manage it for me") ||
+        lower.includes("operator");
+
+      if (isOperatorIntent) {
+        setMessages((prev) => [...prev, userMsg]);
+        // Read strategies at call time (avoids stale-closure values) — the most
+        // recently modified saved strategy is the one to run.
+        let strat: StrategyPlan | null = null;
+        try {
+          const raw = typeof window !== "undefined" ? localStorage.getItem("fuseiq-strategies") : null;
+          const list = raw ? (JSON.parse(raw) as StrategyPlan[]) : [];
+          strat = list.length > 0 ? list[list.length - 1] : null;
+        } catch { strat = null; }
+        if (!strat) {
+          const msg: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: "I can run a campaign for you once one exists — build or open a campaign first, then ask me to run it.",
+          };
+          setMessages((prev) => [...prev, msg]);
+          return;
+        }
+        setIsLoading(true);
+        setTimeout(() => {
+          setActiveOperator(buildOperatorPlan(strat));
+          const ack: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: `I can run ${strat.name} for you — within guardrails you set: a budget cap, how often I optimize, and exactly which levers I may touch. Review the terms on the right and authorize, or keep manual control.`,
+          };
+          setMessages((prev) => [...prev, ack]);
+          setIsLoading(false);
+          setState("split");
+          collapseLeftRail();
+        }, 500);
         return;
       }
 
