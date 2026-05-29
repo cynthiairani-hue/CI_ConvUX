@@ -11,10 +11,9 @@ import {
 import { personas } from "@/data/personas";
 import type { Persona, PersonaId } from "@/types/persona";
 
+// Always return the default on initial render to match server-side output.
+// The real value from localStorage is loaded in a useEffect to avoid hydration mismatches.
 function getInitialPersona(): PersonaId {
-  if (typeof window === "undefined") return "cynthia-b2c";
-  const stored = localStorage.getItem("fuseiq-persona");
-  if (stored && personas.some((p) => p.id === stored)) return stored as PersonaId;
   return "cynthia-b2c";
 }
 

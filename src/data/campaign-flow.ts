@@ -101,7 +101,7 @@ export function parseIntent(message: string): CampaignIntent {
   const lower = message.toLowerCase();
   const intent: CampaignIntent = {};
 
-  if (lower.includes("awareness") || lower.includes("brand"))
+  if (lower.includes("awareness") || lower.includes("brand") || lower.includes("ctv") || lower.includes("connected tv") || lower.includes("streaming"))
     intent.objective = "awareness";
   else if (lower.includes("traffic") || lower.includes("visit"))
     intent.objective = "traffic";
@@ -234,9 +234,9 @@ const objectiveMap: Record<string, ObjectiveConfig> = {
     name: "Brand Awareness Campaign",
     value: "Reach more viewers to grow your brand",
     rationale: "Awareness campaigns establish brand recognition before direct-response efforts. Optimized for reach and frequency, not clicks.",
-    channels: "Video (40%) + Display (35%) + Social (25%)",
-    channelsRationale: "Video drives the strongest brand recall. Display provides broad reach at efficient CPMs. Social adds engagement.",
-    conversionEvent: "Video views, impressions, brand lift",
+    channels: "CTV/OTT (40%) + DOOH (15%) + Video (25%) + Display (20%)",
+    channelsRationale: "CTV delivers unskippable, full-screen premium inventory on living room screens — highest brand recall of any digital channel. DOOH extends reach to high-traffic physical locations with digital billboards and transit screens. Video covers mobile and desktop. Display provides broad frequency at efficient CPMs.",
+    conversionEvent: "Completed views, reach, frequency, brand lift",
   },
   traffic: {
     name: "Traffic Campaign",
@@ -391,16 +391,16 @@ export function getNextStrategyTool(
 }
 
 const defaultPlacementsByObjective: Record<string, PlacementType[]> = {
-  awareness: ["video", "display", "ctv-ott"],
-  traffic: ["display", "native", "in-app"],
-  leads: ["display", "native", "video"],
-  sales: ["display", "native", "in-app", "video"],
-  retargeting: ["display", "native"],
+  awareness: ["ctv-ott", "dooh", "video", "display"],
+  traffic: ["display", "native", "ctv-ott", "in-app"],
+  leads: ["display", "native", "video", "ctv-ott"],
+  sales: ["display", "native", "in-app", "video", "ctv-ott"],
+  retargeting: ["display", "native", "ctv-ott"],
   "app-promotion": ["in-app", "video", "display"],
 };
 
 const defaultBudgetByObjective: Record<string, number> = {
-  awareness: 5000,
+  awareness: 8000,
   traffic: 3000,
   leads: 4000,
   sales: 3000,

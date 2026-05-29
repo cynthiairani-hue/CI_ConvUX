@@ -1,23 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import { getCurrentBrand } from "@/data/brand-profiles";
+import { getCurrentBrand, useBrand } from "@/data/brand-profiles";
 import { FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES } from "@/data/seed-ffern";
 import { SEED_PERFORMANCE, SEED_ANOMALIES } from "@/data/seed-company";
 import type { SeedMonthlyPerformance, SeedAnomaly } from "@/data/seed-company";
 import { PageChatInput } from "@/components/ai-companion/page-chat-input";
+import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   FileText,
   Clock,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Target,
   BarChart3,
   Calendar,
-  Wand2,
   AlertTriangle,
   ArrowRight,
   Zap,
@@ -26,8 +26,9 @@ import {
   Share2,
   Archive,
   Trash2,
+  Check,
+  X,
 } from "lucide-react";
-import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { cn } from "@/lib/utils";
 
 /* ──────────────────────────────────────────────
@@ -74,7 +75,7 @@ function timeAgo(iso: string): string {
 }
 
 /* ──────────────────────────────────────────────
-   Performance dashboard — key metrics header
+   Performance metrics (always visible at top)
    ────────────────────────────────────────────── */
 
 interface MetricTileProps {
@@ -85,7 +86,7 @@ interface MetricTileProps {
   invertColor?: boolean;
 }
 
-function MetricTile({ label, value, change, icon, invertColor }: MetricTileProps) {
+function MetricTile({ label, value, change, invertColor }: MetricTileProps) {
   const isPositive = invertColor
     ? change.direction === "down"
     : change.direction === "up";
@@ -94,37 +95,39 @@ function MetricTile({ label, value, change, icon, invertColor }: MetricTileProps
     : change.direction === "down";
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5">
+    <div className="bg-background px-5 pt-4 pb-5">
       <div className="flex items-center justify-between">
-        <span className="text-[12px] font-medium text-[#8492A6]">{label}</span>
-        <span className="text-[#8492A6]">{icon}</span>
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        {change.direction !== "flat" && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+              isPositive && "bg-emerald-50 text-emerald-600",
+              isNegative && "bg-red-50 text-red-500",
+            )}
+          >
+            {change.direction === "up" ? "↑" : "↓"}
+            {change.value}%
+          </span>
+        )}
+        {change.direction === "flat" && (
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            —
+          </span>
+        )}
       </div>
-      <span className="text-[20px] font-semibold tracking-tight text-[#394859]">{value}</span>
-      <div className="flex items-center gap-1">
-        {change.direction === "up" && <TrendingUp className="h-3 w-3" />}
-        {change.direction === "down" && <TrendingDown className="h-3 w-3" />}
-        <span
-          className={cn(
-            "text-[12px] font-medium",
-            isPositive && "text-emerald-600",
-            isNegative && "text-red-500",
-            change.direction === "flat" && "text-[#8492A6]"
-          )}
-        >
-          {change.direction === "flat"
-            ? "No change"
-            : `${change.value}% vs last month`}
+      <div className="mt-1.5">
+        <span className="text-2xl font-semibold tracking-tight text-foreground">
+          {value}
         </span>
       </div>
     </div>
   );
 }
 
-/* ──────────────────────────────────────────────
-   Tab: Performance overview
-   ────────────────────────────────────────────── */
-
-function PerformanceTab({
+function PerformanceSection({
   perf,
   anomalies,
   onAsk,
@@ -133,11 +136,11 @@ function PerformanceTab({
   anomalies: SeedAnomaly[];
   onAsk: (prompt: string) => void;
 }) {
-  const brand = getCurrentBrand();
+  const brand = useBrand();
 
   if (perf.length === 0) {
     return (
-      <div className="flex flex-col items-center rounded-xl bg-white px-8 py-10 text-center">
+      <div className="flex flex-col items-center rounded-lg border bg-card px-8 py-10 text-center">
         {brand?.pageImages?.reports ? (
           <div className="mb-5 w-full max-w-md overflow-hidden rounded-lg">
             <img src={brand.pageImages.reports} alt="" className="h-48 w-full object-cover" />
@@ -172,19 +175,21 @@ function PerformanceTab({
   const periodLabel = `${MONTH_NAMES[monthStr - 1]} ${year}`;
 
   return (
-    <div className="space-y-4">
-      {/* Metrics hero */}
-      <div className="rounded-xl bg-white px-8 py-8">
-        <div className="mb-3 flex items-center justify-between">
+    <div className="space-y-3 rounded-2xl bg-muted/60 p-3">
+      <div className="rounded-xl bg-background">
+        {/* Period header */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-4">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-[#2C9FDD]" />
-            <span className="text-[13px] font-semibold text-[#394859]">Performance overview</span>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-[13px] font-semibold text-foreground">Performance overview</span>
           </div>
-          <span className="rounded-full bg-[#F5FAFF] px-2.5 py-0.5 text-[11px] font-medium text-[#2C9FDD]">
+          <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
             {periodLabel}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+
+        {/* Metrics grid — unified card with dividers */}
+        <div className="grid grid-cols-2 gap-px bg-border/60 border-t border-border/60 sm:grid-cols-4">
           <MetricTile
             label="Total spend"
             value={formatCurrency(current.totalSpend)}
@@ -211,33 +216,33 @@ function PerformanceTab({
             invertColor
           />
         </div>
-
-        {anomalies.length > 0 && (
-          <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3.5">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-medium text-[#394859]">{anomalies[0].description}</p>
-              <p className="mt-1 text-[12px] text-[#8492A6]">
-                Detected {new Date(anomalies[0].detectedAt).toLocaleDateString()} · {anomalies[0].confidence} confidence
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onAsk(`Explain the ${anomalies[0].channel} anomaly and what I should do about it`)}
-              className="shrink-0 flex items-center gap-1 rounded-lg border border-amber-300 px-2.5 py-1.5 text-[12px] font-medium text-amber-700 transition-colors hover:bg-amber-100"
-            >
-              Investigate
-              <ArrowRight className="h-3 w-3" />
-            </button>
-          </div>
-        )}
       </div>
+
+      {anomalies.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-3.5">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">{anomalies[0].description}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Detected {new Date(anomalies[0].detectedAt).toLocaleDateString()} · {anomalies[0].confidence} confidence
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onAsk(`Explain the ${anomalies[0].channel} anomaly and what I should do about it`)}
+            className="shrink-0 flex items-center gap-1 rounded-md border border-amber-300 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100"
+          >
+            Investigate
+            <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ──────────────────────────────────────────────
-   Tab: Report templates
+   Report templates
    ────────────────────────────────────────────── */
 
 interface ReportTemplate {
@@ -255,7 +260,7 @@ const REPORT_TEMPLATES: ReportTemplate[] = [
     title: "Weekly performance summary",
     description: "Key metrics, channel trends, and what changed this week.",
     schedule: "Every Monday",
-    icon: <Zap className="h-4 w-4 text-[#2C9FDD]" />,
+    icon: <Zap className="h-4 w-4 text-muted-foreground" />,
     prompt: "Give me a weekly performance summary for this past week",
   },
   {
@@ -263,7 +268,7 @@ const REPORT_TEMPLATES: ReportTemplate[] = [
     title: "Monthly CFO narrative",
     description: "Executive-ready report with spend, attribution, and recommendations.",
     schedule: "Monthly",
-    icon: <FileText className="h-4 w-4 text-[#7C5CFC]" />,
+    icon: <FileText className="h-4 w-4 text-muted-foreground" />,
     prompt: "Draft my CFO narrative for this month",
   },
   {
@@ -271,7 +276,7 @@ const REPORT_TEMPLATES: ReportTemplate[] = [
     title: "Channel deep dive",
     description: "Detailed performance breakdown for a specific channel.",
     schedule: null,
-    icon: <BarChart3 className="h-4 w-4 text-emerald-500" />,
+    icon: <BarChart3 className="h-4 w-4 text-muted-foreground" />,
     prompt: "Give me a deep dive on my best and worst performing channels",
   },
   {
@@ -279,39 +284,36 @@ const REPORT_TEMPLATES: ReportTemplate[] = [
     title: "Budget pacing report",
     description: "Are you on track with monthly spend? Where to shift budget.",
     schedule: null,
-    icon: <DollarSign className="h-4 w-4 text-amber-500" />,
+    icon: <DollarSign className="h-4 w-4 text-muted-foreground" />,
     prompt: "How is my budget pacing this month? Any channels I should shift spend to?",
   },
 ];
 
-function TemplatesTab({ onGenerate }: { onGenerate: (prompt: string) => void }) {
+function TemplatesContent({ onGenerate }: { onGenerate: (prompt: string) => void }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {REPORT_TEMPLATES.map((t) => (
         <button
           key={t.id}
           type="button"
           onClick={() => onGenerate(t.prompt)}
-          className="group flex items-start gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm"
+          className="group flex flex-col rounded-xl border bg-card p-4 text-left transition-all hover:shadow-sm hover:border-foreground/10"
         >
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#F7F9FB]">
-            {t.icon}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-medium text-[#394859] group-hover:text-[#2C9FDD] transition-colors">
-                {t.title}
-              </span>
-              {t.schedule && (
-                <span className="flex items-center gap-1 rounded-full bg-[#F0F2F5] px-2 py-0.5 text-[10px] font-medium text-[#8492A6]">
-                  <Calendar className="h-2.5 w-2.5" />
-                  {t.schedule}
-                </span>
-              )}
+          <div className="flex items-center justify-between">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+              {t.icon}
             </div>
-            <p className="mt-0.5 text-[12px] text-[#8492A6] line-clamp-1">{t.description}</p>
+            {t.schedule && (
+              <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                <Calendar className="h-2.5 w-2.5" />
+                {t.schedule}
+              </span>
+            )}
           </div>
-          <Wand2 className="mt-1 h-3.5 w-3.5 shrink-0 text-[#C4CDD8] transition-colors group-hover:text-[#2C9FDD]" />
+          <span className="mt-3 text-[13px] font-medium text-foreground">
+            {t.title}
+          </span>
+          <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{t.description}</p>
         </button>
       ))}
     </div>
@@ -319,36 +321,139 @@ function TemplatesTab({ onGenerate }: { onGenerate: (prompt: string) => void }) 
 }
 
 /* ──────────────────────────────────────────────
-   Tab: Saved reports
+   Saved report row with overflow actions
    ────────────────────────────────────────────── */
 
 const statusDot: Record<string, string> = {
-  draft: "bg-[#C4CDD8]",
+  draft: "bg-muted-foreground/40",
   final: "bg-emerald-500",
 };
 
-const REPORT_STATUS_FILTERS = ["all", "draft", "final"] as const;
-const REPORT_STATUS_LABELS: Record<string, string> = { all: "All", draft: "Draft", final: "Final" };
+function NarrativeRow({
+  narrative,
+  onOpen,
+  onAction,
+  isRenaming,
+  renameValue,
+  onRenameChange,
+  onRenameSubmit,
+  onRenameCancel,
+}: {
+  narrative: { id: string; name: string; status: string; advertiserId: string; period: { month: number; year: number }; lastModifiedAt: string };
+  onOpen: () => void;
+  onAction: (actionId: string) => void;
+  isRenaming: boolean;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameSubmit: () => void;
+  onRenameCancel: () => void;
+}) {
+  const config = narrative.status === "final"
+    ? { label: "Final", bg: "bg-emerald-50", text: "text-emerald-600" }
+    : { label: "Draft", bg: "bg-muted", text: "text-muted-foreground" };
 
-function SavedReportsTab({
+  const renameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming && renameRef.current) renameRef.current.focus();
+  }, [isRenaming]);
+
+  const actions: OverflowAction[] = [
+    { id: "duplicate", label: "Duplicate", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => onAction("duplicate") },
+    { id: "rename", label: "Rename", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => onAction("rename") },
+    { id: "share", label: "Share", icon: <Share2 className="h-3.5 w-3.5" />, onClick: () => onAction("share") },
+    { id: "archive", label: "Archive", icon: <Archive className="h-3.5 w-3.5" />, onClick: () => onAction("archive") },
+    { id: "delete", label: "Delete", icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: () => onAction("delete") },
+  ];
+
+  return (
+    <div
+      onClick={isRenaming ? undefined : onOpen}
+      className={cn(
+        "group flex w-full items-center gap-3 rounded-lg border bg-card px-4 py-3.5 text-left transition-all hover:shadow-sm",
+        isRenaming ? "ring-1 ring-ring" : "cursor-pointer"
+      )}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+        <FileText className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          {isRenaming ? (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={renameRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => onRenameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onRenameSubmit();
+                  if (e.key === "Escape") onRenameCancel();
+                }}
+                className="min-w-0 flex-1 rounded-md border px-2 py-0.5 text-sm font-medium text-foreground outline-none focus:border-ring"
+              />
+              <button onClick={onRenameSubmit} className="flex h-6 w-6 items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-50">
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onRenameCancel} className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusDot[narrative.status])} />
+              <span className="truncate text-sm font-medium text-foreground">{narrative.name}</span>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.text)}>
+                {config.label}
+              </span>
+            </>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 pl-3.5 text-xs text-muted-foreground">
+          <span>{narrative.advertiserId}</span>
+          <span>·</span>
+          <span>{MONTH_NAMES[narrative.period.month - 1]} {narrative.period.year}</span>
+          <span>·</span>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {timeAgo(narrative.lastModifiedAt)}
+          </span>
+        </div>
+      </div>
+      {!isRenaming && <CardOverflowMenu actions={actions} />}
+    </div>
+  );
+}
+
+function SavedReportsContent({
   narratives,
   onOpen,
   onAction,
+  renamingId,
+  renameValue,
+  onRenameChange,
+  onRenameSubmit,
+  onRenameCancel,
 }: {
   narratives: { id: string; name: string; status: string; advertiserId: string; period: { month: number; year: number }; lastModifiedAt: string }[];
   onOpen: (id: string) => void;
   onAction: (narrativeId: string, actionId: string) => void;
+  renamingId: string | null;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameSubmit: (id: string) => void;
+  onRenameCancel: () => void;
 }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   if (narratives.length === 0) {
     return (
-      <div className="flex flex-col items-center rounded-xl bg-white px-8 py-10 text-center">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F3F0FF]">
-          <FileText className="h-5 w-5 text-[#7C5CFC]" />
+      <div className="flex flex-col items-center rounded-lg border bg-card px-8 py-10 text-center">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
+          <FileText className="h-5 w-5 text-muted-foreground" />
         </div>
-        <h3 className="text-[14px] font-semibold text-[#394859]">No saved reports yet</h3>
-        <p className="mt-1 max-w-xs text-[13px] text-[#8492A6]">
+        <h3 className="text-sm font-semibold text-foreground">No saved reports yet</h3>
+        <p className="mt-1 max-w-xs text-xs text-muted-foreground">
           Generate a report from the Templates tab — it will be saved here automatically.
         </p>
       </div>
@@ -365,91 +470,53 @@ function SavedReportsTab({
 
   return (
     <div className="space-y-4">
-      {/* Status filter tabs */}
+      {/* Status filter pills */}
       <div className="flex items-center gap-1">
-        {REPORT_STATUS_FILTERS.map((f) => (
+        {(["all", "draft", "final"] as const).map((f) => (
           <button
             key={f}
             type="button"
             onClick={() => setStatusFilter(f)}
             className={cn(
-              "rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
+              "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
               statusFilter === f
-                ? "bg-[#394859] text-white"
-                : "text-[#8492A6] hover:bg-[#F3F4F6] hover:text-[#394859]"
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
-            {REPORT_STATUS_LABELS[f] || f}
+            {f === "all" ? "All" : f === "draft" ? "Draft" : "Final"}
           </button>
         ))}
       </div>
 
       {sorted.length === 0 ? (
-        <p className="py-8 text-center text-[13px] text-[#8492A6]">No reports match this filter.</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">No reports match this filter.</p>
       ) : (
-      <div className="space-y-2">
-      {sorted.map((n) => {
-        const config = n.status === "final"
-          ? { label: "Final", bg: "bg-emerald-50", text: "text-emerald-600" }
-          : { label: "Draft", bg: "bg-[#F3F4F6]", text: "text-[#6B7280]" };
-
-        const actions: OverflowAction[] = [
-          { id: "duplicate", label: "Duplicate", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => onAction(n.id, "duplicate") },
-          { id: "rename", label: "Rename", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => onAction(n.id, "rename") },
-          { id: "share", label: "Share", icon: <Share2 className="h-3.5 w-3.5" />, onClick: () => onAction(n.id, "share") },
-          { id: "archive", label: "Archive", icon: <Archive className="h-3.5 w-3.5" />, onClick: () => onAction(n.id, "archive") },
-          { id: "delete", label: "Delete", icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: () => onAction(n.id, "delete") },
-        ];
-
-        return (
-          <div
-            key={n.id}
-            className="group flex w-full items-center gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm cursor-pointer"
-            onClick={() => onOpen(n.id)}
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F3F0FF]">
-              <FileText className="h-4 w-4 text-[#7C5CFC]" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusDot[n.status])} />
-                <span className="truncate text-[13px] font-medium text-[#394859]">{n.name}</span>
-                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.text)}>
-                  {config.label}
-                </span>
-              </div>
-              <div className="mt-0.5 flex items-center gap-2 pl-3.5 text-[12px] text-[#8492A6]">
-                <span>{n.advertiserId}</span>
-                <span>·</span>
-                <span>{MONTH_NAMES[n.period.month - 1]} {n.period.year}</span>
-                <span>·</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {timeAgo(n.lastModifiedAt)}
-                </span>
-              </div>
-            </div>
-            <CardOverflowMenu actions={actions} />
-          </div>
-        );
-      })}
-    </div>
+        <div className="space-y-2">
+          {sorted.map((n) => (
+            <NarrativeRow
+              key={n.id}
+              narrative={n}
+              onOpen={() => onOpen(n.id)}
+              onAction={(actionId) => onAction(n.id, actionId)}
+              isRenaming={renamingId === n.id}
+              renameValue={renameValue}
+              onRenameChange={onRenameChange}
+              onRenameSubmit={() => onRenameSubmit(n.id)}
+              onRenameCancel={onRenameCancel}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
 /* ──────────────────────────────────────────────
-   Reports page — tabbed layout
+   Reports page
    ────────────────────────────────────────────── */
 
-type ReportsTab = "performance" | "templates" | "saved";
-
-const TABS: { id: ReportsTab; label: string }[] = [
-  { id: "performance", label: "Performance" },
-  { id: "templates", label: "Templates" },
-  { id: "saved", label: "Saved reports" },
-];
+type ReportsTab = "saved" | "templates";
 
 export default function ReportsPage() {
   const {
@@ -459,10 +526,16 @@ export default function ReportsPage() {
     setActiveStrategy,
     removeNarrative,
     duplicateNarrative,
+    renameNarrative,
+    showToast,
+    hydrated,
   } = useCampaign();
-  const { openFullscreen, setState } = useAICompanion();
+  const { openFullscreen } = useAICompanion();
 
-  const [activeTab, setActiveTab] = useState<ReportsTab>("performance");
+  const [activeTab, setActiveTab] = useState<ReportsTab>("saved");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [data, setData] = useState<{
     perf: SeedMonthlyPerformance[];
     anomalies: SeedAnomaly[];
@@ -478,7 +551,6 @@ export default function ReportsPage() {
     if (!found) return;
     if (activeStrategy) setActiveStrategy(null);
     setActiveNarrative(found);
-    setState("split");
   }
 
   function handleGenerateReport(prompt: string) {
@@ -489,86 +561,153 @@ export default function ReportsPage() {
     switch (actionId) {
       case "duplicate":
         duplicateNarrative(narrativeId);
+        showToast("Report duplicated");
         break;
-      case "delete":
-        removeNarrative(narrativeId);
+      case "rename":
+        const found = savedNarratives.find((n) => n.id === narrativeId);
+        if (found) {
+          setRenamingId(narrativeId);
+          setRenameValue(found.name);
+        }
+        break;
+      case "share":
+        navigator.clipboard?.writeText(`${window.location.origin}/reports?id=${narrativeId}`);
+        showToast("Share link copied to clipboard");
         break;
       case "archive":
         removeNarrative(narrativeId);
+        showToast("Report archived");
         break;
-      default:
+      case "delete":
+        setDeletingId(narrativeId);
         break;
     }
   }
 
+  function handleRenameSubmit(id: string) {
+    const trimmed = renameValue.trim();
+    if (trimmed) {
+      renameNarrative(id, trimmed);
+      showToast("Report renamed");
+    }
+    setRenamingId(null);
+  }
+
   const narrativeCount = savedNarratives.length;
+
+  if (!hydrated) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
           {/* Page header */}
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>
-            <p className="mt-0.5 text-[13px] text-[#8492A6]">
-              Performance dashboards, automated reports, and saved narratives
-            </p>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Performance dashboards, automated reports, and saved narratives.
+          </p>
+
+          {/* Performance — always visible at top */}
+          <div className="mt-8">
+            <PerformanceSection
+              perf={data.perf}
+              anomalies={data.anomalies}
+              onAsk={handleGenerateReport}
+            />
           </div>
 
-          {/* Tabs */}
-          <div className="mt-6 flex items-center gap-1 border-b border-[#E0E8F2]">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "relative px-4 py-2.5 text-[13px] font-medium transition-colors",
-                  activeTab === tab.id
-                    ? "text-[#394859]"
-                    : "text-[#8492A6] hover:text-[#394859]"
-                )}
-              >
-                {tab.label}
-                {tab.id === "saved" && narrativeCount > 0 && (
-                  <span className="ml-1.5 rounded-full bg-[#F0F2F5] px-1.5 py-0.5 text-[10px] font-medium text-[#8492A6]">
-                    {narrativeCount}
-                  </span>
-                )}
-                {activeTab === tab.id && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-[#394859]" />
-                )}
-              </button>
-            ))}
+          {/* Tabs: Custom reports + Templates */}
+          <div className="mt-10 flex items-center gap-1 border-b">
+            <button
+              type="button"
+              onClick={() => setActiveTab("saved")}
+              className={cn(
+                "relative flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors",
+                activeTab === "saved"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Custom reports
+              {narrativeCount > 0 && (
+                <span className="rounded-full bg-muted px-1.5 py-0 text-xs text-muted-foreground">
+                  {narrativeCount}
+                </span>
+              )}
+              {activeTab === "saved" && (
+                <span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("templates")}
+              className={cn(
+                "relative px-3 py-2 text-sm font-medium transition-colors",
+                activeTab === "templates"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Templates
+              {activeTab === "templates" && (
+                <span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
+              )}
+            </button>
           </div>
 
           {/* Tab content */}
-          <div className="mt-6">
-            {activeTab === "performance" && (
-              <PerformanceTab
-                perf={data.perf}
-                anomalies={data.anomalies}
-                onAsk={handleGenerateReport}
-              />
-            )}
-            {activeTab === "templates" && (
-              <TemplatesTab onGenerate={handleGenerateReport} />
-            )}
+          <div className="mt-5">
             {activeTab === "saved" && (
-              <SavedReportsTab
+              <SavedReportsContent
                 narratives={savedNarratives}
                 onOpen={handleOpenNarrative}
                 onAction={handleNarrativeAction}
+                renamingId={renamingId}
+                renameValue={renameValue}
+                onRenameChange={setRenameValue}
+                onRenameSubmit={handleRenameSubmit}
+                onRenameCancel={() => setRenamingId(null)}
               />
+            )}
+            {activeTab === "templates" && (
+              <TemplatesContent onGenerate={handleGenerateReport} />
             )}
           </div>
         </div>
       </div>
 
-      {/* Chat input — always visible at bottom */}
+      {/* Chat input */}
       <div className="shrink-0 pb-6 pt-2">
         <PageChatInput placeholder="Ask about metrics, trends, or anomalies..." />
       </div>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deletingId !== null}
+        title="Delete report"
+        description="Are you sure you want to delete this report? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (deletingId) {
+            removeNarrative(deletingId);
+            showToast("Report deleted");
+          }
+          setDeletingId(null);
+        }}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   );
 }

@@ -30,6 +30,13 @@ export interface BrandProfile {
 
 const FFERN_CDN = "https://cdn.sanity.io/images/1ciyq081/production";
 
+/** Alias map — common domain variations that should resolve to the canonical domain */
+const DOMAIN_ALIASES: Record<string, string> = {
+  "ffern.com": "ffern.co",
+  "www.ffern.co": "ffern.co",
+  "www.ffern.com": "ffern.co",
+};
+
 export const brandProfiles: Record<string, BrandProfile> = {
   "ffern.co": {
     domain: "ffern.co",
@@ -148,12 +155,19 @@ export function mapBrandIndustryToIAB(industry: string): IABIndustry {
 export function getBrandFromEmail(email: string): BrandProfile | null {
   const domain = email.split("@")[1]?.toLowerCase();
   if (!domain) return null;
-  return brandProfiles[domain] ?? null;
+  // Check direct match first, then aliases
+  const canonical = DOMAIN_ALIASES[domain] || domain;
+  return brandProfiles[canonical] ?? null;
 }
 
 /**
  * Get the current user's brand profile from localStorage.
  * Returns null if no user stored or domain not recognized.
+ *
+ * NOTE: This is fine for event handlers, effects, and non-render paths.
+ * For render-time brand access in "use client" components, prefer
+ * useBrand() to avoid hydration mismatches (server returns null,
+ * client returns the brand — React sees different trees).
  */
 export function getCurrentBrand(): BrandProfile | null {
   if (typeof window === "undefined") return null;
@@ -167,4 +181,19 @@ export function getCurrentBrand(): BrandProfile | null {
     // ignore
   }
   return null;
+}
+
+import { useState, useEffect } from "react";
+
+/**
+ * React hook that returns the current brand profile,
+ * deferring the localStorage read to after hydration
+ * so server and client render the same initial tree.
+ */
+export function useBrand(): BrandProfile | null {
+  const [brand, setBrand] = useState<BrandProfile | null>(null);
+  useEffect(() => {
+    setBrand(getCurrentBrand());
+  }, []);
+  return brand;
 }

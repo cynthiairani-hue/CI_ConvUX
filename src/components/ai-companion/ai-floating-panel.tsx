@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
-import { X, Maximize2, Minus } from "lucide-react";
+import { X, ChevronUp } from "lucide-react";
+import { useChatPagination } from "@/hooks/use-chat-pagination";
+import { ChatScrollMinimap } from "./chat-scroll-minimap";
 import { cn } from "@/lib/utils";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
@@ -10,6 +12,8 @@ import { ChatChoices } from "./chat-choices";
 import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
 import { ChatSettingsMenu } from "./chat-settings-menu";
+import { ChatLayoutPicker } from "./chat-layout-picker";
+import { ChatOverflowMenu } from "./chat-overflow-menu";
 import { ChatHeaderMenu } from "./chat-header-menu";
 import { PlatformConnectionCard } from "./platform-connection-card";
 import { ArtifactPreviewCard } from "./artifact-preview-card";
@@ -50,13 +54,26 @@ function saveGeometry(g: FloatingGeometry) {
 export function AIFloatingPanel() {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
-    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, close,
   } = useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const { visibleMessages, hasEarlier, loadEarlier, earlierCount } = useChatPagination(messages);
+
+  const handleLoadEarlier = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) { loadEarlier(); return; }
+    const prevHeight = el.scrollHeight;
+    const prevTop = el.scrollTop;
+    loadEarlier();
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevHeight + prevTop;
+      }
+    });
+  }, [loadEarlier]);
 
   const [geo, setGeo] = useState<FloatingGeometry>(loadGeometry);
-  const [minimized, setMinimized] = useState(false);
 
   // Auto-position on first render if default
   useEffect(() => {
@@ -279,12 +296,11 @@ export function AIFloatingPanel() {
         left: geo.x,
         top: geo.y,
         width: geo.width,
-        height: minimized ? 48 : geo.height,
-        transition: minimized ? "height 150ms ease" : undefined,
+        height: geo.height,
       }}
     >
       {/* Resize handles */}
-      {!minimized && edges.map((edge) => (
+      {edges.map((edge) => (
         <div
           key={edge.id}
           className={cn("absolute z-10", edge.cls)}
@@ -300,20 +316,8 @@ export function AIFloatingPanel() {
         <ChatHeaderMenu compact />
         <div className="flex items-center gap-0.5" onMouseDown={(e) => e.stopPropagation()}>
           <ChatSettingsMenu />
-          <button
-            onClick={expand}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="Expand to full screen"
-          >
-            <Maximize2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => setMinimized(!minimized)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title={minimized ? "Restore" : "Minimize"}
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
+          <ChatLayoutPicker />
+          <ChatOverflowMenu />
           <button
             onClick={close}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -324,10 +328,22 @@ export function AIFloatingPanel() {
         </div>
       </header>
 
-      {!minimized && (
-        <>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto py-3">
-            {messages.map((msg) => (
+      <>
+        <div className="relative flex-1 overflow-hidden">
+          <div ref={scrollRef} className="h-full overflow-y-auto py-3">
+            {hasEarlier && (
+              <div className="flex justify-center pb-2">
+                <button
+                  type="button"
+                  onClick={handleLoadEarlier}
+                  className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <ChevronUp className="h-3 w-3" />
+                  Load {earlierCount} earlier
+                </button>
+              </div>
+            )}
+            {visibleMessages.map((msg) => (
               <AIMessage key={msg.id} message={msg} />
             ))}
             {isLoading && (
@@ -340,6 +356,8 @@ export function AIFloatingPanel() {
               </div>
             )}
           </div>
+          <ChatScrollMinimap messages={visibleMessages} scrollRef={scrollRef} />
+        </div>
 
           <div className="px-3 py-2 space-y-2">
             {activeToolCall?.toolCall && renderToolCall()}
@@ -348,8 +366,7 @@ export function AIFloatingPanel() {
               <AIInput onSend={sendMessage} />
             </div>
           </div>
-        </>
-      )}
+      </>
     </div>
   );
 }

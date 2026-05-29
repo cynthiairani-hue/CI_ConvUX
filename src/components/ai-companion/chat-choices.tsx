@@ -110,11 +110,11 @@ export function ChatChoices({
       {/* Header */}
       <div className="flex items-start gap-2 px-5 pb-1 pt-4">
         <div className="flex flex-1 flex-col min-w-0">
-          <span className="text-[14px] font-semibold text-[#394859] leading-[22px]">
+          <span className="text-[14px] font-semibold text-foreground leading-[22px]">
             {question}
           </span>
           {subtitle && (
-            <span className="text-[14px] text-[#8492A6] leading-[22px]">
+            <span className="text-[14px] text-muted-foreground leading-[22px]">
               {subtitle}
             </span>
           )}
@@ -122,15 +122,15 @@ export function ChatChoices({
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           <div className="flex items-center gap-1">
             <ChevronLeft className="h-3.5 w-3.5 text-[#BFCCD9]" />
-            <span className="text-[12px] text-[#8492A6] leading-[18px]">
+            <span className="text-[12px] text-muted-foreground leading-[18px]">
               {step} of {totalSteps}
             </span>
-            <ChevronRight className="h-3.5 w-3.5 text-[#394859]" />
+            <ChevronRight className="h-3.5 w-3.5 text-foreground" />
           </div>
           {onSkip && (
             <button
               onClick={onSkip}
-              className="rounded-full border border-[#E0E8F2] px-3 py-0.5 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F9FAFB] hover:text-[#394859]"
+              className="rounded-full border border-border px-3 py-0.5 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               Skip
             </button>
@@ -149,10 +149,10 @@ export function ChatChoices({
                 onClick={() => handleSelect(option.id)}
                 disabled={submitted}
                 className={cn(
-                  "flex w-full items-center gap-2.5 border-t border-[#E0E8F2] px-5 py-3 text-left transition-all",
+                  "flex w-full items-center gap-2.5 border-t border-border px-5 py-3 text-left transition-all",
                   isSelected
                     ? "bg-[#EBF5FB]"
-                    : "hover:bg-[#F7F9FB]",
+                    : "hover:bg-accent",
                   submitted && !isSelected && "opacity-50"
                 )}
               >
@@ -160,19 +160,19 @@ export function ChatChoices({
                   isSelected ? (
                     <CheckSquare className="h-[18px] w-[18px] shrink-0 text-[#2C9FDD]" />
                   ) : (
-                    <Square className="h-[18px] w-[18px] shrink-0 text-[#C4CDD8]" />
+                    <Square className="h-[18px] w-[18px] shrink-0 text-muted-foreground/40" />
                   )
                 ) : isSelected ? (
                   <CircleCheck className="h-[18px] w-[18px] shrink-0 text-[#2C9FDD]" />
                 ) : (
-                  <Circle className="h-[18px] w-[18px] shrink-0 text-[#C4CDD8]" />
+                  <Circle className="h-[18px] w-[18px] shrink-0 text-muted-foreground/40" />
                 )}
                 <div className="flex flex-1 flex-col min-w-0">
-                  <span className="text-[14px] text-[#394859] leading-[22px]">
+                  <span className="text-[14px] text-foreground leading-[22px]">
                     {option.label}
                   </span>
                   {option.detail && (
-                    <span className="text-[12px] text-[#8492A6] leading-[16px]">
+                    <span className="text-[12px] text-muted-foreground leading-[16px]">
                       {option.detail}
                     </span>
                   )}
@@ -187,12 +187,12 @@ export function ChatChoices({
               onClick={() => setFreeTextMode(true)}
               disabled={submitted}
               className={cn(
-                "flex w-full items-center gap-2 border-t border-[#E0E8F2] px-5 py-3 text-left transition-all",
-                submitted ? "opacity-50" : "hover:bg-[#F7F9FB]"
+                "flex w-full items-center gap-2 border-t border-border px-5 py-3 text-left transition-all",
+                submitted ? "opacity-50" : "hover:bg-accent"
               )}
             >
-              <Pencil className="h-3.5 w-3.5 shrink-0 text-[#8492A6]" />
-              <span className="text-[14px] text-[#8492A6] leading-[22px]">
+              <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="text-[14px] text-muted-foreground leading-[22px]">
                 Something else
               </span>
             </button>
@@ -200,15 +200,15 @@ export function ChatChoices({
 
           {/* Multi-select: Continue button */}
           {multiSelect && !submitted && (
-            <div className="border-t border-[#E0E8F2] px-5 py-3">
+            <div className="border-t border-border px-5 py-3">
               <button
                 onClick={handleMultiSubmit}
                 disabled={selected.size === 0}
                 className={cn(
                   "flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-[14px] font-medium transition-colors",
                   selected.size > 0
-                    ? "bg-[#394859] text-white hover:bg-[#2A3744]"
-                    : "bg-[#E0E8F2] text-[#8492A6] cursor-not-allowed"
+                    ? "bg-foreground text-white hover:bg-[#2A3744]"
+                    : "bg-border text-muted-foreground cursor-not-allowed"
                 )}
               >
                 Continue with {selected.size} platform{selected.size !== 1 ? "s" : ""}
@@ -221,8 +221,8 @@ export function ChatChoices({
 
       {/* Custom amount input */}
       {customInputMode && (
-        <form onSubmit={handleCustomSubmit} className="flex items-center gap-2 border-t border-[#E0E8F2] px-5 py-3">
-          <span className="text-[14px] font-medium text-[#394859]">$</span>
+        <form onSubmit={handleCustomSubmit} className="flex items-center gap-2 border-t border-border px-5 py-3">
+          <span className="text-[14px] font-medium text-foreground">$</span>
           <input
             ref={customInputRef}
             type="text"
@@ -230,7 +230,7 @@ export function ChatChoices({
             value={customValue}
             onChange={(e) => setCustomValue(e.target.value.replace(/[^0-9]/g, ""))}
             placeholder="Enter monthly budget"
-            className="flex-1 bg-transparent text-[14px] text-[#394859] outline-none placeholder:text-[#8492A6]"
+            className="flex-1 bg-transparent text-[14px] text-foreground outline-none placeholder:text-muted-foreground"
           />
           <button
             type="submit"
@@ -238,8 +238,8 @@ export function ChatChoices({
             className={cn(
               "flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors",
               customValue.trim()
-                ? "bg-[#394859] text-white"
-                : "bg-[#E0E8F2] text-[#8492A6]"
+                ? "bg-foreground text-white"
+                : "bg-border text-muted-foreground"
             )}
           >
             <ArrowUp className="h-4 w-4" />
@@ -249,15 +249,15 @@ export function ChatChoices({
 
       {/* Free text input mode */}
       {freeTextMode && (
-        <form onSubmit={handleFreeTextSubmit} className="flex items-center gap-2 border-t border-[#E0E8F2] px-5 py-3">
-          <Pencil className="h-3.5 w-3.5 shrink-0 text-[#8492A6]" />
+        <form onSubmit={handleFreeTextSubmit} className="flex items-center gap-2 border-t border-border px-5 py-3">
+          <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <input
             ref={inputRef}
             type="text"
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             placeholder="Describe what you're looking for..."
-            className="flex-1 bg-transparent text-[14px] text-[#394859] outline-none placeholder:text-[#8492A6]"
+            className="flex-1 bg-transparent text-[14px] text-foreground outline-none placeholder:text-muted-foreground"
           />
           <button
             type="submit"
@@ -265,8 +265,8 @@ export function ChatChoices({
             className={cn(
               "flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors",
               freeText.trim()
-                ? "bg-[#394859] text-white"
-                : "bg-[#E0E8F2] text-[#8492A6]"
+                ? "bg-foreground text-white"
+                : "bg-border text-muted-foreground"
             )}
           >
             <ArrowUp className="h-4 w-4" />

@@ -16,27 +16,32 @@ import { cn } from "@/lib/utils";
 export function LeftRail() {
   const { leftRailCollapsed, toggleLeftRail } = useLayout();
   const pathname = usePathname();
-  const { getPendingForPersona, savedNarratives, setActiveStrategy, setActiveNarrative, setActiveAudience } = useCampaign();
+  const { getPendingForPersona, savedNarratives, setActiveStrategy, setActiveNarrative, setActiveAudience, hydrated } = useCampaign();
   const { state, setState: setAIState } = useAICompanion();
   const { activePersona } = usePersona();
   const prevPathname = useRef(pathname);
 
-  // When navigating to a new page, convert split view → floating so chat follows the user.
-  // Floating, docked, fullscreen all persist across navigation untouched.
+  // When navigating to a new page:
+  // 1. Always clear active artifacts so the destination page renders (not the artifact canvas)
+  // 2. Convert split view → floating so chat follows the user
   useEffect(() => {
     if (prevPathname.current !== pathname) {
+      // Always clear artifacts on navigation — otherwise hasArtifact keeps
+      // rendering the artifact canvas instead of the page content
+      setActiveStrategy(null);
+      setActiveNarrative(null);
+      setActiveAudience(null);
+
+      // Split mode converts to floating so chat follows the user
       if (state === "split") {
         setAIState("floating");
-        setActiveStrategy(null);
-        setActiveNarrative(null);
-        setActiveAudience(null);
       }
     }
     prevPathname.current = pathname;
   }, [pathname, state, setAIState, setActiveStrategy, setActiveNarrative, setActiveAudience]);
 
-  const pendingCount = getPendingForPersona(activePersona.id).length;
-  const narrativeCount = savedNarratives.length;
+  const pendingCount = hydrated ? getPendingForPersona(activePersona.id).length : 0;
+  const narrativeCount = hydrated ? savedNarratives.length : 0;
 
   return (
     <aside

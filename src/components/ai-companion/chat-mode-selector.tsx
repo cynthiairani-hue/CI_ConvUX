@@ -39,8 +39,8 @@ export function ChatModeSelector() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border border-[#E0E8F2] bg-white shadow-[0px_4px_12px_rgba(71,88,114,0.12)]">
-          <div className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+        <div className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border border-border bg-white shadow-[0px_4px_12px_rgba(71,88,114,0.12)]">
+          <div className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Response detail
           </div>
           {LEVELS.map((level) => (
@@ -51,9 +51,9 @@ export function ChatModeSelector() {
                 setDetailLevel(level.id);
                 setOpen(false);
               }}
-              className="flex w-full items-center justify-between px-4 py-2 text-left transition-colors hover:bg-[#F7F9FB]"
+              className="flex w-full items-center justify-between px-4 py-2 text-left transition-colors hover:bg-accent"
             >
-              <span className="text-[13px] text-[#394859]">{level.label}</span>
+              <span className="text-[13px] text-foreground">{level.label}</span>
               {detailLevel === level.id && (
                 <Check className="h-3.5 w-3.5 shrink-0 text-[#2C9FDD]" />
               )}

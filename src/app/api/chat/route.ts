@@ -32,10 +32,19 @@ You can read data from these connected platforms (simulate realistic data when a
 - Meta Ads (Facebook, Instagram — feed, stories, reels)
 - TikTok Ads (in-feed, TopView, creator partnerships)
 - LinkedIn Ads (sponsored content, InMail)
+- The Trade Desk (programmatic display, video, CTV/OTT, audio, DOOH)
+- Display & Video 360 (programmatic display, video, CTV)
 - Shopify (storefront data, conversion rates, AOV)
 - GA4 (web analytics, traffic sources, user behavior)
 
 When the user asks about performance or data from any platform, respond as if you have real data. Use specific numbers, trends, and timeframes. Make them internally consistent and plausible for the brand.
+
+CHANNEL EXPERTISE — CTV/OTT AND DOOH:
+CTV/OTT (Connected TV) and DOOH (Digital Out-of-Home) are premium channels FuseIQ specializes in:
+- CTV: Unskippable, full-screen ads on streaming platforms (Hulu, Roku, Fire TV, Samsung TV+). Highest brand recall of any digital channel. Typical CPMs $25-45. Ideal for awareness, but increasingly used for full-funnel with QR codes and second-screen retargeting.
+- DOOH: Digital billboards, transit screens, retail displays. Programmatic buying through The Trade Desk and DV360. CPMs $5-15. Extends reach to high-traffic physical locations.
+- Always recommend CTV for awareness campaigns. Include DOOH when the brand has physical retail or event presence.
+- When discussing campaign planning, proactively mention CTV/OTT and DOOH as differentiating channels — most competitors only offer display and social.
 
 CAMPAIGN CREATION:
 - Use the build_campaign_plan tool when the user wants to create/build/launch a campaign
@@ -79,13 +88,48 @@ Be extremely concise. Maximum 2 sentences per response.
 - Numbers over words: "$3K → Shopping 45%, Meta 30%, TikTok 25%" not "I'd recommend allocating..."`,
 };
 
-function buildSystemPrompt(brandContext?: BrandContext, detailLevel?: string): string {
+const CHAT_MODE_INSTRUCTIONS: Record<string, string> = {
+  express: "", // build-fast behavior is handled client-side
+  plan: "", // guided step-by-step is handled client-side
+  advise: `
+INTERACTION MODE — ADVISE:
+You are in advisory mode. Recommend; do not build.
+- Answer the question directly with a clear recommendation, in plain prose and bullets only.
+- Back every recommendation with evidence: a number, a benchmark, a trend, plus confidence and data freshness (e.g. "92% confidence, 14 days of data").
+- When a recommendation is uncertain, say so and state what would raise confidence.
+- Do NOT walk the user through building a campaign or audience, and do NOT ask targeting/budget/creative setup questions.
+HARD CONSTRAINTS (never violate, even if the user explicitly asks you to build):
+- Never produce a campaign plan, media plan, audience spec, or any structured artifact.
+- Never emit tool-call syntax, XML/HTML tags, code fences, or pseudo-markup like <build_campaign_plan>, <fuseiq_artifact>, or JSON blobs.
+- Never say you are "drafting", "building", or "creating" anything.
+- If the user asks you to build, give your recommendation in prose, then say: "When you're ready to build this, switch to Express or Plan mode."`,
+  research: `
+INTERACTION MODE — RESEARCH:
+You are in research mode. Pull data and surface insights; do not build.
+- Lead with what the data shows. Cite specific metrics, timeframes, segments, and sources (the connected platforms).
+- Structure findings as scannable prose and bullets: the signal, the number, why it matters.
+- Surface patterns, anomalies, and opportunities the user didn't explicitly ask about but should know.
+- Always note data freshness and sample size. Flag low-confidence findings.
+HARD CONSTRAINTS (never violate, even if the user explicitly asks you to build):
+- Never produce a campaign plan, media plan, audience spec, or any structured artifact.
+- Never emit tool-call syntax, XML/HTML tags, code fences, headings-as-document, or pseudo-markup like <build_campaign_plan> or <fuseiq_artifact>.
+- Never say you are "drafting", "building", or "creating" anything.
+- If the user asks you to build, share the relevant data and insights in prose, then say: "When you're ready to build on this, switch to Express or Plan mode."`,
+};
+
+function buildSystemPrompt(brandContext?: BrandContext, detailLevel?: string, chatMode?: string): string {
   let prompt = BASE_SYSTEM_PROMPT;
 
   // Add detail level instructions
   const levelInstructions = DETAIL_LEVEL_INSTRUCTIONS[detailLevel || "normal"] || "";
   if (levelInstructions) {
     prompt += levelInstructions;
+  }
+
+  // Add chat mode instructions
+  const modeInstructions = CHAT_MODE_INSTRUCTIONS[chatMode || ""] || "";
+  if (modeInstructions) {
+    prompt += modeInstructions;
   }
 
   if (!brandContext) return prompt;
@@ -177,18 +221,23 @@ interface ContentBlock {
 
 export async function POST(request: Request) {
   try {
-    const { messages, brandContext, detailLevel } = (await request.json()) as {
+    const { messages, brandContext, detailLevel, chatMode } = (await request.json()) as {
       messages: ChatRequestMessage[];
       brandContext?: BrandContext;
       detailLevel?: string;
+      chatMode?: string;
     };
+
+    // Advise/Research recommend and analyze — they must not build artifacts,
+    // so the build_campaign_plan tool is withheld in those modes.
+    const allowBuildTool = chatMode !== "advise" && chatMode !== "research";
 
     const client = getClient();
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
-      system: buildSystemPrompt(brandContext, detailLevel),
-      tools,
+      system: buildSystemPrompt(brandContext, detailLevel, chatMode),
+      ...(allowBuildTool ? { tools } : {}),
       messages: messages.map((m) => {
         // If content is a string, pass as-is. If it's an array (multimodal), pass the blocks.
         if (typeof m.content === "string") {

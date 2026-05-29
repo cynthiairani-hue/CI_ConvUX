@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, type FormEvent, type DragEvent, type KeyboardEvent } from "react";
-import { ArrowUp, Paperclip, Mic, X, FileText, SlidersHorizontal, Check, MessageSquare, LayoutList, Plus, Upload, Plug, Wand2, Bot, Database } from "lucide-react";
+import { ArrowUp, Paperclip, Mic, X, FileText, SlidersHorizontal, Check, Zap, ListChecks, Lightbulb, Search, Plus, Upload, Plug, Wand2, Bot, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useAICompanion } from "@/contexts/ai-companion-context";
@@ -31,8 +31,10 @@ const MAX_ROWS = 6;
 const LINE_HEIGHT = 20; // px per line
 
 const MODE_OPTIONS: { id: ChatMode; label: string; description: string; icon: React.ReactNode }[] = [
-  { id: "conversational", label: "Guided", description: "AI walks you through step by step", icon: <MessageSquare className="h-3.5 w-3.5" /> },
-  { id: "assisted", label: "Direct", description: "Jump straight to forms and cards", icon: <LayoutList className="h-3.5 w-3.5" /> },
+  { id: "express", label: "Express", description: "Build it fast with smart defaults", icon: <Zap className="h-3.5 w-3.5" /> },
+  { id: "plan", label: "Plan", description: "Walk through targeting, budget, and creative", icon: <ListChecks className="h-3.5 w-3.5" /> },
+  { id: "advise", label: "Advise", description: "Recommendations backed by evidence", icon: <Lightbulb className="h-3.5 w-3.5" /> },
+  { id: "research", label: "Research", description: "Pull data and surface performance insights", icon: <Search className="h-3.5 w-3.5" /> },
 ];
 
 const TOOL_OPTIONS = [
@@ -68,19 +70,19 @@ function ToolsPopover({ onAttachFile }: { onAttachFile?: () => void }) {
 
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-1.5 w-56 rounded-xl border bg-background shadow-lg">
-          <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+          <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Tools
           </div>
           {onAttachFile && (
             <button
               type="button"
               onClick={() => { onAttachFile(); setOpen(false); }}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[#F7F9FB]"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
             >
               <span className="text-muted-foreground"><Paperclip className="h-3.5 w-3.5" /></span>
               <div className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-[#394859]">Attach file</span>
-                <span className="block text-[11px] text-[#8492A6]">Upload images, PDFs, docs</span>
+                <span className="block text-[13px] font-medium text-foreground">Attach file</span>
+                <span className="block text-[11px] text-muted-foreground">Upload images, PDFs, docs</span>
               </div>
             </button>
           )}
@@ -89,14 +91,14 @@ function ToolsPopover({ onAttachFile }: { onAttachFile?: () => void }) {
               key={tool.id}
               type="button"
               onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[#F7F9FB]"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
             >
               <span className="text-muted-foreground">{tool.icon}</span>
               <div className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-[#394859]">{tool.label}</span>
-                <span className="block text-[11px] text-[#8492A6]">{tool.description}</span>
+                <span className="block text-[13px] font-medium text-foreground">{tool.label}</span>
+                <span className="block text-[11px] text-muted-foreground">{tool.description}</span>
               </div>
-              <span className="text-[10px] text-[#8492A6]">Soon</span>
+              <span className="text-[10px] text-muted-foreground">Soon</span>
             </button>
           ))}
         </div>
@@ -118,20 +120,23 @@ function ModePopover() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  const current = MODE_OPTIONS.find((m) => m.id === chatMode) || MODE_OPTIONS[0];
+
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         title="AI mode"
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
+        <span className="text-[12px] font-medium">{current.label}</span>
       </button>
 
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-1.5 w-56 rounded-xl border bg-background shadow-lg">
-          <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+          <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Mode
           </div>
           {MODE_OPTIONS.map((mode) => (
@@ -140,14 +145,14 @@ function ModePopover() {
               type="button"
               onClick={() => { setChatMode(mode.id); setOpen(false); }}
               className={cn(
-                "flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[#F7F9FB]",
-                chatMode === mode.id && "bg-[#F7F9FB]"
+                "flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent",
+                chatMode === mode.id && "bg-accent"
               )}
             >
               <span className="text-muted-foreground">{mode.icon}</span>
               <div className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-[#394859]">{mode.label}</span>
-                <span className="block text-[11px] text-[#8492A6]">{mode.description}</span>
+                <span className="block text-[13px] font-medium text-foreground">{mode.label}</span>
+                <span className="block text-[11px] text-muted-foreground">{mode.description}</span>
               </div>
               {chatMode === mode.id && (
                 <Check className="h-3.5 w-3.5 shrink-0 text-[#2C9FDD]" />
@@ -157,16 +162,6 @@ function ModePopover() {
         </div>
       )}
     </div>
-  );
-}
-
-function ModeLabel() {
-  const { chatMode } = useAICompanion();
-  const current = MODE_OPTIONS.find((m) => m.id === chatMode) || MODE_OPTIONS[0];
-  return (
-    <span className="text-[12px] font-medium text-muted-foreground px-1.5">
-      {current.label}
-    </span>
   );
 }
 
@@ -290,7 +285,7 @@ export function AIInput({
           {files.map((file, i) => (
             <div key={i} className="relative group">
               {file.preview ? (
-                <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-[#E0E8F2]">
+                <div className="relative h-16 w-16 overflow-hidden rounded-lg border border-border">
                   <img
                     src={file.preview}
                     alt={file.name}
@@ -299,24 +294,24 @@ export function AIInput({
                   <button
                     type="button"
                     onClick={() => removeFile(i)}
-                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#394859] text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] bg-[#F7F9FB] px-2 py-1.5">
-                  <FileText className="h-3.5 w-3.5 text-[#8492A6]" />
-                  <span className="max-w-[120px] truncate text-[11px] text-[#394859]">
+                <div className="flex items-center gap-1.5 rounded-lg border border-border bg-accent px-2 py-1.5">
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="max-w-[120px] truncate text-[11px] text-foreground">
                     {file.name}
                   </span>
-                  <span className="text-[10px] text-[#8492A6]">
+                  <span className="text-[10px] text-muted-foreground">
                     {formatFileSize(file.size)}
                   </span>
                   <button
                     type="button"
                     onClick={() => removeFile(i)}
-                    className="flex h-4 w-4 items-center justify-center rounded-full text-[#8492A6] transition-colors hover:bg-[#E0E8F2] hover:text-[#394859]"
+                    className="flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
                     <X className="h-2.5 w-2.5" />
                   </button>
@@ -353,7 +348,6 @@ export function AIInput({
             <ModePopover />
           </div>
           <div className="flex items-center gap-0.5">
-            <ModeLabel />
             {hasSpeechAPI && (
               <button
                 type="button"

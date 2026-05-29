@@ -1,20 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import { getCurrentBrand } from "@/data/brand-profiles";
+import { useBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
-import { Users, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2 } from "lucide-react";
+import { Users, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2, Check, X } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { PageChatInput } from "@/components/ai-companion/page-chat-input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { AudienceSegment } from "@/types/campaign";
 
 const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; text: string }> = {
-  draft: { label: "Draft", dot: "bg-[#C4CDD8]", bg: "bg-[#F3F4F6]", text: "text-[#6B7280]" },
+  draft: { label: "Draft", dot: "bg-muted-foreground/40", bg: "bg-muted", text: "text-muted-foreground" },
   active: { label: "Active", dot: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-600" },
   paused: { label: "Paused", dot: "bg-amber-400", bg: "bg-amber-50", text: "text-amber-600" },
-  archived: { label: "Archived", dot: "bg-[#C4CDD8]", bg: "bg-[#F3F4F6]", text: "text-[#6B7280]" },
+  archived: { label: "Archived", dot: "bg-muted-foreground/40", bg: "bg-muted", text: "text-muted-foreground" },
 };
 
 const FILTER_OPTIONS = ["all", "draft", "active", "paused", "archived"] as const;
@@ -30,9 +31,25 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-function AudienceRow({ segment, onOpen, onAction }: { segment: AudienceSegment; onOpen: () => void; onAction: (actionId: string) => void }) {
+function AudienceRow({
+  segment, onOpen, onAction, isRenaming, renameValue, onRenameChange, onRenameSubmit, onRenameCancel,
+}: {
+  segment: AudienceSegment;
+  onOpen: () => void;
+  onAction: (actionId: string) => void;
+  isRenaming: boolean;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameSubmit: () => void;
+  onRenameCancel: () => void;
+}) {
   const config = STATUS_CONFIG[segment.status] || STATUS_CONFIG.draft;
   const typeLabel = segment.type ? segment.type.replace("-", " ") : "audience";
+  const renameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming && renameRef.current) renameRef.current.focus();
+  }, [isRenaming]);
 
   const actions: OverflowAction[] = [
     { id: "duplicate", label: "Duplicate", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => onAction("duplicate") },
@@ -44,20 +61,47 @@ function AudienceRow({ segment, onOpen, onAction }: { segment: AudienceSegment; 
 
   return (
     <div
-      onClick={onOpen}
-      className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm"
+      onClick={isRenaming ? undefined : onOpen}
+      className={cn(
+        "group flex w-full items-center gap-4 rounded-xl border border-border bg-white px-4 py-3.5 text-left transition-all hover:shadow-sm",
+        isRenaming ? "ring-1 ring-[#2C9FDD]" : "cursor-pointer"
+      )}
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F0EDFA]">
         <Users className="h-4 w-4 text-[#7C5CFC]" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[13px] font-semibold text-[#394859]">{segment.name}</span>
-          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.text)}>
-            {config.label}
-          </span>
+          {isRenaming ? (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={renameRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => onRenameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onRenameSubmit();
+                  if (e.key === "Escape") onRenameCancel();
+                }}
+                className="min-w-0 flex-1 rounded-md border border-border px-2 py-0.5 text-[13px] font-semibold text-foreground outline-none focus:border-ring"
+              />
+              <button onClick={onRenameSubmit} className="flex h-6 w-6 items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-50">
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onRenameCancel} className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <span className="truncate text-[13px] font-semibold text-foreground">{segment.name}</span>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.text)}>
+                {config.label}
+              </span>
+            </>
+          )}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[12px] text-[#8492A6]">
+        <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
           <span className="capitalize">{typeLabel}</span>
           {segment.estimatedSize && (
             <>
@@ -82,16 +126,23 @@ function AudienceRow({ segment, onOpen, onAction }: { segment: AudienceSegment; 
           )}
         </div>
       </div>
-      <CardOverflowMenu actions={actions} />
+      {!isRenaming && <CardOverflowMenu actions={actions} />}
     </div>
   );
 }
 
 export default function AudiencesPage() {
-  const { savedAudiences, setActiveAudience, activeNarrative, setActiveNarrative, setActiveStrategy, showToast } = useCampaign();
-  const { openFullscreen, setState } = useAICompanion();
-  const brand = getCurrentBrand();
+  const {
+    savedAudiences, setActiveAudience, activeNarrative, setActiveNarrative, setActiveStrategy, showToast,
+    duplicateAudience, renameAudience, archiveAudience, removeAudience,
+    hydrated,
+  } = useCampaign();
+  const { openFullscreen } = useAICompanion();
+  const brand = useBrand();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const isEmpty = savedAudiences.length === 0;
 
@@ -103,22 +154,33 @@ export default function AudiencesPage() {
     if (activeNarrative) setActiveNarrative(null);
     setActiveStrategy(null);
     setActiveAudience(segment);
-    setState("split");
   }
 
   function handleAction(segment: AudienceSegment, actionId: string) {
     if (actionId === "share") {
+      navigator.clipboard?.writeText(`${window.location.origin}/audiences?id=${segment.id}`);
       showToast("Share link copied to clipboard");
     } else if (actionId === "duplicate") {
+      duplicateAudience(segment.id);
       showToast("Audience duplicated");
     } else if (actionId === "rename") {
-      // Could trigger inline rename — for now just toast
-      showToast("Rename coming soon");
+      setRenamingId(segment.id);
+      setRenameValue(segment.name);
     } else if (actionId === "archive") {
+      archiveAudience(segment.id);
       showToast("Audience archived");
     } else if (actionId === "delete") {
-      showToast("Audience deleted");
+      setDeletingId(segment.id);
     }
+  }
+
+  function handleRenameSubmit(id: string) {
+    const trimmed = renameValue.trim();
+    if (trimmed) {
+      renameAudience(id, trimmed);
+      showToast("Audience renamed");
+    }
+    setRenamingId(null);
   }
 
   const filtered = statusFilter === "all"
@@ -131,6 +193,19 @@ export default function AudiencesPage() {
     return bTime - aTime;
   });
 
+  if (!hydrated) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Audiences</h1>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
@@ -138,7 +213,7 @@ export default function AudiencesPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-foreground">Audiences</h1>
-              <p className="mt-0.5 text-[13px] text-[#8492A6]">
+              <p className="mt-0.5 text-[13px] text-muted-foreground">
                 {isEmpty ? "Your audience segments will live here" : `${savedAudiences.length} audience${savedAudiences.length === 1 ? "" : "s"}`}
               </p>
             </div>
@@ -146,7 +221,7 @@ export default function AudiencesPage() {
               <button
                 type="button"
                 onClick={handleBuildAudience}
-                className="flex items-center gap-1.5 rounded-lg bg-[#394859] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#2D3A47]"
+                className="flex items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-foreground/90"
               >
                 <Plus className="h-4 w-4" />
                 New audience
@@ -165,8 +240,8 @@ export default function AudiencesPage() {
                   className={cn(
                     "rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
                     statusFilter === f
-                      ? "bg-[#394859] text-white"
-                      : "text-[#8492A6] hover:bg-[#F3F4F6] hover:text-[#394859]"
+                      ? "bg-foreground text-white"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   {f === "all" ? "All" : STATUS_CONFIG[f]?.label || f}
@@ -201,10 +276,20 @@ export default function AudiencesPage() {
           ) : (
             <div className="mt-4 space-y-2">
               {sorted.length === 0 ? (
-                <p className="py-8 text-center text-[13px] text-[#8492A6]">No audiences match this filter.</p>
+                <p className="py-8 text-center text-[13px] text-muted-foreground">No audiences match this filter.</p>
               ) : (
                 sorted.map((s) => (
-                  <AudienceRow key={s.id} segment={s} onOpen={() => handleOpenAudience(s)} onAction={(actionId) => handleAction(s, actionId)} />
+                  <AudienceRow
+                    key={s.id}
+                    segment={s}
+                    onOpen={() => handleOpenAudience(s)}
+                    onAction={(actionId) => handleAction(s, actionId)}
+                    isRenaming={renamingId === s.id}
+                    renameValue={renameValue}
+                    onRenameChange={setRenameValue}
+                    onRenameSubmit={() => handleRenameSubmit(s.id)}
+                    onRenameCancel={() => setRenamingId(null)}
+                  />
                 ))
               )}
             </div>
@@ -215,6 +300,22 @@ export default function AudiencesPage() {
       <div className="shrink-0 pb-6 pt-2">
         <PageChatInput placeholder="Ask about segments, lookalikes, or targeting..." />
       </div>
+
+      <ConfirmDialog
+        open={deletingId !== null}
+        title="Delete audience"
+        description="Are you sure you want to delete this audience? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (deletingId) {
+            removeAudience(deletingId);
+            showToast("Audience deleted");
+          }
+          setDeletingId(null);
+        }}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   );
 }

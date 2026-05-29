@@ -1,17 +1,18 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { Share2, FileDown, MessageCircle } from "lucide-react";
+import { Share2, FileDown, Sparkles, Clock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LeftRail } from "./left-rail";
 import { MainCanvas } from "./main-canvas";
-import { AIDockedPanel } from "@/components/ai-companion/ai-docked-panel";
 import { AIFullscreen } from "@/components/ai-companion/ai-fullscreen";
 import { AISplitPanel } from "@/components/ai-companion/ai-split-panel";
 import { AIFloatingPanel } from "@/components/ai-companion/ai-floating-panel";
-import { useAICompanion } from "@/contexts/ai-companion-context";
+import { useAICompanion, type AICompanionState } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
+import { useLayout } from "@/contexts/layout-context";
 import { StrategyCard } from "@/components/patterns/strategy-card";
+import type { StrategyPlan } from "@/types/campaign";
 import { CFONarrativeCard } from "@/components/patterns/cfo-narrative-card";
 import { AudienceCard } from "@/components/patterns/audience-card";
 import { getCurrentBrand } from "@/data/brand-profiles";
@@ -25,10 +26,10 @@ const DEFAULT_CHAT_WIDTH = 420;
 /** Status badge for artifact status */
 function StatusBadge({ status }: { status: string }) {
   const label = status === "draft" ? "Draft" : status === "approved" ? "Approved" : status === "active" ? "Active" : status === "final" ? "Final" : status;
-  const color = status === "draft" ? "bg-[#F3F4F6] text-[#6B7280]"
+  const color = status === "draft" ? "bg-muted text-muted-foreground"
     : status === "approved" || status === "active" || status === "final" ? "bg-emerald-50 text-emerald-600"
     : status === "pending-approval" ? "bg-amber-50 text-amber-600"
-    : "bg-[#F3F4F6] text-[#6B7280]";
+    : "bg-muted text-muted-foreground";
   return (
     <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize", color)}>
       {label}
@@ -67,7 +68,7 @@ function EditableName({
           if (e.key === "Enter") commit();
           if (e.key === "Escape") { setDraft(value); setEditing(false); }
         }}
-        className="truncate rounded border border-[#2C9FDD] bg-white px-1.5 py-0.5 text-[14px] font-semibold text-[#394859] outline-none"
+        className="truncate rounded border border-[#2C9FDD] bg-white px-1.5 py-0.5 text-[14px] font-semibold text-foreground outline-none"
         style={{ width: `${Math.max(draft.length, 10)}ch` }}
       />
     );
@@ -77,20 +78,65 @@ function EditableName({
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="group flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-[#F7F9FB]"
+      className="group flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors hover:bg-accent"
       title="Click to rename"
     >
-      <h1 className="truncate text-[14px] font-semibold text-[#394859]">{value}</h1>
-      <span className="text-[#C4CDD8] opacity-0 transition-opacity group-hover:opacity-100">
+      <h1 className="truncate text-[14px] font-semibold text-foreground">{value}</h1>
+      <span className="text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
       </span>
     </button>
   );
 }
 
+function ReturnVisitBanner({ strategy, onDismiss }: { strategy: StrategyPlan; onDismiss: () => void }) {
+  const lastMod = strategy.lastModifiedAt;
+  const now = Date.now();
+  const diffMs = now - new Date(lastMod).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  // Only show if last modified > 5 minutes ago (real return visit)
+  if (diffMins < 5) return null;
+
+  const timeAgo =
+    diffMins < 60 ? `${diffMins}m ago` :
+    diffMins < 1440 ? `${Math.floor(diffMins / 60)}h ago` :
+    `${Math.floor(diffMins / 1440)}d ago`;
+
+  // Count sections that need review
+  const sectionKeys = ["objective", "budgetSchedule", "audience", "placements", "bidding", "creative", "forecast"] as const;
+  const needsReview = sectionKeys.filter((k) => !strategy[k].filled).length;
+  const readySections = sectionKeys.filter((k) => strategy[k].readiness === "ready").length;
+
+  return (
+    <div className="mx-auto mb-4 flex max-w-2xl items-start gap-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EBF5FB]">
+        <Clock className="h-4 w-4 text-[#1A7BB5]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-medium text-foreground">
+          Welcome back to {strategy.name}
+        </p>
+        <p className="mt-0.5 text-[12px] text-muted-foreground">
+          Last edited {timeAgo} · {readySections}/{sectionKeys.length} sections ready
+          {needsReview > 0 && ` · ${needsReview} need${needsReview === 1 ? "s" : ""} review`}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="shrink-0 rounded-md p-1 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-muted-foreground"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof useCampaign>["activeStrategy"]> }) {
   const { saveStrategy, setActiveStrategy, showToast } = useCampaign();
   const { setState } = useAICompanion();
+  const [showReturnBanner, setShowReturnBanner] = useState(true);
 
   function handleSave() {
     saveStrategy({ ...strategy, status: "draft", lastModifiedAt: new Date().toISOString() });
@@ -98,9 +144,10 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
   }
 
   function handleDiscard() {
+    saveStrategy({ ...strategy, status: "draft", lastModifiedAt: new Date().toISOString() });
     setActiveStrategy(null);
     setState("fullscreen");
-    showToast("Changes discarded");
+    showToast("Strategy saved as draft", { label: "View in Campaigns", href: "/campaigns" });
   }
 
   function handleShare() {
@@ -131,30 +178,33 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
           <button
             type="button"
             onClick={handleShare}
-            className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
           >
             <Share2 className="h-3.5 w-3.5" />
             Share
           </button>
-          <div className="mx-0.5 h-5 w-px bg-[#E0E8F2]" />
+          <div className="mx-0.5 h-5 w-px bg-border" />
           <button
             type="button"
             onClick={handleDiscard}
-            className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-[#8492A6] transition-colors hover:bg-[#F7F9FB] hover:text-[#394859]"
+            className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             Discard
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="rounded-lg bg-[#394859] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2D3A47]"
+            className="rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90"
           >
             Save
           </button>
         </div>
       </header>
       {/* Grey canvas background — card floats on it */}
-      <div className="flex-1 overflow-y-auto bg-[#F7F9FB] px-8 py-8">
+      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
+        {showReturnBanner && (
+          <ReturnVisitBanner strategy={strategy} onDismiss={() => setShowReturnBanner(false)} />
+        )}
         <div className="mx-auto max-w-2xl">
           <StrategyCard plan={strategy} onUpdate={handleStrategyUpdate} />
         </div>
@@ -184,9 +234,10 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
   }
 
   function handleDiscard() {
+    saveNarrative({ ...narrative, lastModifiedAt: new Date().toISOString() });
     setActiveNarrative(null);
     setAIState("fullscreen");
-    showToast("Changes discarded");
+    showToast("Report saved as draft", { label: "View in Reports", href: "/reports" });
   }
 
   function handleSendToCFO() {
@@ -201,7 +252,7 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
       {/* Page-level header — actions live here, not in the card */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
         <div className="min-w-0">
-          <h1 className="truncate text-[14px] font-semibold text-[#394859]">{narrative.name}</h1>
+          <h1 className="truncate text-[14px] font-semibold text-foreground">{narrative.name}</h1>
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={narrative.status} />
@@ -209,7 +260,7 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
           <button
             type="button"
             onClick={handleExportPDF}
-            className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
           >
             <FileDown className="h-3.5 w-3.5" />
             Export PDF
@@ -217,17 +268,17 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
           <button
             type="button"
             onClick={handleShare}
-            className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
           >
             <Share2 className="h-3.5 w-3.5" />
             Share
           </button>
           {/* Separator + destructive/primary actions */}
-          <div className="mx-0.5 h-5 w-px bg-[#E0E8F2]" />
+          <div className="mx-0.5 h-5 w-px bg-border" />
           <button
             type="button"
             onClick={handleDiscard}
-            className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-[#8492A6] transition-colors hover:bg-[#F7F9FB] hover:text-[#394859]"
+            className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             Discard
           </button>
@@ -235,7 +286,7 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
             <button
               type="button"
               onClick={handleSendToCFO}
-              className="flex items-center gap-1.5 rounded-lg bg-[#394859] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2D3A47]"
+              className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90"
             >
               Send to CFO
             </button>
@@ -243,7 +294,7 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
         </div>
       </header>
       {/* Grey canvas background — card floats on it */}
-      <div className="flex-1 overflow-y-auto bg-[#F7F9FB] px-8 py-8">
+      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
         <div className="mx-auto max-w-2xl">
           <CFONarrativeCard narrative={narrative} seedData={brand ? FFERN_SEED_PERFORMANCE : undefined} hideHeaderActions />
         </div>
@@ -315,9 +366,10 @@ function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<type
   }
 
   function handleDiscard() {
+    saveAudience({ ...segment, lastModifiedAt: new Date().toISOString() });
     setActiveAudience(null);
     setAIState("fullscreen");
-    showToast("Changes discarded");
+    showToast("Audience saved as draft", { label: "View in Audiences", href: "/audiences" });
   }
 
   function handleSave() {
@@ -335,24 +387,24 @@ function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<type
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={segment.status} />
-          <div className="mx-0.5 h-5 w-px bg-[#E0E8F2]" />
+          <div className="mx-0.5 h-5 w-px bg-border" />
           <button
             type="button"
             onClick={handleDiscard}
-            className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-[#8492A6] transition-colors hover:bg-[#F7F9FB] hover:text-[#394859]"
+            className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             Discard
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="rounded-lg bg-[#394859] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2D3A47]"
+            className="rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90"
           >
             Save
           </button>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto bg-[#F7F9FB] px-8 py-8">
+      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
         <div className="mx-auto max-w-2xl">
           <AudienceCard segment={segment} onUpdate={handleUpdate} />
         </div>
@@ -362,29 +414,66 @@ function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<type
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { state, dockSide } = useAICompanion();
+  const { state, dockSide, setState } = useAICompanion();
   const { activeStrategy, savedStrategies, activeNarrative, activeAudience } = useCampaign();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
-  const [dockedWidth, setDockedWidth] = useState(DEFAULT_CHAT_WIDTH);
-  const [chatMinimized, setChatMinimized] = useState(false);
 
   const strategy = activeStrategy || savedStrategies[savedStrategies.length - 1];
-
-  // Reset minimized state when leaving split view
+  const hasArtifact = !!(activeStrategy || activeNarrative || activeAudience);
+  const { collapseLeftRail } = useLayout();
+  // Track whether the user manually closed the AI panel this session
+  const userClosedRef = useRef(false);
+  // Track previous hasArtifact to detect transitions (false → true)
+  const prevHasArtifactRef = useRef(hasArtifact);
+  // Track previous state to detect user-initiated close (visible → resting)
+  const prevStateRef = useRef(state);
   useEffect(() => {
-    if (state !== "split") setChatMinimized(false);
-  }, [state]);
+    if (prevStateRef.current !== "resting" && state === "resting" && hasArtifact) {
+      userClosedRef.current = true;
+    }
+    prevStateRef.current = state;
+  }, [state, hasArtifact]);
+  // Reset the userClosed flag when artifact is cleared (navigating away)
+  useEffect(() => {
+    if (!hasArtifact) userClosedRef.current = false;
+  }, [hasArtifact]);
+
+  // Rule: collapse left rail when an artifact is open OR when split panel is active
+  useEffect(() => {
+    if (hasArtifact || state === "split") collapseLeftRail();
+  }, [hasArtifact, state, collapseLeftRail]);
+
+  // Rule: auto-open AI panel when an artifact opens (first time only, unless user closed it)
+  useEffect(() => {
+    const wasOpen = prevHasArtifactRef.current;
+    prevHasArtifactRef.current = hasArtifact;
+
+    // Only trigger on transition from no-artifact → has-artifact
+    if (!hasArtifact || wasOpen) return;
+    // Don't auto-open if user explicitly closed this session
+    if (userClosedRef.current) return;
+    // Don't auto-open if AI is already showing
+    if (state !== "resting") return;
+
+    // Check user's preferred layout from localStorage
+    const preferred = typeof window !== "undefined"
+      ? localStorage.getItem("fuseiq-layout-state") as AICompanionState | null
+      : null;
+
+    if (preferred === "floating") {
+      setState("floating");
+    } else {
+      // Default to split panel for first-time users or those who prefer split
+      setState("split");
+    }
+  }, [hasArtifact, state, setState]);
 
   const handleDrag = useCallback((deltaX: number) => {
     setChatWidth((prev) => Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, prev + deltaX)));
   }, []);
 
-  const handleDockedDragRight = useCallback((deltaX: number) => {
-    setDockedWidth((prev) => Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, prev - deltaX)));
-  }, []);
-
-  const handleDockedDragLeft = useCallback((deltaX: number) => {
-    setDockedWidth((prev) => Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, prev + deltaX)));
+  const handleDragRight = useCallback((deltaX: number) => {
+    setChatWidth((prev) => Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, prev - deltaX)));
   }, []);
 
   const renderSplitCanvas = () => {
@@ -404,50 +493,52 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   };
 
-  const showSplitChat = state === "split" && !chatMinimized;
+  const showSplitChat = state === "split";
 
   return (
     <>
       <div className="flex h-screen overflow-hidden">
         <LeftRail />
-        {showSplitChat && (
+        {showSplitChat && dockSide === "left" && (
           <>
-            <AISplitPanel width={chatWidth} onMinimize={() => setChatMinimized(true)} />
+            <AISplitPanel width={chatWidth} side="left" />
             <ResizeDivider onDrag={handleDrag} />
           </>
         )}
-        {state === "docked" && dockSide === "left" && (
-          <>
-            <AIDockedPanel side="left" width={dockedWidth} />
-            <ResizeDivider onDrag={handleDockedDragLeft} />
-          </>
-        )}
-        {state === "split" ? (
+        {hasArtifact ? (
           renderSplitCanvas()
         ) : (
           <MainCanvas>{children}</MainCanvas>
         )}
-        {state === "docked" && dockSide === "right" && (
+        {showSplitChat && dockSide === "right" && (
           <>
-            <ResizeDivider onDrag={handleDockedDragRight} />
-            <AIDockedPanel side="right" width={dockedWidth} />
+            <ResizeDivider onDrag={handleDragRight} />
+            <AISplitPanel width={chatWidth} side="right" />
           </>
         )}
       </div>
       {state === "fullscreen" && <AIFullscreen />}
       {state === "floating" && <AIFloatingPanel />}
 
-      {/* Floating chat bubble when minimized in split view */}
-      {state === "split" && chatMinimized && (
-        <button
-          type="button"
-          onClick={() => setChatMinimized(false)}
-          className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#2C9FDD] text-white shadow-lg transition-all hover:bg-[#1A7BB5] hover:scale-105 active:scale-95"
-          title="Open chat"
-        >
-          <MessageCircle className="h-5 w-5" />
-        </button>
-      )}
+      {/* Chat bubble — visible when artifact is open and chat isn't showing in any panel */}
+      {(() => {
+        const chatVisible =
+          state === "fullscreen" ||
+          state === "floating" ||
+          state === "split";
+        const showBubble = hasArtifact && !chatVisible;
+        if (!showBubble) return null;
+        return (
+          <button
+            type="button"
+            onClick={() => setState("floating")}
+            className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-all hover:bg-foreground/90 hover:scale-105 active:scale-95"
+            title="Open chat"
+          >
+            <Sparkles className="h-5 w-5" />
+          </button>
+        );
+      })()}
 
       <Toast />
     </>

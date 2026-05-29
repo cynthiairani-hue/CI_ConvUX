@@ -78,10 +78,10 @@ export function PlatformConnectionCard({
     <div className="w-full overflow-hidden rounded-[20px] bg-white shadow-[0px_1px_6px_rgba(71,88,114,0.08),0px_7px_14px_rgba(71,88,114,0.08)]">
       {/* Header */}
       <div className="px-5 pb-1 pt-4">
-        <span className="text-[14px] font-semibold text-[#394859] leading-[22px]">
+        <span className="text-[14px] font-semibold text-foreground leading-[22px]">
           Connect your accounts
         </span>
-        <p className="text-[12px] text-[#8492A6] leading-[18px] mt-0.5">
+        <p className="text-[12px] text-muted-foreground leading-[18px] mt-0.5">
           Connect the platforms you use. You can always add more later.
         </p>
       </div>
@@ -94,7 +94,7 @@ export function PlatformConnectionCard({
           return (
             <div
               key={meta.id}
-              className="flex items-center gap-3 border-t border-[#E0E8F2] px-5 py-3"
+              className="flex items-center gap-3 border-t border-border px-5 py-3"
             >
               {/* Platform brand dot */}
               <div
@@ -109,10 +109,10 @@ export function PlatformConnectionCard({
 
               {/* Platform info */}
               <div className="flex flex-1 flex-col min-w-0">
-                <span className="text-[14px] font-medium text-[#394859] leading-[20px]">
+                <span className="text-[14px] font-medium text-foreground leading-[20px]">
                   {meta.label}
                 </span>
-                <span className="text-[11px] text-[#8492A6] leading-[16px]">
+                <span className="text-[11px] text-muted-foreground leading-[16px]">
                   {meta.detail}
                 </span>
               </div>
@@ -121,20 +121,20 @@ export function PlatformConnectionCard({
               {state === "idle" && (
                 <button
                   onClick={() => handleConnect(meta.id)}
-                  className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB] hover:border-[#E0E8F2]"
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent hover:border-border"
                 >
                   <ExternalLink className="h-3 w-3" />
                   Connect
                 </button>
               )}
               {state === "connecting" && (
-                <div className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] text-[#8492A6]">
+                <div className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Authorizing...
                 </div>
               )}
               {state === "connected" && (
-                <div className="flex items-center gap-1.5 rounded-lg border border-[#E0E8F2] bg-[#ECFDF5] px-3 py-1.5 text-[12px] font-medium text-[#065F46]">
+                <div className="flex items-center gap-1.5 rounded-lg border border-border bg-[#ECFDF5] px-3 py-1.5 text-[12px] font-medium text-[#065F46]">
                   <Check className="h-3 w-3" />
                   Connected
                 </div>
@@ -145,7 +145,7 @@ export function PlatformConnectionCard({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-[#E0E8F2] px-5 py-3 flex items-center gap-2">
+      <div className="border-t border-border px-5 py-3 flex items-center gap-2">
         {!hasAtLeastOne ? (
           <>
             {platforms.filter((p) => states[p.id] === "idle").length > 1 && (
@@ -157,7 +157,7 @@ export function PlatformConnectionCard({
               </button>
             )}
             <span className="flex-1" />
-            <span className="text-[11px] text-[#8492A6]">
+            <span className="text-[11px] text-muted-foreground">
               Connect at least one platform to continue
             </span>
           </>
@@ -168,8 +168,8 @@ export function PlatformConnectionCard({
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-[14px] font-medium transition-colors",
               anyConnecting
-                ? "bg-[#E0E8F2] text-[#8492A6] cursor-not-allowed"
-                : "bg-[#394859] text-white hover:bg-[#2A3744]"
+                ? "bg-border text-muted-foreground cursor-not-allowed"
+                : "bg-foreground text-white hover:bg-[#2A3744]"
             )}
           >
             Continue with {connectedCount} platform{connectedCount !== 1 ? "s" : ""}

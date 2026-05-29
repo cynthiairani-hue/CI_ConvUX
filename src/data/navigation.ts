@@ -4,7 +4,6 @@ import {
   Users,
   BarChart3,
   CheckSquare,
-  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,5 +26,6 @@ export const navItems: NavItem[] = [
     href: "/approvals",
     icon: CheckSquare,
   },
-  { id: "settings", label: "Settings", href: "/settings", icon: Settings },
+  // Connectors hidden from nav — accessible via chat tools menu (MCP-style)
+  // { id: "settings", label: "Connectors", href: "/settings", icon: Plug },
 ];

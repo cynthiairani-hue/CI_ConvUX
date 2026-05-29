@@ -56,13 +56,13 @@ export function CardOverflowMenu({
           e.stopPropagation();
           setOpen(!open);
         }}
-        className="flex h-7 w-7 items-center justify-center rounded-md text-[#C4CDD8] transition-colors hover:bg-[#F0F2F5] hover:text-[#8492A6]"
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground"
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-[#E0E8F2] bg-white py-1 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-lg border border-border bg-white py-1 shadow-lg">
           {actions.map((action, i) => (
             <button
               key={action.id}
@@ -76,8 +76,8 @@ export function CardOverflowMenu({
                 "flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors",
                 action.destructive
                   ? "text-red-600 hover:bg-red-50"
-                  : "text-[#394859] hover:bg-[#F7F9FB]",
-                i > 0 && actions[i - 1]?.destructive !== action.destructive && action.destructive && "mt-1 border-t border-[#E0E8F2] pt-1"
+                  : "text-foreground hover:bg-accent",
+                i > 0 && actions[i - 1]?.destructive !== action.destructive && action.destructive && "mt-1 border-t border-border pt-1"
               )}
             >
               {action.icon}

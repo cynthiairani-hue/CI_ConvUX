@@ -39,13 +39,15 @@ import {
   deleteChatSession as deleteSessionFromStorage,
   archiveChatSession as archiveSessionInStorage,
   renameChatSession as renameSessionInStorage,
+  persistChatSessions,
   autoNameSession,
   inferSessionGroup,
   type StoredChatSession,
   type ChatSessionMeta,
 } from "@/lib/storage";
+import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
 
-export type AICompanionState = "resting" | "fullscreen" | "docked" | "split" | "floating";
+export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
 
 export interface ToolCallChoices {
@@ -137,7 +139,7 @@ interface AICompanionContextValue {
   expand: () => void;
   setDockSide: (side: DockSide) => void;
   toggleDockSide: () => void;
-  sendMessage: (content: string, files?: { name: string; type: string; size: number; preview?: string }[]) => void;
+  sendMessage: (content: string, files?: { name: string; type: string; size: number; preview?: string }[], options?: { skipIntentRouting?: boolean }) => void;
   submitChoice: (messageId: string, field: string, selected: string[]) => void;
   skipChoice: (messageId: string, field: string) => void;
   submitAdvertiserSetup: (messageId: string, data: {
@@ -169,38 +171,43 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
   const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience } = useCampaign();
   const { collapseLeftRail } = useLayout();
-  const [state, setStateRaw] = useState<AICompanionState>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("fuseiq-layout-state") as AICompanionState | null;
-      // Restore persistent layouts on load; fullscreen and split don't persist across sessions
-      if (saved === "docked" || saved === "floating") return saved;
-    }
-    return "resting";
-  });
+  // Defer localStorage reads to useEffect to prevent hydration mismatches
+  const [state, setStateRaw] = useState<AICompanionState>("resting");
+  useEffect(() => {
+    const saved = localStorage.getItem("fuseiq-layout-state") as AICompanionState | null;
+    if (saved === "split" || saved === "floating") setStateRaw(saved);
+  }, []);
   const setState = useCallback((s: AICompanionState) => {
     setStateRaw(s);
-    if (typeof window !== "undefined") {
+    // Only persist active layout modes — "resting" is transient (chat closed),
+    // not a layout preference. This way closing chat doesn't erase the user's
+    // preferred layout (floating, split, fullscreen).
+    if (typeof window !== "undefined" && s !== "resting") {
       localStorage.setItem("fuseiq-layout-state", s);
     }
   }, []);
-  const [dockSide, setDockSideRaw] = useState<DockSide>(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("fuseiq-dock-side") as DockSide) || "left";
-    }
-    return "left";
-  });
+  const [dockSide, setDockSideRaw] = useState<DockSide>("left");
+  useEffect(() => {
+    const saved = (localStorage.getItem("fuseiq-dock-side") as DockSide) || "left";
+    setDockSideRaw(saved);
+  }, []);
   const setDockSide = useCallback((side: DockSide) => {
     setDockSideRaw(side);
     if (typeof window !== "undefined") {
       localStorage.setItem("fuseiq-dock-side", side);
     }
   }, []);
-  const [chatMode, setChatModeState] = useState<ChatMode>(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("fuseiq-chat-mode") as ChatMode) || "assisted";
-    }
-    return "assisted";
-  });
+  const [chatMode, setChatModeState] = useState<ChatMode>("plan");
+  useEffect(() => {
+    const raw = localStorage.getItem("fuseiq-chat-mode");
+    // Migrate legacy values from the 2-mode era
+    const migrated =
+      raw === "assisted" ? "express" : raw === "conversational" ? "plan" : raw;
+    const valid: ChatMode[] = ["express", "plan", "advise", "research"];
+    const saved = valid.includes(migrated as ChatMode) ? (migrated as ChatMode) : "plan";
+    setChatModeState(saved);
+    if (migrated !== raw) localStorage.setItem("fuseiq-chat-mode", saved);
+  }, []);
 
   const setChatMode = useCallback((mode: ChatMode) => {
     setChatModeState(mode);
@@ -208,12 +215,11 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("fuseiq-chat-mode", mode);
     }
   }, []);
-  const [detailLevel, setDetailLevelState] = useState<DetailLevel>(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("fuseiq-detail-level") as DetailLevel) || "normal";
-    }
-    return "normal";
-  });
+  const [detailLevel, setDetailLevelState] = useState<DetailLevel>("normal");
+  useEffect(() => {
+    const saved = (localStorage.getItem("fuseiq-detail-level") as DetailLevel) || "normal";
+    setDetailLevelState(saved);
+  }, []);
   const setDetailLevel = useCallback((level: DetailLevel) => {
     setDetailLevelState(level);
     if (typeof window !== "undefined") {
@@ -233,6 +239,24 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     return loadChatSessionMetas();
   });
 
+  // Seed chat sessions for returning users who have no prior sessions
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const existing = loadChatSessionMetas();
+    if (existing.length > 0) return;
+    // Check if this is a returning user (has saved strategies)
+    try {
+      const strats = localStorage.getItem("fuseiq-strategies");
+      if (!strats || JSON.parse(strats).length === 0) return;
+    } catch { return; }
+    // Seed the sessions
+    persistChatSessions(SEED_CHAT_SESSIONS);
+    setChatSessions(SEED_CHAT_SESSIONS.map(s => ({
+      id: s.id, name: s.name, status: s.status, group: s.group,
+      createdAt: s.createdAt, lastMessageAt: s.lastMessageAt, messageCount: s.messageCount,
+    })));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const initNewSession = useCallback((skipWelcome?: boolean) => {
     const sessionId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     setCurrentSessionId(sessionId);
@@ -243,7 +267,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         {
           id: nextId(),
           role: "assistant",
-          content: getWelcomeMessage(activePersona.id),
+          content: getWelcomeMessage(activePersona.id, getCurrentBrand()?.name),
         },
       ]);
     }
@@ -275,7 +299,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setMessages((prev) => [...(userMsg ? [...prev, userMsg] : prev), aiMsg]);
         setStrategyIntent(intent);
       } else {
-        // Build the strategy card
+        // Build the strategy card — with progressive thinking experience
         const adv = advertiser || {
           id: `adv-${Date.now()}`,
           companyName: intent.advertiserSetup?.companyName || "Company",
@@ -288,38 +312,95 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           setAdvertiser(adv);
         }
 
-        const strategy = buildStrategyFromIntent(intent, adv);
-        // Attach selected keywords to the strategy — resolve IDs to real labels
-        const kwLookup = new Map(
-          (intent.allKeywords || []).map((k) => [k.id, k])
-        );
-        strategy.keywords = (intent.selectedKeywords || []).map((id) => {
-          const chip = kwLookup.get(id);
-          return {
-            id,
-            label: chip?.label || id,
-            category: chip?.category || ("interest" as const),
-            selected: true,
-          };
-        });
+        // Add user message immediately
+        if (userMsg) {
+          setMessages((prev) => [...prev, userMsg]);
+        }
 
-        setActiveStrategy(strategy);
-        saveStrategy(strategy);
-
-        const ackMsg: ChatMessage = {
-          id: nextId(),
-          role: "assistant",
-          content: `Building a ${intent.objective || "campaign"} strategy for ${adv.companyName}. Your media plan is on the canvas — review each section, edit anything, then save or send for approval when ready.`,
-        };
-        setMessages((prev) => [
-          ...(userMsg ? [...prev, userMsg] : prev),
-          ackMsg,
-        ]);
+        setIsLoading(true);
         setStrategyIntent(null);
 
-        // Auto-split: chat moves to left panel, canvas shows the strategy
-        setState("split");
-        collapseLeftRail();
+        // Progressive thinking steps — context-aware based on objective
+        const brand = brandRef.current;
+        const objLabel = intent.objective || "campaign";
+        const advName = adv.companyName;
+        const isCTV = objLabel === "awareness";
+        const thinkingSteps = isCTV ? [
+          `Analyzing brief — awareness campaign for ${advName}`,
+          `Sourcing premium CTV/OTT inventory — streaming apps, smart TVs, set-top boxes`,
+          `Building audience segments for ${brand ? brand.industry.toLowerCase() : "your industry"} viewers`,
+          "Allocating budget across CTV, video, and display placements",
+          "Forecasting household reach, completed views, and frequency",
+          "Assembling your media plan",
+        ] : [
+          `Analyzing brief — ${objLabel} campaign for ${advName}`,
+          `Setting ${intent.objective === "traffic" || intent.objective === "sales" ? "conversion" : "awareness"} targeting based on ${brand ? brand.industry.toLowerCase() : "your industry"}`,
+          "Allocating budget across recommended placements",
+          "Calculating audience reach and frequency estimates",
+          "Building forecast with confidence scores",
+          "Assembling your media plan",
+        ];
+
+        const stepDelay = 600;
+        const thinkingId = nextId();
+        const thinkingMsg: ChatMessage = {
+          id: thinkingId,
+          role: "assistant",
+          content: "",
+          thinkingSteps: [],
+        };
+        setMessages((prev) => [...prev, thinkingMsg]);
+
+        // Show thinking steps progressively
+        thinkingSteps.forEach((step, i) => {
+          setTimeout(() => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? { ...m, thinkingSteps: thinkingSteps.slice(0, i + 1) }
+                  : m
+              )
+            );
+          }, (i + 1) * stepDelay);
+        });
+
+        // After all thinking steps, deliver the strategy
+        setTimeout(() => {
+          const strategy = buildStrategyFromIntent(intent, adv);
+          // Attach selected keywords to the strategy — resolve IDs to real labels
+          const kwLookup = new Map(
+            (intent.allKeywords || []).map((k) => [k.id, k])
+          );
+          strategy.keywords = (intent.selectedKeywords || []).map((id) => {
+            const chip = kwLookup.get(id);
+            return {
+              id,
+              label: chip?.label || id,
+              category: chip?.category || ("interest" as const),
+              selected: true,
+            };
+          });
+
+          setActiveStrategy(strategy);
+          saveStrategy(strategy);
+
+          // Replace the thinking message with final response
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === thinkingId
+                ? {
+                    ...m,
+                    content: `Your ${objLabel} strategy for ${advName} is on the canvas — review each section, edit anything, then save or send for approval when ready.`,
+                  }
+                : m
+            )
+          );
+
+          setIsLoading(false);
+          // Auto-split: chat moves to left panel, canvas shows the strategy
+          setState("split");
+          collapseLeftRail();
+        }, thinkingSteps.length * stepDelay + 600);
       }
     },
     [advertiser, setAdvertiser, setActiveStrategy, saveStrategy, collapseLeftRail]
@@ -431,6 +512,12 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     detailLevelRef.current = detailLevel;
   }, [detailLevel]);
 
+  // Ref for chatMode so callAPI closure always has current value
+  const chatModeRef = useRef<ChatMode>(chatMode);
+  useEffect(() => {
+    chatModeRef.current = chatMode;
+  }, [chatMode]);
+
   const callAPI = useCallback(
     async (allMessages: ChatMessage[]) => {
       const apiMessages = allMessages
@@ -489,7 +576,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: apiMessages, brandContext, detailLevel: detailLevelRef.current }),
+          body: JSON.stringify({ messages: apiMessages, brandContext, detailLevel: detailLevelRef.current, chatMode: chatModeRef.current }),
         });
 
         if (!res.ok) {
@@ -508,7 +595,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   );
 
   const sendMessage = useCallback(
-    (content: string, files?: { name: string; type: string; size: number; preview?: string }[]) => {
+    (content: string, files?: { name: string; type: string; size: number; preview?: string }[], options?: { skipIntentRouting?: boolean }) => {
       // Convert AttachedFile previews (data URLs) to AttachedImage for persistence & API
       const images: AttachedImage[] | undefined = files
         ?.filter((f) => f.preview && f.type.startsWith("image/"))
@@ -528,6 +615,25 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
       // Ensure brand context is fresh — ref may not have been set if useEffect hasn't fired
       if (!brandRef.current) brandRef.current = getCurrentBrand();
+
+      // Dismiss any pending setup-mode choice card — user chose to type instead
+      // Fall back to the default mode (conversational/Guided)
+      setMessages((prev) => {
+        const hasSetupCard = prev.some(
+          (m) => m.toolCall?.type === "choices" && m.toolCall.field === "setup-mode"
+        );
+        if (hasSetupCard) {
+          // Remove the setup-mode choice card and the intro message before it
+          return prev.filter(
+            (m) => !(m.toolCall?.type === "choices" && m.toolCall.field === "setup-mode")
+          );
+        }
+        return prev;
+      });
+      // If mode was never set, save the default now so the card doesn't reappear
+      if (typeof window !== "undefined" && !localStorage.getItem("fuseiq-chat-mode")) {
+        setChatMode("plan");
+      }
 
       // Use refs for flow state — avoids stale closure when called via setTimeout
       const currentStrategyIntent = strategyIntentRef.current;
@@ -552,6 +658,48 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Skip intent routing when called from priority cards / proactive nudges —
+      // these prompts should go straight to the conversational API, not get
+      // caught by keyword-based intent detection (e.g. "spend" triggering budget flow).
+      if (options?.skipIntentRouting) {
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+        const updatedMessages = [...messagesRef.current, userMsg];
+        callAPI(updatedMessages).then(
+          (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
+            setIsLoading(false);
+            const aiMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: response.text,
+            };
+            setMessages((prev) => [...prev, aiMsg]);
+          }
+        );
+        return;
+      }
+
+      // ADVISE / RESEARCH MODE: don't enter the build flows. These modes
+      // recommend and analyze — they answer conversationally with evidence
+      // (the API disables the build_campaign_plan tool for these modes).
+      if (chatMode === "advise" || chatMode === "research") {
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+        const updatedMessages = [...messagesRef.current, userMsg];
+        callAPI(updatedMessages).then(
+          (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
+            setIsLoading(false);
+            const aiMsg: ChatMessage = {
+              id: nextId(),
+              role: "assistant",
+              content: response.text,
+            };
+            setMessages((prev) => [...prev, aiMsg]);
+          }
+        );
+        return;
+      }
+
       // Check for campaign intent — route to strategy flow instead of API
       const lower = content.toLowerCase();
 
@@ -568,8 +716,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const brand = brandRef.current;
         const brandName = brand?.name || "your brand";
 
-        // DIRECT MODE: Build audience immediately with smart defaults
-        if (chatMode === "assisted") {
+        // EXPRESS MODE: Build audience immediately with smart defaults
+        if (chatMode === "express") {
           setIsLoading(true);
 
           // Infer audience type from message
@@ -693,7 +841,10 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           lower.includes("app promotion") ||
           lower.includes("media plan") ||
           lower.includes("launch a") ||
-          lower.includes("build a")
+          lower.includes("build a") ||
+          lower.includes("ctv") ||
+          lower.includes("connected tv") ||
+          lower.includes("streaming")
         );
 
       if (isCampaignIntent && !currentStrategyIntent) {
@@ -730,13 +881,13 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
         setMessages((prev) => [...prev, userMsg]);
 
-        // DIRECT MODE: Skip guided steps, build strategy immediately with defaults
-        if (chatMode === "assisted") {
+        // EXPRESS MODE: Skip guided steps, build strategy with defaults + progressive thinking
+        if (chatMode === "express") {
           setIsLoading(true);
           const directIntent: StrategyIntent = {
             ...intent,
-            objective: parsed.objective || "sales", // default to sales if not specified
-            selectedKeywords: [], // skip keyword selection
+            objective: parsed.objective || "sales",
+            selectedKeywords: [],
             allKeywords: [],
           };
 
@@ -752,37 +903,95 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             setAdvertiser(adv);
           }
 
-          // Simulate brief thinking delay for Direct mode
+          // Progressive thinking steps
+          const objLabel = directIntent.objective || "campaign";
+          const advName = adv.companyName;
+          const thinkingSteps = [
+            `Analyzing brief — ${objLabel} campaign for ${advName}`,
+            "Applying smart defaults for targeting and placements",
+            "Allocating budget across recommended channels",
+            "Generating forecast and confidence scores",
+            "Assembling your media plan",
+          ];
+
+          const stepDelay = 500;
+          const thinkingId = nextId();
+          const thinkingMsg: ChatMessage = {
+            id: thinkingId,
+            role: "assistant",
+            content: "",
+            thinkingSteps: [],
+          };
+          setMessages((prev) => [...prev, thinkingMsg]);
+
+          thinkingSteps.forEach((step, i) => {
+            setTimeout(() => {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === thinkingId
+                    ? { ...m, thinkingSteps: thinkingSteps.slice(0, i + 1) }
+                    : m
+                )
+              );
+            }, (i + 1) * stepDelay);
+          });
+
           setTimeout(() => {
             const strategy = buildStrategyFromIntent(directIntent, adv);
             strategy.keywords = [];
             setActiveStrategy(strategy);
             saveStrategy(strategy);
 
-            const ackMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: `Built a ${directIntent.objective} strategy for ${adv.companyName} with recommended defaults. Your media plan is on the canvas — review each section, edit anything, then save or send for approval when ready.`,
-            };
-            setMessages((prev) => [...prev, ackMsg]);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId
+                  ? {
+                      ...m,
+                      content: `Built a ${objLabel} strategy for ${advName} with recommended defaults. Your media plan is on the canvas — review each section, edit anything, then save or send for approval when ready.`,
+                    }
+                  : m
+              )
+            );
             setIsLoading(false);
             setState("split");
             collapseLeftRail();
-          }, 600);
+          }, thinkingSteps.length * stepDelay + 500);
           return;
         }
 
         // GUIDED MODE: Walk through step by step
-        const ackMsg: ChatMessage = {
-          id: nextId(),
-          role: "assistant",
-          content: parsed.objective
-            ? `Got it — ${parsed.objective} campaign for ${brand?.name || "your brand"}. Let me set that up.`
-            : brand
-            ? `Let's build a campaign for ${brand.name}. First — what's the objective?`
-            : "Let's build your campaign. What's the objective?",
-        };
-        setMessages((prev) => [...prev, ackMsg]);
+        // Check for retargeting prerequisite — pixel/tag must be installed
+        const isRetargeting = lower.includes("retargeting") || lower.includes("re-targeting") || lower.includes("site visitor");
+        const brandName = brand?.name || "your brand";
+
+        if (isRetargeting) {
+          // Surface prerequisite notice — retargeting needs a pixel
+          const prereqMsg: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: `Got it — retargeting campaign for ${brandName}. Before I build this, a heads up: retargeting requires a tracking pixel on your site to identify visitors. I don't see one connected yet.\n\nI'll build the campaign plan so you can review it, but you'll need to install the pixel before activating. I can help with that after.`,
+          };
+          setMessages((prev) => [...prev, prereqMsg]);
+        } else {
+          const isCTVBrief = lower.includes("ctv") || lower.includes("connected tv") || lower.includes("streaming");
+          const objDescription = isCTVBrief
+            ? `CTV/OTT awareness campaign for ${brandName}`
+            : parsed.objective
+            ? `${parsed.objective} campaign for ${brandName}`
+            : null;
+
+          const ackMsg: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: objDescription
+              ? `Got it — ${objDescription}. Let me set that up.`
+              : brand
+              ? `Let's build a campaign for ${brand.name}. First — what's the objective?`
+              : "Let's build your campaign. What's the objective?",
+          };
+          setMessages((prev) => [...prev, ackMsg]);
+        }
+
         setStrategyIntent(intent);
         evaluateStrategyFlow(intent);
         return;
@@ -1218,8 +1427,140 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         }
       );
     },
-    [strategyIntent, campaignIntent, evaluateStrategyFlow, evaluateAndRespond, callAPI, setActivePlan, saveNarrative, setActiveNarrative, collapseLeftRail, advertiser, setAdvertiser, chatMode, setActiveStrategy, saveStrategy]
+    [strategyIntent, campaignIntent, evaluateStrategyFlow, evaluateAndRespond, callAPI, setActivePlan, saveNarrative, setActiveNarrative, collapseLeftRail, advertiser, setAdvertiser, chatMode, setChatMode, setActiveStrategy, saveStrategy]
   );
+
+  // Continue campaign flow AFTER mode is chosen (or when mode is already known)
+  const continueCampaignFlow = useCallback((mode: ChatMode) => {
+    // Auto-infer advertiser from brand profile if known
+    if (!brandRef.current) brandRef.current = getCurrentBrand();
+    const brand = brandRef.current;
+    let hasAdv = !!advertiser;
+
+    if (!hasAdv && brand) {
+      const inferred = {
+        id: `adv-${Date.now()}`,
+        companyName: brand.name,
+        websiteUrl: brand.domain,
+        industry: mapBrandIndustryToIAB(brand.industry),
+        restrictedCategories: [] as IABRestrictedCategory[],
+      };
+      setAdvertiser(inferred);
+      hasAdv = true;
+    }
+
+    const intent: StrategyIntent = {};
+    if (brand && hasAdv) {
+      intent.advertiserSetup = {
+        companyName: brand.name,
+        websiteUrl: brand.domain,
+        industry: mapBrandIndustryToIAB(brand.industry),
+        restrictedCategories: [],
+      };
+    }
+
+    // EXPRESS MODE: Skip guided steps, build with defaults + progressive thinking
+    if (mode === "express") {
+      const directIntent: StrategyIntent = {
+        ...intent,
+        objective: "sales",
+        selectedKeywords: [],
+        allKeywords: [],
+      };
+
+      const adv = advertiser || {
+        id: `adv-${Date.now()}`,
+        companyName: brand?.name || "Company",
+        websiteUrl: brand?.domain || "example.com",
+        industry: (brand ? mapBrandIndustryToIAB(brand.industry) : "other") as IABIndustry,
+        restrictedCategories: [] as IABRestrictedCategory[],
+      };
+
+      if (!advertiser && brand) {
+        setAdvertiser(adv);
+      }
+
+      setIsLoading(true);
+      const advName = adv.companyName;
+      const thinkingSteps = [
+        `Setting up sales campaign for ${advName}`,
+        "Applying smart defaults for targeting and placements",
+        "Allocating budget across recommended channels",
+        "Generating forecast and confidence scores",
+        "Assembling your media plan",
+      ];
+
+      const stepDelay = 500;
+      const thinkingId = nextId();
+      const thinkingMsg: ChatMessage = {
+        id: thinkingId,
+        role: "assistant",
+        content: "",
+        thinkingSteps: [],
+      };
+      setMessages((prev) => [...prev, thinkingMsg]);
+
+      thinkingSteps.forEach((step, i) => {
+        setTimeout(() => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === thinkingId
+                ? { ...m, thinkingSteps: thinkingSteps.slice(0, i + 1) }
+                : m
+            )
+          );
+        }, (i + 1) * stepDelay);
+      });
+
+      setTimeout(() => {
+        const strategy = buildStrategyFromIntent(directIntent, adv);
+        strategy.keywords = [];
+        setActiveStrategy(strategy);
+        saveStrategy(strategy);
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === thinkingId
+              ? {
+                  ...m,
+                  content: brand
+                    ? `Built a sales campaign for ${brand.name} with recommended defaults. Review and edit on the canvas.`
+                    : "Built a campaign with recommended defaults. Review and edit on the canvas.",
+                }
+              : m
+          )
+        );
+        setIsLoading(false);
+        setState("split");
+        collapseLeftRail();
+      }, thinkingSteps.length * stepDelay + 500);
+      return;
+    }
+
+    // GUIDED MODE: Walk through step by step
+    setStrategyIntent(intent);
+
+    const aiMsg: ChatMessage = {
+      id: nextId(),
+      role: "assistant",
+      content: brand
+        ? `Great — I'll walk you through it. I've looked at ${brand.domain} — ${brand.industry.toLowerCase()}, ${brand.tagline.toLowerCase().replace(/\.$/, "")}. Let's build a campaign for ${brand.name}.`
+        : "Great — let's build your campaign step by step.",
+    };
+
+    const nextTool = getNextStrategyTool(intent, hasAdv);
+    if (nextTool) {
+      const toolMsg: ChatMessage = {
+        id: nextId(),
+        role: "assistant",
+        content: "",
+        toolCall: strategyToolToToolCall(nextTool),
+      };
+      setMessages((prev) => [...prev, aiMsg, toolMsg]);
+    } else {
+      setMessages((prev) => [...prev, aiMsg]);
+    }
+  }, [advertiser, setAdvertiser, setActiveStrategy, saveStrategy, collapseLeftRail]);
 
   const submitChoice = useCallback(
     (msgId: string, field: string, selected: string[]) => {
@@ -1248,6 +1589,18 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       };
 
       // Route to correct flow
+
+      // First-time mode preference
+      if (field === "setup-mode") {
+        const selectedId = selected[0];
+        const chosenMode: ChatMode = selectedId === "express" ? "express" : "plan";
+        setChatMode(chosenMode);
+        setMessages((prev) => [...prev, userMsg]);
+        // Continue the campaign flow with the chosen mode
+        continueCampaignFlow(chosenMode);
+        return;
+      }
+
       if (field.startsWith("platforms")) {
         // Platform selection → show connection card (OAuth-style)
         const intentTag = field.split(":")[1] || "performance";
@@ -1436,7 +1789,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         evaluateAndRespond(updated, userMsg);
       }
     },
-    [strategyIntent, campaignIntent, messages, evaluateStrategyFlow, evaluateAndRespond, sendMessage, callAPI, setActiveAudience, collapseLeftRail]
+    [strategyIntent, campaignIntent, messages, evaluateStrategyFlow, evaluateAndRespond, sendMessage, callAPI, setActiveAudience, collapseLeftRail, continueCampaignFlow, setChatMode]
   );
 
   const skipChoice = useCallback(
@@ -1644,123 +1997,100 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     [saveNarrative, setActiveNarrative, collapseLeftRail]
   );
 
+  // Continue campaign flow AFTER mode is chosen (or when mode is already known)
   // Start the NEW strategy-based campaign flow
   const startCampaignFlow = useCallback(() => {
-    setState("fullscreen");
-    // Clear generic welcome — user arrived with specific intent
+    // Open in user's preferred layout
+    const preferred = typeof window !== "undefined"
+      ? localStorage.getItem("fuseiq-layout-state") as AICompanionState | null
+      : null;
+    const targetState = (preferred === "split" || preferred === "floating") ? preferred : "fullscreen";
+    setState(targetState);
     setMessages([]);
 
-    // Auto-infer advertiser from brand profile if known
-    // Re-check at call time in case the ref wasn't ready on mount
-    if (!brandRef.current) brandRef.current = getCurrentBrand();
-    const brand = brandRef.current;
-    let hasAdv = !!advertiser;
+    // Check if user has explicitly chosen a mode before
+    const savedMode = typeof window !== "undefined"
+      ? localStorage.getItem("fuseiq-chat-mode") as ChatMode | null
+      : null;
 
-    if (!hasAdv && brand) {
-      const inferred = {
-        id: `adv-${Date.now()}`,
-        companyName: brand.name,
-        websiteUrl: brand.domain,
-        industry: mapBrandIndustryToIAB(brand.industry),
-        restrictedCategories: [] as IABRestrictedCategory[],
-      };
-      setAdvertiser(inferred);
-      hasAdv = true;
-    }
+    if (!savedMode) {
+      // FIRST TIME — ask the user how they want to work
+      if (!brandRef.current) brandRef.current = getCurrentBrand();
+      const brand = brandRef.current;
+      const brandIntro = brand
+        ? `I'm ready to build a campaign for ${brand.name}. Before we start — how would you like to set this up?`
+        : "I'm ready to help you build a campaign. Before we start — how would you like to set this up?";
 
-    const intent: StrategyIntent = {};
-    if (brand && hasAdv) {
-      // Pre-fill advertiser setup so the form is skipped
-      intent.advertiserSetup = {
-        companyName: brand.name,
-        websiteUrl: brand.domain,
-        industry: mapBrandIndustryToIAB(brand.industry),
-        restrictedCategories: [],
-      };
-    }
-
-    // DIRECT MODE: Skip guided steps, build immediately with defaults
-    if (chatMode === "assisted") {
-      const directIntent: StrategyIntent = {
-        ...intent,
-        objective: "sales", // default objective
-        selectedKeywords: [],
-        allKeywords: [],
-      };
-
-      const adv = advertiser || {
-        id: `adv-${Date.now()}`,
-        companyName: brand?.name || "Company",
-        websiteUrl: brand?.domain || "example.com",
-        industry: (brand ? mapBrandIndustryToIAB(brand.industry) : "other") as IABIndustry,
-        restrictedCategories: [] as IABRestrictedCategory[],
-      };
-
-      if (!advertiser && brand) {
-        setAdvertiser(adv);
-      }
-
-      const aiMsg: ChatMessage = {
+      const introMsg: ChatMessage = {
         id: nextId(),
         role: "assistant",
-        content: brand
-          ? `Built a sales campaign for ${brand.name} with recommended defaults. Review and edit on the canvas.`
-          : "Built a campaign with recommended defaults. Review and edit on the canvas.",
+        content: brandIntro,
       };
 
-      const strategy = buildStrategyFromIntent(directIntent, adv);
-      strategy.keywords = [];
-      setActiveStrategy(strategy);
-      saveStrategy(strategy);
-      setMessages([aiMsg]);
-      setState("split");
-      collapseLeftRail();
-      return;
-    }
-
-    // GUIDED MODE: Walk through step by step
-    setStrategyIntent(intent);
-
-    const aiMsg: ChatMessage = {
-      id: nextId(),
-      role: "assistant",
-      content: brand
-        ? `I've looked at ${brand.domain} — ${brand.industry.toLowerCase()}, ${brand.tagline.toLowerCase().replace(/\.$/, "")}. Let's build a campaign for ${brand.name}.`
-        : "Let's build your campaign.",
-    };
-
-    const nextTool = getNextStrategyTool(intent, hasAdv);
-    if (nextTool) {
-      const toolMsg: ChatMessage = {
+      const modeChoiceMsg: ChatMessage = {
         id: nextId(),
         role: "assistant",
         content: "",
-        toolCall: strategyToolToToolCall(nextTool),
+        toolCall: {
+          type: "choices" as const,
+          question: "Choose your setup experience",
+          subtitle: "You can change this anytime from the mode selector.",
+          field: "setup-mode",
+          step: 1,
+          totalSteps: 1,
+          options: [
+            { id: "guided", label: "Walk me through it", detail: "I'll ask a few questions to get the targeting, budget, and creative right." },
+            { id: "express", label: "Build it fast", detail: "I'll use smart defaults and you can review and edit on the canvas." },
+          ],
+          multiSelect: false,
+        },
       };
-      setMessages([aiMsg, toolMsg]);
-    } else {
-      setMessages([aiMsg]);
+
+      setMessages([introMsg, modeChoiceMsg]);
+      return;
     }
-  }, [advertiser, setAdvertiser, chatMode, setActiveStrategy, saveStrategy, collapseLeftRail]);
+
+    // Mode is already known — proceed directly
+    continueCampaignFlow(savedMode);
+  }, [continueCampaignFlow]);
 
   const openFullscreen = useCallback(
     (initialMessage?: string) => {
-      setState("fullscreen");
       if (initialMessage) {
-        initNewSession(true);
-        setTimeout(() => sendMessage(initialMessage), 0);
+        if (state !== "resting") {
+          // Chat is already open — continue in the current conversation and layout
+          setTimeout(() => sendMessage(initialMessage), 0);
+        } else {
+          // Chat is closed — open a new session in the user's preferred layout
+          const preferred = typeof window !== "undefined"
+            ? localStorage.getItem("fuseiq-layout-state") as AICompanionState | null
+            : null;
+          const targetState = (preferred === "split" || preferred === "floating") ? preferred : "fullscreen";
+          setState(targetState);
+          initNewSession(true);
+          // Let intent routing run — user-typed messages and programmatic
+          // messages like "Build me a campaign" should all be routed correctly.
+          setTimeout(() => sendMessage(initialMessage), 0);
+        }
+      } else {
+        // No message — just open the chat in preferred layout
+        const preferred = typeof window !== "undefined"
+          ? localStorage.getItem("fuseiq-layout-state") as AICompanionState | null
+          : null;
+        const targetState = (preferred === "split" || preferred === "floating") ? preferred : "fullscreen";
+        setState(targetState);
       }
     },
-    [sendMessage, initNewSession, setState]
+    [state, sendMessage, initNewSession, setState]
   );
 
   const minimize = useCallback(() => {
-    // If user's preferred layout is floating, go back to floating instead of docked
+    // If user's preferred layout is floating, go back to floating instead of split
     const preferred = typeof window !== "undefined" ? localStorage.getItem("fuseiq-layout-state") : null;
     if (preferred === "floating") {
       setState("floating");
     } else {
-      setState("docked");
+      setState("split");
       collapseLeftRail();
     }
   }, [collapseLeftRail, setState]);

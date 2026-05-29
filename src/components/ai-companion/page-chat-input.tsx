@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type FormEvent, type KeyboardEvent } from "react";
 import { usePathname } from "next/navigation";
-import { ArrowUp, Mic, SlidersHorizontal, Check, MessageSquare, LayoutList, Plus, Upload, Plug, Wand2, Bot, Database, ChevronDown, Sparkles } from "lucide-react";
+import { ArrowUp, Mic, SlidersHorizontal, Check, Zap, ListChecks, Lightbulb, Search, Plus, Upload, Plug, Wand2, Bot, Database, Sparkles } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { cn } from "@/lib/utils";
@@ -11,8 +11,10 @@ import { getPagePrompts, filterPagePrompts, type PageContext, type PagePrompt } 
 import type { ChatMode } from "@/types/campaign";
 
 const MODE_OPTIONS: { id: ChatMode; label: string; description: string; icon: React.ReactNode }[] = [
-  { id: "conversational", label: "Guided", description: "AI walks you through step by step", icon: <MessageSquare className="h-3.5 w-3.5" /> },
-  { id: "assisted", label: "Direct", description: "Jump straight to forms and cards", icon: <LayoutList className="h-3.5 w-3.5" /> },
+  { id: "express", label: "Express", description: "Build it fast with smart defaults", icon: <Zap className="h-3.5 w-3.5" /> },
+  { id: "plan", label: "Plan", description: "Walk through targeting, budget, and creative", icon: <ListChecks className="h-3.5 w-3.5" /> },
+  { id: "advise", label: "Advise", description: "Recommendations backed by evidence", icon: <Lightbulb className="h-3.5 w-3.5" /> },
+  { id: "research", label: "Research", description: "Pull data and surface performance insights", icon: <Search className="h-3.5 w-3.5" /> },
 ];
 
 const TOOL_OPTIONS = [
@@ -48,7 +50,7 @@ function PageToolsPopover() {
 
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-1.5 w-56 rounded-xl border bg-background shadow-lg">
-          <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+          <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Tools
           </div>
           {TOOL_OPTIONS.map((tool) => (
@@ -56,14 +58,14 @@ function PageToolsPopover() {
               key={tool.id}
               type="button"
               onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[#F7F9FB]"
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
             >
               <span className="text-muted-foreground">{tool.icon}</span>
               <div className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-[#394859]">{tool.label}</span>
-                <span className="block text-[11px] text-[#8492A6]">{tool.description}</span>
+                <span className="block text-[13px] font-medium text-foreground">{tool.label}</span>
+                <span className="block text-[11px] text-muted-foreground">{tool.description}</span>
               </div>
-              <span className="text-[10px] text-[#8492A6]">Soon</span>
+              <span className="text-[10px] text-muted-foreground">Soon</span>
             </button>
           ))}
         </div>
@@ -85,20 +87,23 @@ function PageModePopover() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  const current = MODE_OPTIONS.find((m) => m.id === chatMode) || MODE_OPTIONS[0];
+
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="flex items-center gap-1 rounded-lg px-2 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         title="AI mode"
       >
         <SlidersHorizontal className="h-[18px] w-[18px]" />
+        <span className="text-[13px] font-medium">{current.label}</span>
       </button>
 
       {open && (
         <div className="absolute bottom-full left-0 z-50 mb-1.5 w-56 rounded-xl border bg-background shadow-lg">
-          <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+          <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Mode
           </div>
           {MODE_OPTIONS.map((mode) => (
@@ -107,14 +112,14 @@ function PageModePopover() {
               type="button"
               onClick={() => { setChatMode(mode.id); setOpen(false); }}
               className={cn(
-                "flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[#F7F9FB]",
-                chatMode === mode.id && "bg-[#F7F9FB]"
+                "flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent",
+                chatMode === mode.id && "bg-accent"
               )}
             >
               <span className="text-muted-foreground">{mode.icon}</span>
               <div className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-[#394859]">{mode.label}</span>
-                <span className="block text-[11px] text-[#8492A6]">{mode.description}</span>
+                <span className="block text-[13px] font-medium text-foreground">{mode.label}</span>
+                <span className="block text-[11px] text-muted-foreground">{mode.description}</span>
               </div>
               {chatMode === mode.id && (
                 <Check className="h-3.5 w-3.5 shrink-0 text-[#2C9FDD]" />
@@ -149,10 +154,10 @@ function PagePromptDropdown({
   if (prompts.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-[#E0E8F2] bg-white shadow-[0px_4px_16px_rgba(71,88,114,0.12)]">
+    <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-border bg-white shadow-[0px_4px_16px_rgba(71,88,114,0.12)]">
       {!isFiltered && (
         <div className="px-4 pt-3 pb-1.5">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             <Sparkles className="h-3 w-3" />
             Suggested
           </div>
@@ -169,9 +174,9 @@ function PagePromptDropdown({
                 e.preventDefault();
                 onSelect(p.label);
               }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-left text-[13px] text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-accent"
             >
-              <Sparkles className="h-3 w-3 shrink-0 text-[#8492A6]" />
+              <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" />
               <span>{p.label}</span>
             </button>
           ))
@@ -186,7 +191,7 @@ function PagePromptDropdown({
                   e.preventDefault();
                   onSelect(p.label);
                 }}
-                className="rounded-full border border-[#E0E8F2] px-3 py-1 text-[12px] text-[#394859] transition-colors hover:border-[#2C9FDD] hover:bg-[#EBF5FB] hover:text-[#1A7BB5]"
+                className="rounded-full border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-[#2C9FDD] hover:bg-[#EBF5FB] hover:text-[#1A7BB5]"
               >
                 {p.label}
               </button>
@@ -199,7 +204,7 @@ function PagePromptDropdown({
 }
 
 export function PageChatInput({ placeholder }: { placeholder?: string }) {
-  const { openFullscreen, chatMode, setChatMode, state } = useAICompanion();
+  const { openFullscreen, state } = useAICompanion();
   const [value, setValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -226,8 +231,8 @@ export function PageChatInput({ placeholder }: { placeholder?: string }) {
     ta.style.overflowY = ta.scrollHeight > maxH ? "auto" : "hidden";
   }, [value]);
 
-  // Hide when a chat panel is already visible (docked, floating, or split)
-  if (state === "docked" || state === "floating" || state === "split") return null;
+  // Hide when a chat panel is already visible (floating or split)
+  if (state === "floating" || state === "split") return null;
 
   function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
@@ -249,8 +254,6 @@ export function PageChatInput({ placeholder }: { placeholder?: string }) {
     setIsFocused(false);
     setValue("");
   }
-
-  const currentMode = MODE_OPTIONS.find((m) => m.id === chatMode) || MODE_OPTIONS[0];
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 sm:px-8">
@@ -283,14 +286,6 @@ export function PageChatInput({ placeholder }: { placeholder?: string }) {
                   <PageModePopover />
                 </div>
                 <div className="flex items-center gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setChatMode(chatMode === "conversational" ? "assisted" : "conversational")}
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  >
-                    {currentMode.label}
-                    <ChevronDown className="h-3 w-3" />
-                  </button>
                   {hasSpeechAPI && (
                     <button
                       type="button"

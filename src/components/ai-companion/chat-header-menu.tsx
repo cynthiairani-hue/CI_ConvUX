@@ -148,7 +148,7 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
           )} />
         </button>
         {sessionTokens > 0 && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[#F5F7FA] px-2 py-0.5 text-[11px] font-medium text-[#8492A6]" title="Tokens used this session">
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[#F5F7FA] px-2 py-0.5 text-[11px] font-medium text-muted-foreground" title="Tokens used this session">
             <Zap className="h-2.5 w-2.5" />
             {sessionTokens >= 1000 ? `${(sessionTokens / 1000).toFixed(1)}k` : sessionTokens} tokens
           </span>
@@ -178,7 +178,7 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
               <div className="max-h-[320px] overflow-y-auto p-1.5">
                 {groupedSessions.map((group) => (
                   <div key={group.label}>
-                    <span className="px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-[#8492A6]">
+                    <span className="px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                       {group.label}
                     </span>
                     {group.sessions.map((session) => (
@@ -194,7 +194,7 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
                               onChange={(e) => setRenameValue(e.target.value)}
                               onKeyDown={(e) => { if (e.key === "Escape") setRenameId(null); }}
                               onBlur={() => handleRenameSubmit(session.id)}
-                              className="w-full rounded border px-2 py-1 text-[12px] outline-none focus:border-[#2C9FDD]"
+                              className="w-full rounded border px-2 py-1 text-[12px] outline-none focus:border-ring"
                             />
                           </form>
                         ) : (
@@ -202,12 +202,12 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
                             onClick={() => handleLoadSession(session.id)}
                             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left transition-colors hover:bg-accent"
                           >
-                            <MessageSquare className="h-3.5 w-3.5 shrink-0 text-[#C4CDD8]" />
+                            <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
                             <div className="min-w-0 flex-1">
                               <span className="block truncate text-[13px] text-foreground">
                                 {session.name}
                               </span>
-                              <span className="flex items-center gap-1 text-[11px] text-[#8492A6]">
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                                 <Clock className="h-2.5 w-2.5" />
                                 {timeAgo(session.lastMessageAt)}
                               </span>
@@ -220,7 +220,7 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
                                   setRenameValue(session.name);
                                   setRenameId(session.id);
                                 }}
-                                className="flex h-5 w-5 items-center justify-center rounded text-[#8492A6] hover:bg-[#E0E8F2] hover:text-[#394859]"
+                                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                                 title="Rename"
                               >
                                 <Pencil className="h-2.5 w-2.5" />
@@ -231,7 +231,7 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
                                   e.stopPropagation();
                                   archiveChatSession(session.id);
                                 }}
-                                className="flex h-5 w-5 items-center justify-center rounded text-[#8492A6] hover:bg-[#E0E8F2] hover:text-[#394859]"
+                                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                                 title="Archive"
                               >
                                 <Archive className="h-2.5 w-2.5" />
@@ -242,7 +242,7 @@ export function ChatHeaderMenu({ compact }: ChatHeaderMenuProps) {
                                   e.stopPropagation();
                                   deleteChatSession(session.id);
                                 }}
-                                className="flex h-5 w-5 items-center justify-center rounded text-[#8492A6] hover:bg-red-50 hover:text-red-500"
+                                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-red-50 hover:text-red-500"
                                 title="Delete"
                               >
                                 <Trash2 className="h-2.5 w-2.5" />

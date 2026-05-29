@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import { getCurrentBrand } from "@/data/brand-profiles";
+import { useBrand } from "@/data/brand-profiles";
 import { FFERN_SEED_ANOMALIES } from "@/data/seed-ffern";
 import { SEED_ANOMALIES } from "@/data/seed-company";
 import type { SeedAnomaly } from "@/data/seed-company";
@@ -13,9 +13,11 @@ import {
   ArrowLeft,
   ChevronDown,
   DollarSign,
+  Image,
   Megaphone,
   MessageSquare,
   Search,
+  Target,
   TrendingUp,
   Zap,
   RefreshCw,
@@ -55,8 +57,8 @@ function buildFocusItems(
       title: `${a.channel} CPA trending up`,
       description: a.recommendedAction,
       confidence: a.confidence,
-      icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />,
-      iconBg: "bg-amber-50",
+      icon: <AlertTriangle className="h-3.5 w-3.5 text-foreground" />,
+      iconBg: "bg-muted",
       prompt: `Explain the ${a.channel} anomaly and what I should do about it`,
     });
   });
@@ -68,8 +70,8 @@ function buildFocusItems(
     description: `Shopping ROAS is 6.9x vs Meta's 3.8x. A 15% reallocation should improve blended return.`,
     confidence: "high",
     impact: "+$2.1K revenue/mo",
-    icon: <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />,
-    iconBg: "bg-emerald-50",
+    icon: <TrendingUp className="h-3.5 w-3.5 text-foreground" />,
+    iconBg: "bg-muted",
     prompt: `Walk me through reallocating 15% of Meta spend to Google Shopping for ${brandName}`,
   });
 
@@ -79,8 +81,8 @@ function buildFocusItems(
     title: "Refresh top Meta ad creative",
     description: "Best-performing ad set running 18 days — frequency at 3.2, CTR dropped 12%.",
     confidence: "high",
-    icon: <RefreshCw className="h-3.5 w-3.5 text-[#2C9FDD]" />,
-    iconBg: "bg-[#EBF5FB]",
+    icon: <RefreshCw className="h-3.5 w-3.5 text-foreground" />,
+    iconBg: "bg-muted",
     prompt: `Help me refresh the top Meta ad creative for ${brandName}`,
   });
 
@@ -93,8 +95,8 @@ function buildFocusItems(
         title: `Finish "${draft.name}"`,
         description: "This campaign draft is missing creative and forecast. Complete it to launch.",
         confidence: "high",
-        icon: <Zap className="h-3.5 w-3.5 text-[#7C5CFC]" />,
-        iconBg: "bg-[#F3F0FF]",
+        icon: <Zap className="h-3.5 w-3.5 text-foreground" />,
+        iconBg: "bg-muted",
         prompt: `Help me finish the ${draft.name} campaign`,
       });
     }
@@ -115,29 +117,29 @@ function FocusCard({
   onAct: (prompt: string) => void;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 transition-all hover:border-[#E0E8F2] hover:shadow-sm">
+    <div className="flex items-start gap-3 rounded-xl border border-border bg-white px-4 py-3.5 transition-all hover:border-border hover:shadow-sm">
       <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", item.iconBg)}>
         {item.icon}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-medium text-[#394859]">{item.title}</span>
+          <span className="text-[13px] font-medium text-foreground">{item.title}</span>
           {item.impact && (
-            <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground">
               {item.impact}
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-[12px] text-[#8492A6] line-clamp-2">{item.description}</p>
+        <p className="mt-0.5 text-[12px] text-muted-foreground line-clamp-2">{item.description}</p>
         <div className="mt-2 flex items-center gap-3">
           <button
             type="button"
             onClick={() => onAct(item.prompt)}
-            className="inline-flex items-center rounded-md border border-[#E0E8F2] px-3 py-1 text-[11px] font-medium text-[#394859] transition-colors hover:bg-[#F7F9FB]"
+            className="inline-flex items-center rounded-md border border-border px-3 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent"
           >
             Act on this
           </button>
-          <span className="text-[11px] text-[#C4CDD8]">
+          <span className="text-[11px] text-muted-foreground/40">
             {item.confidence} confidence
           </span>
         </div>
@@ -153,28 +155,38 @@ function FocusCard({
 const GROUP_META: Record<ChatSessionGroup, { label: string; icon: React.ReactNode; color: string }> = {
   campaigns: {
     label: "Campaigns",
-    icon: <Megaphone className="h-5 w-5 text-[#2C9FDD]" />,
-    color: "bg-[#EBF5FB]",
+    icon: <Megaphone className="h-5 w-5 text-foreground" />,
+    color: "bg-muted",
   },
   performance: {
     label: "Performance",
-    icon: <TrendingUp className="h-5 w-5 text-emerald-500" />,
-    color: "bg-emerald-50",
+    icon: <TrendingUp className="h-5 w-5 text-foreground" />,
+    color: "bg-muted",
   },
   accounts: {
     label: "Accounts",
-    icon: <Users className="h-5 w-5 text-[#7C5CFC]" />,
-    color: "bg-[#F3F0FF]",
+    icon: <Users className="h-5 w-5 text-foreground" />,
+    color: "bg-muted",
   },
   budgets: {
     label: "Budgets",
-    icon: <DollarSign className="h-5 w-5 text-amber-500" />,
-    color: "bg-amber-50",
+    icon: <DollarSign className="h-5 w-5 text-foreground" />,
+    color: "bg-muted",
+  },
+  creative: {
+    label: "Creative",
+    icon: <Image className="h-5 w-5 text-foreground" />,
+    color: "bg-muted",
+  },
+  audiences: {
+    label: "Audiences",
+    icon: <Target className="h-5 w-5 text-foreground" />,
+    color: "bg-muted",
   },
   general: {
     label: "General",
-    icon: <MessageSquare className="h-5 w-5 text-[#8492A6]" />,
-    color: "bg-[#F0F2F5]",
+    icon: <MessageSquare className="h-5 w-5 text-foreground" />,
+    color: "bg-muted",
   },
 };
 
@@ -229,13 +241,13 @@ function ChatGroupCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col rounded-xl border border-[#E0E8F2] bg-white p-4 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm"
+      className="group flex flex-col rounded-xl border border-border bg-white p-4 text-left transition-all hover:border-border hover:shadow-sm"
     >
       <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", meta.color)}>
         {meta.icon}
       </div>
-      <span className="mt-3 text-[13px] font-medium text-[#394859]">{meta.label}</span>
-      <span className="mt-0.5 text-[11px] text-[#8492A6]">
+      <span className="mt-3 text-[13px] font-medium text-foreground">{meta.label}</span>
+      <span className="mt-0.5 text-[11px] text-muted-foreground">
         {sessions.length} chat{sessions.length !== 1 ? "s" : ""}
         {latest && <> · {timeAgo(latest.lastMessageAt)}</>}
       </span>
@@ -258,12 +270,12 @@ function ChatListItem({
     <button
       type="button"
       onClick={() => onOpen(session.id)}
-      className="group flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[#F7F9FB]"
+      className="group flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent"
     >
-      <span className="min-w-0 flex-1 truncate text-[13px] text-[#394859] group-hover:text-[#1A2333]">
+      <span className="min-w-0 flex-1 truncate text-[13px] text-foreground group-hover:text-[#1A2333]">
         {session.name}
       </span>
-      <span className="shrink-0 text-[11px] text-[#C4CDD8]">
+      <span className="shrink-0 text-[11px] text-muted-foreground/40">
         {timeAgo(session.lastMessageAt)}
       </span>
     </button>
@@ -293,7 +305,7 @@ function SortDropdown({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[#8492A6] transition-colors hover:bg-[#F0F2F5] hover:text-[#394859]"
+        className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         {labels[value]}
         <ChevronDown className="h-3 w-3" />
@@ -301,7 +313,7 @@ function SortDropdown({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-[#E0E8F2] bg-white py-1 shadow-lg">
+          <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-border bg-white py-1 shadow-lg">
             {(Object.keys(labels) as SortMode[]).map((mode) => (
               <button
                 key={mode}
@@ -311,13 +323,13 @@ function SortDropdown({
                   setOpen(false);
                 }}
                 className={cn(
-                  "flex w-full items-center justify-between px-3 py-1.5 text-[12px] transition-colors hover:bg-[#F7F9FB]",
-                  value === mode ? "text-[#394859] font-medium" : "text-[#8492A6]"
+                  "flex w-full items-center justify-between px-3 py-1.5 text-[12px] transition-colors hover:bg-accent",
+                  value === mode ? "text-foreground font-medium" : "text-muted-foreground"
                 )}
               >
                 {labels[mode]}
                 {value === mode && (
-                  <svg className="h-3 w-3 text-[#394859]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <svg className="h-3 w-3 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 )}
@@ -381,8 +393,8 @@ function ChatsTabContent({
   if (sessions.length === 0) {
     return (
       <div className="flex flex-col items-center rounded-xl bg-white px-8 py-8 text-center">
-        <MessageSquare className="h-5 w-5 text-[#C4CDD8]" />
-        <p className="mt-2 text-[13px] text-[#8492A6]">
+        <MessageSquare className="h-5 w-5 text-muted-foreground/40" />
+        <p className="mt-2 text-[13px] text-muted-foreground">
           No conversations yet. Ask anything to get started.
         </p>
       </div>
@@ -401,31 +413,31 @@ function ChatsTabContent({
               setActiveGroup(null);
               setSearchQuery("");
             }}
-            className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F0F2F5] hover:text-[#394859]"
+            className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <ArrowLeft className="h-3 w-3" />
           </button>
-          <span className="text-[13px] font-medium text-[#394859]">{meta.label}</span>
-          <span className="text-[11px] text-[#C4CDD8]">{groupSessions.length}</span>
+          <span className="text-[13px] font-medium text-foreground">{meta.label}</span>
+          <span className="text-[11px] text-muted-foreground/40">{groupSessions.length}</span>
           <div className="ml-auto">
             <SortDropdown value={sortMode} onChange={setSortMode} />
           </div>
         </div>
 
         <div className="relative mt-2">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#C4CDD8]" />
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search chats..."
-            className="w-full rounded-lg border border-[#E0E8F2] bg-white py-2 pl-8 pr-3 text-[12px] outline-none placeholder:text-[#C4CDD8] focus:border-[#E0E8F2]"
+            className="w-full rounded-lg border border-border bg-white py-2 pl-8 pr-3 text-[12px] outline-none placeholder:text-muted-foreground/40 focus:border-border"
           />
         </div>
 
         <div className="mt-2">
           {groupSessions.length === 0 ? (
-            <p className="px-2 py-4 text-center text-[12px] text-[#C4CDD8]">No chats found.</p>
+            <p className="px-2 py-4 text-center text-[12px] text-muted-foreground/40">No chats found.</p>
           ) : (
             groupSessions.map((s) => (
               <ChatListItem key={s.id} session={s} onOpen={onOpenSession} />
@@ -440,27 +452,27 @@ function ChatsTabContent({
   return (
     <div>
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#C4CDD8]" />
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search all chats..."
-          className="w-full rounded-lg border border-[#E0E8F2] bg-white py-2 pl-8 pr-3 text-[12px] outline-none placeholder:text-[#C4CDD8] focus:border-[#E0E8F2]"
+          className="w-full rounded-lg border border-border bg-white py-2 pl-8 pr-3 text-[12px] outline-none placeholder:text-muted-foreground/40 focus:border-border"
         />
       </div>
 
       {searchResults ? (
         <div className="mt-3">
           <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] font-medium text-[#8492A6]">
+            <span className="text-[11px] font-medium text-muted-foreground">
               {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
             </span>
             <SortDropdown value={sortMode} onChange={setSortMode} />
           </div>
           <div className="mt-1">
             {searchResults.length === 0 ? (
-              <p className="px-2 py-4 text-center text-[12px] text-[#C4CDD8]">No chats found.</p>
+              <p className="px-2 py-4 text-center text-[12px] text-muted-foreground/40">No chats found.</p>
             ) : (
               searchResults.map((s) => (
                 <ChatListItem key={s.id} session={s} onOpen={onOpenSession} />
@@ -498,7 +510,7 @@ export function FocusChatsTabs({
   const [activeTab, setActiveTab] = useState<TabId>("focus");
   const { openFullscreen, chatSessions, loadChatSession } = useAICompanion();
 
-  const brand = getCurrentBrand();
+  const brand = useBrand();
   const brandName = brand?.name || "your brand";
   const anomalies = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
 
@@ -523,7 +535,7 @@ export function FocusChatsTabs({
   return (
     <div>
       {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-[#E0E8F2]">
+      <div className="flex items-center gap-1 border-b border-border">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -532,18 +544,18 @@ export function FocusChatsTabs({
             className={cn(
               "relative px-4 py-2.5 text-[13px] font-medium transition-colors",
               activeTab === tab.id
-                ? "text-[#394859]"
-                : "text-[#8492A6] hover:text-[#394859]"
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             {tab.label}
             {tab.count !== undefined && tab.count > 0 && (
-              <span className="ml-1.5 rounded-full bg-[#F0F2F5] px-1.5 py-0.5 text-[10px] font-medium text-[#8492A6]">
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {tab.count}
               </span>
             )}
             {activeTab === tab.id && (
-              <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-[#394859]" />
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-foreground" />
             )}
           </button>
         ))}
@@ -555,8 +567,8 @@ export function FocusChatsTabs({
           <div className="space-y-2">
             {focusItems.length === 0 ? (
               <div className="flex flex-col items-center rounded-xl bg-white px-8 py-8 text-center">
-                <Zap className="h-5 w-5 text-[#C4CDD8]" />
-                <p className="mt-2 text-[13px] text-[#8492A6]">
+                <Zap className="h-5 w-5 text-muted-foreground/40" />
+                <p className="mt-2 text-[13px] text-muted-foreground">
                   No recommendations right now. Check back after your campaigns run.
                 </p>
               </div>

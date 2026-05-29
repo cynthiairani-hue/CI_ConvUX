@@ -1,22 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
-import { getCurrentBrand } from "@/data/brand-profiles";
+import { useBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
-import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2 } from "lucide-react";
+import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2, Check, X } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { PageChatInput } from "@/components/ai-companion/page-chat-input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { StrategyPlan, StrategyPlanStatus } from "@/types/campaign";
 
 const STATUS_CONFIG: Record<StrategyPlanStatus, { label: string; dot: string; bg: string; text: string }> = {
-  draft: { label: "Draft", dot: "bg-[#C4CDD8]", bg: "bg-[#F3F4F6]", text: "text-[#6B7280]" },
+  draft: { label: "Draft", dot: "bg-muted-foreground/40", bg: "bg-muted", text: "text-muted-foreground" },
   "pending-approval": { label: "Pending", dot: "bg-amber-400", bg: "bg-amber-50", text: "text-amber-600" },
   approved: { label: "Approved", dot: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-600" },
   active: { label: "Active", dot: "bg-emerald-500", bg: "bg-emerald-50", text: "text-emerald-600" },
   paused: { label: "Paused", dot: "bg-amber-400", bg: "bg-amber-50", text: "text-amber-600" },
-  archived: { label: "Archived", dot: "bg-[#C4CDD8]", bg: "bg-[#F3F4F6]", text: "text-[#6B7280]" },
+  archived: { label: "Archived", dot: "bg-muted-foreground/40", bg: "bg-muted", text: "text-muted-foreground" },
 };
 
 function timeAgo(iso: string): string {
@@ -30,12 +31,28 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-function StrategyRow({ strategy, onOpen, onAction }: { strategy: StrategyPlan; onOpen: () => void; onAction: (actionId: string) => void }) {
+function StrategyRow({
+  strategy, onOpen, onAction, isRenaming, renameValue, onRenameChange, onRenameSubmit, onRenameCancel,
+}: {
+  strategy: StrategyPlan;
+  onOpen: () => void;
+  onAction: (actionId: string) => void;
+  isRenaming: boolean;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameSubmit: () => void;
+  onRenameCancel: () => void;
+}) {
   const config = STATUS_CONFIG[strategy.status];
   const objectiveLabel = strategy.objective?.value || "No objective";
   const budget = strategy.budgetSchedule?.data?.monthlyBudget
     ? `$${strategy.budgetSchedule.data.monthlyBudget.toLocaleString()}/mo`
     : strategy.budgetSchedule?.value || "No budget";
+  const renameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming && renameRef.current) renameRef.current.focus();
+  }, [isRenaming]);
 
   const actions: OverflowAction[] = [
     { id: "duplicate", label: "Duplicate", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => onAction("duplicate") },
@@ -47,20 +64,47 @@ function StrategyRow({ strategy, onOpen, onAction }: { strategy: StrategyPlan; o
 
   return (
     <div
-      onClick={onOpen}
-      className="group flex w-full cursor-pointer items-center gap-4 rounded-xl border border-[#E0E8F2] bg-white px-4 py-3.5 text-left transition-all hover:border-[#E0E8F2] hover:shadow-sm"
+      onClick={isRenaming ? undefined : onOpen}
+      className={cn(
+        "group flex w-full items-center gap-4 rounded-xl border border-border bg-white px-4 py-3.5 text-left transition-all hover:shadow-sm",
+        isRenaming ? "ring-1 ring-[#2C9FDD]" : "cursor-pointer"
+      )}
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EBF5FB]">
         <Megaphone className="h-4 w-4 text-[#2C9FDD]" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[13px] font-semibold text-[#394859]">{strategy.name}</span>
-          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.text)}>
-            {config.label}
-          </span>
+          {isRenaming ? (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={renameRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => onRenameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onRenameSubmit();
+                  if (e.key === "Escape") onRenameCancel();
+                }}
+                className="min-w-0 flex-1 rounded-md border border-border px-2 py-0.5 text-[13px] font-semibold text-foreground outline-none focus:border-ring"
+              />
+              <button onClick={onRenameSubmit} className="flex h-6 w-6 items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-50">
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button onClick={onRenameCancel} className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <span className="truncate text-[13px] font-semibold text-foreground">{strategy.name}</span>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.text)}>
+                {config.label}
+              </span>
+            </>
+          )}
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[12px] text-[#8492A6]">
+        <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
           <span className="truncate">{objectiveLabel}</span>
           <span>·</span>
           <span>{budget}</span>
@@ -71,7 +115,7 @@ function StrategyRow({ strategy, onOpen, onAction }: { strategy: StrategyPlan; o
           </span>
         </div>
       </div>
-      <CardOverflowMenu actions={actions} />
+      {!isRenaming && <CardOverflowMenu actions={actions} />}
     </div>
   );
 }
@@ -88,9 +132,17 @@ const FILTER_LABELS: Record<string, string> = {
 };
 
 export default function CampaignsPage() {
-  const { savedStrategies, savedAdvertisers, setActiveStrategy, activeNarrative, setActiveNarrative, showToast } = useCampaign();
-  const { openFullscreen, setState } = useAICompanion();
+  const {
+    savedStrategies, savedAdvertisers, setActiveStrategy,
+    activeNarrative, setActiveNarrative, showToast,
+    duplicateStrategy, renameStrategy, archiveStrategy, removeStrategy,
+    hydrated,
+  } = useCampaign();
+  const { openFullscreen } = useAICompanion();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Build advertiser name lookup
   const advNames = new Map(savedAdvertisers.map((a) => [a.id, a.companyName]));
@@ -117,32 +169,58 @@ export default function CampaignsPage() {
   });
 
   function handleOpenStrategy(strategy: StrategyPlan) {
-    // Clear any active narrative so the split canvas shows the strategy
     if (activeNarrative) setActiveNarrative(null);
     setActiveStrategy(strategy);
-    setState("split");
   }
 
   function handleNewCampaign() {
     openFullscreen("Build me a campaign");
   }
 
-  function handleAction(_strategy: StrategyPlan, actionId: string) {
+  function handleAction(strategy: StrategyPlan, actionId: string) {
     if (actionId === "share") {
+      navigator.clipboard?.writeText(`${window.location.origin}/campaigns?id=${strategy.id}`);
       showToast("Share link copied to clipboard");
     } else if (actionId === "duplicate") {
+      duplicateStrategy(strategy.id);
       showToast("Campaign duplicated");
     } else if (actionId === "rename") {
-      showToast("Rename coming soon");
+      setRenamingId(strategy.id);
+      setRenameValue(strategy.name);
     } else if (actionId === "archive") {
+      archiveStrategy(strategy.id);
       showToast("Campaign archived");
     } else if (actionId === "delete") {
-      showToast("Campaign deleted");
+      setDeletingId(strategy.id);
     }
   }
 
+  function handleRenameSubmit(id: string) {
+    const trimmed = renameValue.trim();
+    if (trimmed) {
+      renameStrategy(id, trimmed);
+      showToast("Campaign renamed");
+    }
+    setRenamingId(null);
+  }
+
   const isEmpty = savedStrategies.length === 0;
-  const brand = getCurrentBrand();
+  const brand = useBrand();
+
+  // Prevent hydration mismatch: server renders with [] strategies, client
+  // loads from localStorage. Render only the stable header until hydrated.
+  if (!hydrated) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Campaigns</h1>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -151,7 +229,7 @@ export default function CampaignsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-foreground">Campaigns</h1>
-              <p className="mt-0.5 text-[13px] text-[#8492A6]">
+              <p className="mt-0.5 text-[13px] text-muted-foreground">
                 {isEmpty ? "Your campaigns will live here" : `${savedStrategies.length} campaign${savedStrategies.length === 1 ? "" : "s"}`}
               </p>
             </div>
@@ -159,7 +237,7 @@ export default function CampaignsPage() {
               <button
                 type="button"
                 onClick={handleNewCampaign}
-                className="flex items-center gap-1.5 rounded-lg bg-[#394859] px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#2D3A47]"
+                className="flex items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-foreground/90"
               >
                 <Plus className="h-4 w-4" />
                 New campaign
@@ -178,8 +256,8 @@ export default function CampaignsPage() {
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1 text-[12px] font-medium transition-colors",
                     statusFilter === f
-                      ? "bg-[#394859] text-white"
-                      : "text-[#8492A6] hover:bg-[#F3F4F6] hover:text-[#394859]"
+                      ? "bg-foreground text-white"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   {FILTER_LABELS[f] || f}
@@ -214,18 +292,28 @@ export default function CampaignsPage() {
           ) : (
             <div className="mt-4 space-y-6">
               {groupEntries.length === 0 ? (
-                <p className="py-8 text-center text-[13px] text-[#8492A6]">No campaigns match this filter.</p>
+                <p className="py-8 text-center text-[13px] text-muted-foreground">No campaigns match this filter.</p>
               ) : (
                 groupEntries.map(([advertiser, strategies]) => (
                   <div key={advertiser}>
-                    <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-[#8492A6]">
+                    <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">
                       {advertiser}
                     </h3>
                     <div className="space-y-2">
                       {strategies
                         .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
                         .map((s) => (
-                          <StrategyRow key={s.id} strategy={s} onOpen={() => handleOpenStrategy(s)} onAction={(actionId) => handleAction(s, actionId)} />
+                          <StrategyRow
+                            key={s.id}
+                            strategy={s}
+                            onOpen={() => handleOpenStrategy(s)}
+                            onAction={(actionId) => handleAction(s, actionId)}
+                            isRenaming={renamingId === s.id}
+                            renameValue={renameValue}
+                            onRenameChange={setRenameValue}
+                            onRenameSubmit={() => handleRenameSubmit(s.id)}
+                            onRenameCancel={() => setRenamingId(null)}
+                          />
                         ))}
                     </div>
                   </div>
@@ -239,6 +327,22 @@ export default function CampaignsPage() {
       <div className="shrink-0 pb-6 pt-2">
         <PageChatInput placeholder="Ask about strategy, budgets, or creative next steps..." />
       </div>
+
+      <ConfirmDialog
+        open={deletingId !== null}
+        title="Delete campaign"
+        description="Are you sure you want to delete this campaign? This action cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (deletingId) {
+            removeStrategy(deletingId);
+            showToast("Campaign deleted");
+          }
+          setDeletingId(null);
+        }}
+        onCancel={() => setDeletingId(null)}
+      />
     </div>
   );
 }

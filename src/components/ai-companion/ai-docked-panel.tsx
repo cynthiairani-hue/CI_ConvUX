@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
-import { X, Maximize2 } from "lucide-react";
+import { useRef, useEffect, useMemo, useCallback } from "react";
+import { X, Maximize2, ChevronUp } from "lucide-react";
+import { useChatPagination } from "@/hooks/use-chat-pagination";
+import { ChatScrollMinimap } from "./chat-scroll-minimap";
 import { cn } from "@/lib/utils";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
@@ -20,6 +22,20 @@ export function AIDockedPanel({ side = "right", width }: { side?: "left" | "righ
     submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand, close,
   } = useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { visibleMessages, hasEarlier, loadEarlier, earlierCount } = useChatPagination(messages);
+
+  const handleLoadEarlier = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) { loadEarlier(); return; }
+    const prevHeight = el.scrollHeight;
+    const prevTop = el.scrollTop;
+    loadEarlier();
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevHeight + prevTop;
+      }
+    });
+  }, [loadEarlier]);
 
   const activeToolCall = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -127,19 +143,34 @@ export function AIDockedPanel({ side = "right", width }: { side?: "left" | "righ
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto py-4">
-        {messages.map((msg) => (
-          <AIMessage key={msg.id} message={msg} />
-        ))}
-        {isLoading && (
-          <div className="px-4 py-3">
-            <div className="flex gap-1">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+      <div className="relative flex-1 overflow-hidden">
+        <div ref={scrollRef} className="h-full overflow-y-auto py-4">
+          {hasEarlier && (
+            <div className="flex justify-center pb-3">
+              <button
+                type="button"
+                onClick={handleLoadEarlier}
+                className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ChevronUp className="h-3 w-3" />
+                Load {earlierCount} earlier
+              </button>
             </div>
-          </div>
-        )}
+          )}
+          {visibleMessages.map((msg) => (
+            <AIMessage key={msg.id} message={msg} />
+          ))}
+          {isLoading && (
+            <div className="px-4 py-3">
+              <div className="flex gap-1">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+              </div>
+            </div>
+          )}
+        </div>
+        <ChatScrollMinimap messages={visibleMessages} scrollRef={scrollRef} />
       </div>
 
       <div className="px-4 py-3 space-y-3">

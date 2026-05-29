@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
-import { X, Minimize2 } from "lucide-react";
+import { useRef, useEffect, useMemo, useCallback } from "react";
+import { X, ChevronUp } from "lucide-react";
+import { useChatPagination } from "@/hooks/use-chat-pagination";
+import { ChatScrollMinimap } from "./chat-scroll-minimap";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
@@ -9,15 +11,32 @@ import { ChatChoices } from "./chat-choices";
 import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
 import { ChatSettingsMenu } from "./chat-settings-menu";
+import { ChatLayoutPicker } from "./chat-layout-picker";
+import { ChatOverflowMenu } from "./chat-overflow-menu";
 import { ChatHeaderMenu } from "./chat-header-menu";
 import { PlatformConnectionCard } from "./platform-connection-card";
 import { ArtifactPreviewCard } from "./artifact-preview-card";
 export function AIFullscreen() {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
-    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, minimize, close,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, close,
   } = useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { visibleMessages, hasEarlier, loadEarlier, earlierCount } = useChatPagination(messages);
+
+  const handleLoadEarlier = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) { loadEarlier(); return; }
+    const prevHeight = el.scrollHeight;
+    const prevTop = el.scrollTop;
+    loadEarlier();
+    // Preserve scroll position after DOM update
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevHeight + prevTop;
+      }
+    });
+  }, [loadEarlier]);
 
   const activeToolCall = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -105,16 +124,11 @@ export function AIFullscreen() {
         <ChatHeaderMenu />
         <div className="flex items-center gap-0.5">
           <ChatSettingsMenu />
-          <button
-            onClick={minimize}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="Dock to side"
-          >
-            <Minimize2 className="h-4 w-4" />
-          </button>
+          <ChatLayoutPicker />
+          <ChatOverflowMenu />
           <button
             onClick={close}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             title="Close"
           >
             <X className="h-4 w-4" />
@@ -122,9 +136,22 @@ export function AIFullscreen() {
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div className="relative flex-1 overflow-hidden">
+        <div ref={scrollRef} className="h-full overflow-y-auto">
         <div className="mx-auto max-w-2xl py-6">
-          {messages.map((msg) => (
+          {hasEarlier && (
+            <div className="flex justify-center pb-3">
+              <button
+                type="button"
+                onClick={handleLoadEarlier}
+                className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ChevronUp className="h-3 w-3" />
+                Load {earlierCount} earlier messages
+              </button>
+            </div>
+          )}
+          {visibleMessages.map((msg) => (
             <AIMessage key={msg.id} message={msg} />
           ))}
           {isLoading && (
@@ -139,6 +166,8 @@ export function AIFullscreen() {
             </div>
           )}
         </div>
+        </div>
+        <ChatScrollMinimap messages={visibleMessages} scrollRef={scrollRef} />
       </div>
 
       <div>

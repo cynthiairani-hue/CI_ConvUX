@@ -18,10 +18,10 @@ import { cn } from "@/lib/utils";
 import type { AudienceSegment, AudienceSegmentType, AudienceRule } from "@/types/campaign";
 
 const TYPE_CONFIG: Record<AudienceSegmentType, { label: string; icon: typeof Users; color: string; bg: string }> = {
-  retargeting: { label: "Retargeting", icon: Target, color: "text-blue-600", bg: "bg-blue-50" },
-  lookalike: { label: "Lookalike", icon: UserPlus, color: "text-purple-600", bg: "bg-purple-50" },
-  "customer-list": { label: "Customer List", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50" },
-  interest: { label: "Interest-based", icon: BarChart3, color: "text-amber-600", bg: "bg-amber-50" },
+  retargeting: { label: "Retargeting", icon: Target, color: "text-foreground", bg: "bg-muted" },
+  lookalike: { label: "Lookalike", icon: UserPlus, color: "text-foreground", bg: "bg-muted" },
+  "customer-list": { label: "Customer List", icon: Users, color: "text-foreground", bg: "bg-muted" },
+  interest: { label: "Interest-based", icon: BarChart3, color: "text-foreground", bg: "bg-muted" },
 };
 
 const ALL_PLATFORMS = ["Meta", "Google", "TikTok", "LinkedIn", "X/Twitter"];
@@ -68,8 +68,8 @@ function SectionHeader({
 }) {
   return (
     <div className="flex items-center gap-2 px-4 py-3">
-      <Icon className="h-4 w-4 text-[#8492A6]" />
-      <span className="flex-1 text-[13px] font-medium text-[#394859] min-w-0">
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      <span className="flex-1 text-[13px] font-medium text-foreground min-w-0">
         {label}
       </span>
       {onInfoToggle && (
@@ -78,7 +78,7 @@ function SectionHeader({
           onClick={onInfoToggle}
           className={cn(
             "flex h-6 w-6 items-center justify-center rounded-md transition-colors",
-            showInfo ? "bg-[#F7F9FB] text-[#8492A6]" : "text-[#C4CDD8] hover:bg-[#F7F9FB] hover:text-[#8492A6]"
+            showInfo ? "bg-accent text-muted-foreground" : "text-muted-foreground/40 hover:bg-accent hover:text-muted-foreground"
           )}
           title="Why this value"
         >
@@ -88,7 +88,7 @@ function SectionHeader({
       <button
         type="button"
         onClick={onToggle}
-        className="flex h-6 w-6 items-center justify-center rounded-md text-[#C4CDD8] transition-colors hover:bg-[#F7F9FB] hover:text-[#8492A6]"
+        className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-accent hover:text-muted-foreground"
       >
         {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
       </button>
@@ -158,8 +158,8 @@ function ReachForecast({
       {/* Audience size slider */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-[11px] font-medium text-[#8492A6]">Audience size</label>
-          <span className="text-[12px] font-semibold tabular-nums text-[#394859]">
+          <label className="text-[11px] font-medium text-muted-foreground">Audience size</label>
+          <span className="text-[12px] font-semibold tabular-nums text-foreground">
             {forecast.adjustedSize.toLocaleString()}
           </span>
         </div>
@@ -169,26 +169,26 @@ function ReachForecast({
           max={100}
           value={sizeMultiplier}
           onChange={(e) => setSizeMultiplier(parseInt(e.target.value))}
-          className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[#E0E8F2] accent-[#2C9FDD] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#2C9FDD] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-sm"
+          className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-border accent-[#2C9FDD] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#2C9FDD] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:shadow-sm"
         />
         <div className="flex justify-between mt-1">
-          <span className="text-[10px] text-[#C4CDD8]">Narrower</span>
-          <span className="text-[10px] text-[#C4CDD8]">Broader</span>
+          <span className="text-[10px] text-muted-foreground/40">Narrower</span>
+          <span className="text-[10px] text-muted-foreground/40">Broader</span>
         </div>
       </div>
 
       {/* Forecast table */}
-      <div className="rounded-lg border border-[#E0E8F2] overflow-hidden">
+      <div className="rounded-lg border border-border overflow-hidden">
         {rows.map((row, i) => (
           <div
             key={row.label}
             className={cn(
               "flex items-center justify-between px-3 py-1.5 text-[12px]",
-              i > 0 && "border-t border-[#E0E8F2]"
+              i > 0 && "border-t border-border"
             )}
           >
-            <span className="text-[#8492A6]">{row.label}</span>
-            <span className="font-medium tabular-nums text-[#394859]">{row.value}</span>
+            <span className="text-muted-foreground">{row.label}</span>
+            <span className="font-medium tabular-nums text-foreground">{row.value}</span>
           </div>
         ))}
       </div>
@@ -201,7 +201,7 @@ function ReachForecast({
         )}>
           {forecast.confidence} confidence
         </span>
-        <span className="text-[11px] text-[#C4CDD8]">
+        <span className="text-[11px] text-muted-foreground/40">
           · {forecast.confidence === "high" ? "Strong signal from audience size and platforms" : forecast.confidence === "medium" ? "Moderate signal — consider broadening" : "Limited data — estimates may vary significantly"}
         </span>
       </div>
@@ -324,7 +324,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
   return (
     <div className="space-y-4">
       {/* Audience Type */}
-      <div className="rounded-xl border border-[#E0E8F2] bg-white">
+      <div className="rounded-xl border border-border bg-white">
         <SectionHeader
           icon={config.icon}
           label="Audience Type"
@@ -332,7 +332,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
           onToggle={() => toggleCollapse("type")}
         />
         {!collapsedSections.has("type") && (
-          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
+          <div className="border-t border-border px-4 pb-4 pt-3">
             <div className="flex flex-wrap gap-1.5">
               {(Object.entries(TYPE_CONFIG) as [AudienceSegmentType, typeof config][]).map(
                 ([type, cfg]) => (
@@ -344,7 +344,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                       "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
                       segment.type === type
                         ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                        : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2] hover:text-[#394859]"
+                        : "border-border text-muted-foreground hover:border-border hover:text-foreground"
                     )}
                   >
                     {cfg.label}
@@ -357,7 +357,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
       </div>
 
       {/* Estimated Size */}
-      <div className="rounded-xl border border-[#E0E8F2] bg-white">
+      <div className="rounded-xl border border-border bg-white">
         <SectionHeader
           icon={Users}
           label="Estimated Size"
@@ -365,8 +365,8 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
           onToggle={() => toggleCollapse("size")}
         />
         {!collapsedSections.has("size") && (
-          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
-            <div className="flex items-center rounded-lg border border-[#E0E8F2] px-3 py-2 focus-within:border-[#2C9FDD]">
+          <div className="border-t border-border px-4 pb-4 pt-3">
+            <div className="flex items-center rounded-lg border border-border px-3 py-2 focus-within:border-[#2C9FDD]">
               <input
                 type="text"
                 defaultValue={segment.estimatedSize}
@@ -374,11 +374,11 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                 }}
-                className="w-full bg-transparent text-[14px] font-semibold text-[#394859] tabular-nums outline-none placeholder:text-[#C4CDD8]"
+                className="w-full bg-transparent text-[14px] font-semibold text-foreground tabular-nums outline-none placeholder:text-muted-foreground/40"
                 placeholder="e.g. 340,000 - 520,000"
               />
             </div>
-            <p className="mt-1.5 text-[11px] text-[#8492A6]">
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
               Estimated reach across selected platforms
             </p>
           </div>
@@ -386,7 +386,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
       </div>
 
       {/* Targeting Rules */}
-      <div className="rounded-xl border border-[#E0E8F2] bg-white">
+      <div className="rounded-xl border border-border bg-white">
         <SectionHeader
           icon={Target}
           label="Targeting Rules"
@@ -397,16 +397,16 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
         />
 
         {showRationale === "rules" && (
-          <div className="mx-4 mb-2 rounded-lg bg-[#F7F9FB] px-3 py-2 text-[12px] text-[#8492A6] leading-relaxed">
+          <div className="mx-4 mb-2 rounded-lg bg-accent px-3 py-2 text-[12px] text-muted-foreground leading-relaxed">
             Rules define who is included in this audience segment. AI-inferred rules are based on your brand profile and audience type. Edit any rule or add your own.
           </div>
         )}
 
         {!collapsedSections.has("rules") && (
-          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
+          <div className="border-t border-border px-4 pb-4 pt-3">
             <div className="space-y-2.5">
               {segment.rules.map((rule, i) => (
-                <div key={i} className="group rounded-lg border border-[#E0E8F2] bg-[#F7F9FB] px-3.5 py-2.5">
+                <div key={i} className="group rounded-lg border border-border bg-accent px-3.5 py-2.5">
                   <div className="flex items-start gap-3">
                     <div className="flex-1 min-w-0 space-y-1">
                       <input
@@ -417,7 +417,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                             handleRuleLabelChange(i, e.target.value.trim());
                           }
                         }}
-                        className="block w-full bg-transparent text-[12px] font-medium text-[#394859] outline-none placeholder:text-[#C4CDD8] focus:underline focus:decoration-[#2C9FDD] focus:underline-offset-2"
+                        className="block w-full bg-transparent text-[12px] font-medium text-foreground outline-none placeholder:text-muted-foreground/40 focus:underline focus:decoration-[#2C9FDD] focus:underline-offset-2"
                         placeholder="Rule name"
                       />
                       <input
@@ -428,7 +428,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                             handleRuleValueChange(i, e.target.value.trim());
                           }
                         }}
-                        className="block w-full bg-transparent text-[12px] text-[#8492A6] outline-none placeholder:text-[#C4CDD8] focus:text-[#394859] focus:underline focus:decoration-[#2C9FDD] focus:underline-offset-2"
+                        className="block w-full bg-transparent text-[12px] text-muted-foreground outline-none placeholder:text-muted-foreground/40 focus:text-foreground focus:underline focus:decoration-[#2C9FDD] focus:underline-offset-2"
                         placeholder="Rule value"
                       />
                     </div>
@@ -438,7 +438,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                           "rounded-full px-2 py-0.5 text-[10px] font-medium",
                           rule.provenance.source === "user_input"
                             ? "bg-blue-50 text-blue-600"
-                            : "bg-[#F0F2F5] text-[#8492A6]"
+                            : "bg-muted text-muted-foreground"
                         )}
                       >
                         {rule.provenance.source === "user_input" ? "Your input" : "AI inferred"}
@@ -446,7 +446,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                       <button
                         type="button"
                         onClick={() => handleRemoveRule(i)}
-                        className="flex h-5 w-5 items-center justify-center rounded-md text-[#C4CDD8] opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
+                        className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
                         title="Remove rule"
                       >
                         <X className="h-3 w-3" />
@@ -465,7 +465,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                       value={newRuleLabel}
                       onChange={(e) => setNewRuleLabel(e.target.value)}
                       placeholder="Rule name (e.g. Lookback window)"
-                      className="block w-full bg-transparent text-[12px] font-medium text-[#394859] outline-none placeholder:text-[#C4CDD8]"
+                      className="block w-full bg-transparent text-[12px] font-medium text-foreground outline-none placeholder:text-muted-foreground/40"
                       autoFocus
                     />
                     <input
@@ -477,7 +477,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                         if (e.key === "Enter") handleAddRule();
                         if (e.key === "Escape") { setAddingRule(false); setNewRuleLabel(""); setNewRuleValue(""); }
                       }}
-                      className="block w-full bg-transparent text-[12px] text-[#8492A6] outline-none placeholder:text-[#C4CDD8]"
+                      className="block w-full bg-transparent text-[12px] text-muted-foreground outline-none placeholder:text-muted-foreground/40"
                     />
                   </div>
                   <div className="mt-2 flex items-center gap-2">
@@ -492,7 +492,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                     <button
                       type="button"
                       onClick={() => { setAddingRule(false); setNewRuleLabel(""); setNewRuleValue(""); }}
-                      className="rounded-md px-2.5 py-1 text-[11px] font-medium text-[#8492A6] transition-colors hover:bg-[#F7F9FB]"
+                      className="rounded-md px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent"
                     >
                       Cancel
                     </button>
@@ -502,7 +502,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                 <button
                   type="button"
                   onClick={() => setAddingRule(true)}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#E0E8F2] py-2.5 text-[12px] text-[#8492A6] transition-colors hover:border-[#E0E8F2] hover:bg-[#F7F9FB]"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2.5 text-[12px] text-muted-foreground transition-colors hover:border-border hover:bg-accent"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add targeting rule
@@ -514,7 +514,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
       </div>
 
       {/* Reach Forecast */}
-      <div className="rounded-xl border border-[#E0E8F2] bg-white">
+      <div className="rounded-xl border border-border bg-white">
         <SectionHeader
           icon={TrendingUp}
           label="Reach Forecast"
@@ -525,13 +525,13 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
         />
 
         {showRationale === "forecast" && (
-          <div className="mx-4 mb-2 rounded-lg bg-[#F7F9FB] px-3 py-2 text-[12px] text-[#8492A6] leading-relaxed">
+          <div className="mx-4 mb-2 rounded-lg bg-accent px-3 py-2 text-[12px] text-muted-foreground leading-relaxed">
             Reach estimates are based on audience size, selected platforms, and historical CPM data for this audience type. Drag the slider to see how narrowing or broadening your audience affects projected reach and spend.
           </div>
         )}
 
         {!collapsedSections.has("forecast") && (
-          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
+          <div className="border-t border-border px-4 pb-4 pt-3">
             <ReachForecast
               audienceSize={parsedSize}
               platformCount={segment.platforms.length}
@@ -542,7 +542,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
       </div>
 
       {/* Platforms */}
-      <div className="rounded-xl border border-[#E0E8F2] bg-white">
+      <div className="rounded-xl border border-border bg-white">
         <SectionHeader
           icon={Globe}
           label="Platforms"
@@ -550,7 +550,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
           onToggle={() => toggleCollapse("platforms")}
         />
         {!collapsedSections.has("platforms") && (
-          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
+          <div className="border-t border-border px-4 pb-4 pt-3">
             <div className="flex flex-wrap gap-1.5">
               {ALL_PLATFORMS.map((platform) => {
                 const active = segment.platforms.includes(platform);
@@ -563,7 +563,7 @@ export function AudienceCard({ segment, onUpdate }: AudienceCardProps) {
                       "flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] font-medium transition-all",
                       active
                         ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                        : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2]"
+                        : "border-border text-muted-foreground hover:border-border"
                     )}
                   >
                     {platform}

@@ -23,10 +23,10 @@ export default function LandingPage() {
             <br />
             built for how you work.
           </h1>
-          <p className="mx-auto mt-4 max-w-md text-base text-muted-foreground">
-            FuseIQ brings campaigns, audiences, and reporting into one
-            intelligent platform — with an AI companion that learns your goals
-            and acts on them.
+          <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-muted-foreground">
+            Campaigns, audiences, and reporting in one intelligent surface.
+            An AI companion that learns your brand, proposes structured
+            artifacts, and acts within explicit guardrails.
           </p>
           <Link
             href="/signup"

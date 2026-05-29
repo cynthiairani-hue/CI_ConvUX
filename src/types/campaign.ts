@@ -145,7 +145,14 @@ export interface SectionEdit {
   editedBy: string;
 }
 
-export type ChatMode = "assisted" | "conversational";
+/**
+ * AI interaction modes — Notion-style, adapted to the marketer mental model.
+ * - express: build the artifact fast with smart defaults (was "assisted")
+ * - plan: walk through targeting/budget/creative step by step (was "conversational")
+ * - advise: recommend with evidence, no auto-build
+ * - research: pull data and surface performance insights
+ */
+export type ChatMode = "express" | "plan" | "advise" | "research";
 
 export type DetailLevel = "normal" | "thinking" | "verbose" | "summary";
 
@@ -251,7 +258,7 @@ export interface CFONarrative {
 // --- Audience Segments ---
 
 export type AudienceSegmentType = "retargeting" | "lookalike" | "customer-list" | "interest";
-export type AudienceSegmentStatus = "draft" | "ready" | "active";
+export type AudienceSegmentStatus = "draft" | "ready" | "active" | "paused" | "archived";
 
 export interface AudienceRule {
   label: string;

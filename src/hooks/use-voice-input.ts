@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SpeechRecognitionAny = any;
@@ -20,21 +20,21 @@ export function useVoiceInput(
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionAny | null>(null);
   const voiceBaseRef = useRef("");
+  // Track whether the user explicitly stopped — prevents auto-restart
+  const stoppedByUserRef = useRef(false);
+  // Track accumulated final text across continuous recognition restarts
+  const accumulatedTextRef = useRef("");
 
-  const hasSpeechAPI = !!getSpeechAPI();
+  // Defer to useEffect so SSR and first client render match (avoids hydration mismatch)
+  const [hasSpeechAPI, setHasSpeechAPI] = useState(false);
+  useEffect(() => { setHasSpeechAPI(!!getSpeechAPI()); }, []);
 
-  const toggleVoice = useCallback(() => {
+  const startRecognition = useCallback(() => {
     const SpeechRecognitionCtor = getSpeechAPI();
     if (!SpeechRecognitionCtor) return;
 
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      return;
-    }
-
     const recognition = new SpeechRecognitionCtor();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
@@ -50,25 +50,85 @@ export function useVoiceInput(
         }
       }
       const base = voiceBaseRef.current;
-      const combined = finalText + interimText;
-      setValue(base ? `${base} ${combined}` : combined);
+      const accumulated = accumulatedTextRef.current;
+      const newFinal = accumulated + finalText;
+      const display = newFinal + interimText;
+      setValue(base ? `${base} ${display}` : display);
+
+      // When we get final results, store them so restarts don't lose text
+      if (finalText) {
+        accumulatedTextRef.current = newFinal;
+      }
     };
 
     recognition.onend = () => {
+      // If the user didn't explicitly stop, restart to keep listening
+      // Browser speech recognition can time out after silence — we restart it
+      if (!stoppedByUserRef.current) {
+        // Update base to include everything accumulated so far
+        const base = voiceBaseRef.current;
+        const accumulated = accumulatedTextRef.current;
+        if (accumulated) {
+          voiceBaseRef.current = base ? `${base} ${accumulated}`.trim() : accumulated.trim();
+          accumulatedTextRef.current = "";
+        }
+        // Restart after a tiny delay to avoid rapid restart loops
+        setTimeout(() => {
+          if (!stoppedByUserRef.current) {
+            try {
+              const fresh = new SpeechRecognitionCtor();
+              fresh.continuous = true;
+              fresh.interimResults = true;
+              fresh.lang = "en-US";
+              fresh.onresult = recognition.onresult;
+              fresh.onend = recognition.onend;
+              fresh.onerror = recognition.onerror;
+              recognitionRef.current = fresh;
+              fresh.start();
+            } catch {
+              // If restart fails, stop gracefully
+              setIsListening(false);
+              recognitionRef.current = null;
+            }
+          }
+        }, 100);
+      } else {
+        setIsListening(false);
+        recognitionRef.current = null;
+      }
+    };
+
+    recognition.onerror = (event: SpeechRecognitionAny) => {
+      // "no-speech" and "aborted" are normal — just let onend handle restart
+      if (event.error === "no-speech" || event.error === "aborted") return;
+      // Real errors — stop listening
+      stoppedByUserRef.current = true;
       setIsListening(false);
       recognitionRef.current = null;
     };
 
-    recognition.onerror = () => {
-      setIsListening(false);
-      recognitionRef.current = null;
-    };
-
-    voiceBaseRef.current = value.trim();
     recognitionRef.current = recognition;
     recognition.start();
+  }, [setValue]);
+
+  const toggleVoice = useCallback(() => {
+    if (!getSpeechAPI()) return;
+
+    if (isListening && recognitionRef.current) {
+      // User explicitly stopping
+      stoppedByUserRef.current = true;
+      recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
+    // Starting fresh
+    stoppedByUserRef.current = false;
+    accumulatedTextRef.current = "";
+    voiceBaseRef.current = value.trim();
     setIsListening(true);
-  }, [isListening, value, setValue]);
+    startRecognition();
+  }, [isListening, value, startRecognition]);
 
   return { isListening, hasSpeechAPI, toggleVoice };
 }

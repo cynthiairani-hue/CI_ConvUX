@@ -30,10 +30,13 @@ import type {
   PlacementType,
   AudienceTargetingMode,
   OptimizationTarget,
+  AuthorshipState,
+  ProvenanceSource,
 } from "@/types/campaign";
 import { PLACEMENT_TYPES } from "@/data/iab-categories";
 import { OBJECTIVE_OPTIONS } from "@/data/campaign-flow";
 import { getCurrentBrand } from "@/data/brand-profiles";
+import { generateForecast } from "@/data/forecast-mocks";
 
 const OPTIMIZATION_TARGETS: { id: OptimizationTarget; label: string }[] = [
   { id: "conversions", label: "Conversions" },
@@ -88,6 +91,38 @@ function ReadinessBadge({ state }: { state: ReadinessState }) {
   );
 }
 
+const AUTHORSHIP_LABELS: Record<AuthorshipState, { label: string; className: string }> = {
+  proposed: { label: "AI proposed", className: "text-muted-foreground bg-muted" },
+  decided: { label: "Confirmed", className: "text-emerald-600 bg-emerald-50" },
+  edited: { label: "Edited", className: "text-[#1A7BB5] bg-[#EBF5FB]" },
+  locked: { label: "Locked", className: "text-muted-foreground bg-muted" },
+};
+
+const SOURCE_LABELS: Record<ProvenanceSource, string> = {
+  user_input: "User input",
+  ai_inferred: "AI inferred",
+  brief_extracted: "Extracted from brief",
+  default: "System default",
+  previous_campaign: "Previous campaign",
+};
+
+function AuthorshipBadge({ state, filled }: { state: AuthorshipState; filled: boolean }) {
+  // Unfilled + proposed = needs review
+  if (!filled && state === "proposed") {
+    return (
+      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+        Needs review
+      </span>
+    );
+  }
+  const config = AUTHORSHIP_LABELS[state];
+  return (
+    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", config.className)}>
+      {config.label}
+    </span>
+  );
+}
+
 function SectionIcon({ section }: { section: string }) {
   const icons: Record<string, typeof Target> = {
     objective: Target,
@@ -99,7 +134,7 @@ function SectionIcon({ section }: { section: string }) {
     forecast: TrendingUp,
   };
   const Icon = icons[section] || Target;
-  return <Icon className="h-4 w-4 text-[#8492A6]" />;
+  return <Icon className="h-4 w-4 text-muted-foreground" />;
 }
 
 const SECTION_KEYS = [
@@ -114,6 +149,8 @@ const SECTION_KEYS = [
 
 type SectionKey = (typeof SECTION_KEYS)[number];
 
+const PREMIUM_PLACEMENTS = new Set<PlacementType>(["ctv-ott", "dooh"]);
+
 function PlacementGrid({ placements, onToggle }: {
   placements: PlacementType[];
   onToggle: (p: PlacementType) => void;
@@ -122,6 +159,7 @@ function PlacementGrid({ placements, onToggle }: {
     <div className="grid grid-cols-2 gap-1.5">
       {PLACEMENT_TYPES.map((pt) => {
         const active = placements.includes(pt.id);
+        const isPremium = PREMIUM_PLACEMENTS.has(pt.id);
         return (
           <button
             key={pt.id}
@@ -130,11 +168,21 @@ function PlacementGrid({ placements, onToggle }: {
             className={cn(
               "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12px] transition-all",
               active
-                ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2]"
+                ? isPremium
+                  ? "border-[#7C3AED] bg-[#F5F3FF] text-[#6D28D9]"
+                  : "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
+                : "border-border text-muted-foreground hover:border-border"
             )}
           >
             <span className="font-medium">{pt.label}</span>
+            {isPremium && (
+              <span className={cn(
+                "rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                active ? "bg-[#7C3AED]/10 text-[#7C3AED]" : "bg-muted text-muted-foreground"
+              )}>
+                Premium
+              </span>
+            )}
           </button>
         );
       })}
@@ -162,17 +210,17 @@ function ForecastTable({ forecast }: { forecast: StrategyPlan["forecast"]["data"
 
   return (
     <div>
-      <div className="rounded-lg border border-[#E0E8F2] overflow-hidden">
+      <div className="rounded-lg border border-border overflow-hidden">
         {rows.map((row, i) => (
           <div
             key={row.label}
             className={cn(
               "flex items-center justify-between px-3 py-1.5 text-[12px]",
-              i > 0 && "border-t border-[#E0E8F2]"
+              i > 0 && "border-t border-border"
             )}
           >
-            <span className="text-[#8492A6]">{row.label}</span>
-            <span className="font-medium tabular-nums text-[#394859]">{row.value}</span>
+            <span className="text-muted-foreground">{row.label}</span>
+            <span className="font-medium tabular-nums text-foreground">{row.value}</span>
           </div>
         ))}
       </div>
@@ -183,6 +231,31 @@ function ForecastTable({ forecast }: { forecast: StrategyPlan["forecast"]["data"
         )}>
           {forecast.confidenceLevel} confidence
         </span>
+      </div>
+    </div>
+  );
+}
+
+/** Controlled budget input — shows formatted value, edits raw number */
+function BudgetInput({ label, value, onChange }: { label: string; value: number; onChange: (raw: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value.toString());
+
+  return (
+    <div>
+      <label className="block text-[11px] font-medium text-muted-foreground mb-1">{label}</label>
+      <div className="flex items-center rounded-lg border border-border px-3 py-2 focus-within:border-[#2C9FDD]">
+        <span className="text-[13px] text-muted-foreground">$</span>
+        <input
+          type="text"
+          value={editing ? editValue : value.toLocaleString()}
+          onFocus={() => { setEditing(true); setEditValue(value.toString()); }}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={() => { setEditing(false); onChange(editValue); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+          className="ml-1 w-full bg-transparent text-[13px] text-foreground tabular-nums outline-none placeholder:text-muted-foreground/40"
+          placeholder="0"
+        />
       </div>
     </div>
   );
@@ -204,23 +277,58 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
     });
   }
 
-  /** Immutable update helper — updates a section and calls onUpdate */
+  /** Immutable update helper — updates a section, recalculates forecast, and calls onUpdate */
   const updateSection = useCallback(
     (key: SectionKey, patch: Partial<StrategySection> & { data?: unknown }) => {
       if (!onUpdate) return;
       const now = new Date().toISOString();
       const current = plan[key];
+      // Push previous value into edit history
+      const prevEdit = {
+        previousValue: current.value,
+        editedAt: now,
+        editedBy: "user" as const,
+      };
+      const editHistory = [...(current.editHistory || []), prevEdit];
+
       const updated: StrategyPlan = {
         ...plan,
         [key]: {
           ...current,
           ...patch,
           authorshipState: "edited" as const,
+          editHistory,
           lastModifiedAt: now,
         },
         lastModifiedAt: now,
         lastModifiedBy: "user",
       };
+
+      // Recalculate forecast when budget, placements, or audience change
+      if (key === "budgetSchedule" || key === "placements" || key === "audience") {
+        const budget = key === "budgetSchedule"
+          ? (patch.data as { dailyBudget?: number })?.dailyBudget ?? plan.budgetSchedule.data.dailyBudget ?? 0
+          : plan.budgetSchedule.data.dailyBudget ?? 0;
+        const placements = key === "placements"
+          ? (patch.data as PlacementType[])
+          : (plan.placements.data as PlacementType[]);
+        const audience = key === "audience"
+          ? { ...plan.audience.data, ...(patch.data as Record<string, unknown>) }
+          : plan.audience.data;
+
+        const newForecast = generateForecast(budget, placements, audience);
+        updated.forecast = {
+          ...updated.forecast,
+          data: newForecast,
+          value: `${newForecast.weeklyReach.toLocaleString()} weekly reach · ${newForecast.dailyImpressions.toLocaleString()} daily impressions`,
+          provenance: {
+            ...updated.forecast.provenance,
+            reasoning: "Forecast recalculated based on your changes to budget, placements, or audience.",
+          },
+          authorshipState: "edited",
+        };
+      }
+
       onUpdate(updated);
     },
     [plan, onUpdate]
@@ -443,18 +551,24 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
         const showingRationale = showRationale === key;
 
         return (
-          <div key={key} className="rounded-xl border border-[#E0E8F2] bg-white">
+          <div key={key} className="rounded-xl border border-border bg-white">
             {/* Section header */}
             <div className="flex items-center gap-2 px-4 py-3">
               <SectionIcon section={key} />
-              <span className="flex-1 text-[13px] font-medium text-[#394859] min-w-0">
+              <span className="flex-1 text-[13px] font-medium text-foreground min-w-0">
                 {section.label}
               </span>
+              <AuthorshipBadge state={section.authorshipState} filled={section.filled} />
               <ReadinessBadge state={section.readiness} />
               <button
                 type="button"
                 onClick={() => setShowRationale(showingRationale ? null : key)}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-[#C4CDD8] transition-colors hover:bg-[#F7F9FB] hover:text-[#8492A6]"
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded-md transition-colors",
+                  showingRationale
+                    ? "bg-[#EBF5FB] text-[#1A7BB5]"
+                    : "text-muted-foreground/40 hover:bg-accent hover:text-muted-foreground"
+                )}
                 title="Why this value"
               >
                 <Info className="h-3.5 w-3.5" />
@@ -462,7 +576,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
               <button
                 type="button"
                 onClick={() => toggleCollapse(key)}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-[#C4CDD8] transition-colors hover:bg-[#F7F9FB] hover:text-[#8492A6]"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-accent hover:text-muted-foreground"
               >
                 {isCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
               </button>
@@ -470,28 +584,38 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
 
             {/* Provenance rationale */}
             {showingRationale && (
-              <div className="mx-4 mb-2 rounded-lg bg-[#F7F9FB] px-3 py-2 text-[12px] text-[#8492A6] leading-relaxed">
-                {section.provenance.confidence && (
-                  <span className={cn(
-                    "mr-2 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                    section.provenance.confidence === "high" ? "bg-emerald-50 text-emerald-600" :
-                    section.provenance.confidence === "medium" ? "bg-amber-50 text-amber-600" :
-                    "bg-red-50 text-red-500"
-                  )}>
-                    {section.provenance.confidence}
+              <div className="mx-4 mb-2 rounded-lg bg-accent px-3 py-2.5 text-[12px] leading-relaxed animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="rounded-full bg-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {SOURCE_LABELS[section.provenance.source]}
                   </span>
+                  {section.provenance.confidence && (
+                    <span className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                      section.provenance.confidence === "high" ? "bg-emerald-50 text-emerald-600" :
+                      section.provenance.confidence === "medium" ? "bg-amber-50 text-amber-600" :
+                      "bg-red-50 text-red-500"
+                    )}>
+                      {section.provenance.confidence} confidence
+                    </span>
+                  )}
+                </div>
+                <p className="text-muted-foreground">{section.provenance.reasoning}</p>
+                {section.editHistory && section.editHistory.length > 0 && (
+                  <p className="mt-1.5 text-[11px] text-muted-foreground/40">
+                    {section.editHistory.length} previous {section.editHistory.length === 1 ? "edit" : "edits"}
+                  </p>
                 )}
-                {section.provenance.reasoning}
               </div>
             )}
 
             {/* Section content — always visible unless collapsed */}
             {!isCollapsed && (
-              <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
+              <div className="border-t border-border px-4 pb-4 pt-3">
                 {/* Objective — selectable buttons */}
                 {key === "objective" && (
                   <div className="space-y-2">
-                    <p className="text-[13px] text-[#394859] leading-relaxed mb-3">{section.value}</p>
+                    <p className="text-[13px] text-foreground leading-relaxed mb-3">{section.value}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {OBJECTIVE_OPTIONS.map((opt) => (
                         <button
@@ -502,7 +626,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                             "rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
                             currentObjectiveId === opt.id
                               ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                              : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2] hover:text-[#394859]"
+                              : "border-border text-muted-foreground hover:border-border hover:text-foreground"
                           )}
                         >
                           {opt.label}
@@ -516,32 +640,16 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                 {key === "budgetSchedule" && (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-medium text-[#8492A6] mb-1">Daily budget</label>
-                        <div className="flex items-center rounded-lg border border-[#E0E8F2] px-3 py-2 focus-within:border-[#2C9FDD]">
-                          <span className="text-[13px] text-[#8492A6]">$</span>
-                          <input
-                            type="text"
-                            defaultValue={plan.budgetSchedule.data.dailyBudget?.toString() || ""}
-                            onBlur={(e) => handleBudgetChange("dailyBudget", e.target.value)}
-                            className="ml-1 w-full bg-transparent text-[13px] text-[#394859] tabular-nums outline-none placeholder:text-[#C4CDD8]"
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-[#8492A6] mb-1">Monthly budget</label>
-                        <div className="flex items-center rounded-lg border border-[#E0E8F2] px-3 py-2 focus-within:border-[#2C9FDD]">
-                          <span className="text-[13px] text-[#8492A6]">$</span>
-                          <input
-                            type="text"
-                            defaultValue={plan.budgetSchedule.data.monthlyBudget?.toLocaleString() || ""}
-                            onBlur={(e) => handleBudgetChange("monthlyBudget", e.target.value)}
-                            className="ml-1 w-full bg-transparent text-[13px] text-[#394859] tabular-nums outline-none placeholder:text-[#C4CDD8]"
-                            placeholder="0"
-                          />
-                        </div>
-                      </div>
+                      <BudgetInput
+                        label="Daily budget"
+                        value={plan.budgetSchedule.data.dailyBudget ?? 0}
+                        onChange={(v) => handleBudgetChange("dailyBudget", v)}
+                      />
+                      <BudgetInput
+                        label="Monthly budget"
+                        value={plan.budgetSchedule.data.monthlyBudget ?? 0}
+                        onChange={(v) => handleBudgetChange("monthlyBudget", v)}
+                      />
                     </div>
                     <div className="flex items-center gap-2.5">
                       <button
@@ -549,7 +657,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                         onClick={handleAlwaysOnToggle}
                         className={cn(
                           "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-                          plan.budgetSchedule.data.alwaysOn ? "bg-[#2C9FDD]" : "bg-[#C4CDD8]"
+                          plan.budgetSchedule.data.alwaysOn ? "bg-[#2C9FDD]" : "bg-muted-foreground/40"
                         )}
                       >
                         <span className={cn(
@@ -559,19 +667,19 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                         style={{ width: 18, height: 18 }}
                         />
                       </button>
-                      <span className="text-[12px] text-[#394859]">Always on</span>
+                      <span className="text-[12px] text-foreground">Always on</span>
                     </div>
 
                     {/* Schedule — start / end dates */}
                     {!plan.budgetSchedule.data.alwaysOn && (
-                      <div className="rounded-lg border border-[#E0E8F2] p-3">
-                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-[#8492A6]">
+                      <div className="rounded-lg border border-border p-3">
+                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                           <Calendar className="h-3 w-3" />
                           Schedule
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-[11px] font-medium text-[#8492A6] mb-1">Start date</label>
+                            <label className="block text-[11px] font-medium text-muted-foreground mb-1">Start date</label>
                             <input
                               type="date"
                               defaultValue={plan.budgetSchedule.data.startDate || ""}
@@ -581,11 +689,11 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                                   data: { ...currentData, startDate: e.target.value || null },
                                 });
                               }}
-                              className="w-full rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-[13px] text-[#394859] outline-none focus:border-[#2C9FDD]"
+                              className="w-full rounded-lg border border-border px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-ring"
                             />
                           </div>
                           <div>
-                            <label className="block text-[11px] font-medium text-[#8492A6] mb-1">End date</label>
+                            <label className="block text-[11px] font-medium text-muted-foreground mb-1">End date</label>
                             <input
                               type="date"
                               defaultValue={plan.budgetSchedule.data.endDate || ""}
@@ -595,7 +703,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                                   data: { ...currentData, endDate: e.target.value || null },
                                 });
                               }}
-                              className="w-full rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-[13px] text-[#394859] outline-none focus:border-[#2C9FDD]"
+                              className="w-full rounded-lg border border-border px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-ring"
                             />
                           </div>
                         </div>
@@ -608,7 +716,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                 {key === "audience" && (
                   <div className="space-y-3 text-[12px]">
                     {/* Targeting mode tabs */}
-                    <div className="flex items-center gap-1 rounded-lg bg-[#F7F9FB] p-0.5">
+                    <div className="flex items-center gap-1 rounded-lg bg-accent p-0.5">
                       {TARGETING_MODES.map((mode) => {
                         const isActive = (plan.audience.data.targetingMode || "accounts") === mode.id;
                         return (
@@ -622,8 +730,8 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                             className={cn(
                               "flex-1 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors",
                               isActive
-                                ? "bg-white text-[#394859] shadow-sm"
-                                : "text-[#8492A6] hover:text-[#394859]"
+                                ? "bg-white text-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
                             )}
                           >
                             {mode.label}
@@ -633,42 +741,42 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">Locations</label>
+                      <label className="block text-[11px] font-medium text-muted-foreground mb-1.5">Locations</label>
                       <div className="flex flex-wrap gap-1.5">
                         {plan.audience.data.locations.map((loc) => (
-                          <span key={loc} className="inline-flex items-center gap-1 rounded-full bg-[#F3F4F6] px-2.5 py-1 text-[#394859]">
+                          <span key={loc} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-foreground">
                             {loc}
-                            <button type="button" onClick={() => handleRemoveLocation(loc)} className="text-[#C4CDD8] hover:text-[#8492A6]">&times;</button>
+                            <button type="button" onClick={() => handleRemoveLocation(loc)} className="text-muted-foreground/40 hover:text-muted-foreground">&times;</button>
                           </span>
                         ))}
                         <input
                           type="text"
                           placeholder="Add location..."
-                          className="rounded-full border border-dashed border-[#E0E8F2] px-2.5 py-1 text-[12px] outline-none placeholder:text-[#C4CDD8] focus:border-[#2C9FDD]"
+                          className="rounded-full border border-dashed border-border px-2.5 py-1 text-[12px] outline-none placeholder:text-muted-foreground/40 focus:border-ring"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-medium text-[#8492A6] mb-1">Age range</label>
+                        <label className="block text-[11px] font-medium text-muted-foreground mb-1">Age range</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
                             defaultValue={plan.audience.data.ageRange.min}
                             onBlur={(e) => handleAgeChange("min", e.target.value)}
-                            className="w-16 rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-[13px] text-[#394859] tabular-nums outline-none focus:border-[#2C9FDD]"
+                            className="w-16 rounded-lg border border-border px-2.5 py-1.5 text-[13px] text-foreground tabular-nums outline-none focus:border-ring"
                           />
-                          <span className="text-[#8492A6]">—</span>
+                          <span className="text-muted-foreground">—</span>
                           <input
                             type="number"
                             defaultValue={plan.audience.data.ageRange.max}
                             onBlur={(e) => handleAgeChange("max", e.target.value)}
-                            className="w-16 rounded-lg border border-[#E0E8F2] px-2.5 py-1.5 text-[13px] text-[#394859] tabular-nums outline-none focus:border-[#2C9FDD]"
+                            className="w-16 rounded-lg border border-border px-2.5 py-1.5 text-[13px] text-foreground tabular-nums outline-none focus:border-ring"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-medium text-[#8492A6] mb-1">Gender</label>
+                        <label className="block text-[11px] font-medium text-muted-foreground mb-1">Gender</label>
                         <div className="flex gap-1">
                           {(["all", "male", "female"] as const).map((g) => (
                             <button
@@ -679,7 +787,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                                 "rounded-lg border px-3 py-1.5 text-[12px] font-medium capitalize transition-colors",
                                 plan.audience.data.gender === g
                                   ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                                  : "border-[#E0E8F2] text-[#8492A6] hover:border-[#E0E8F2]"
+                                  : "border-border text-muted-foreground hover:border-border"
                               )}
                             >
                               {g === "all" ? "All" : g.charAt(0).toUpperCase() + g.slice(1)}
@@ -690,7 +798,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                     </div>
                     {plan.audience.data.marketInterests.length > 0 && (
                       <div>
-                        <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">Interests</label>
+                        <label className="block text-[11px] font-medium text-muted-foreground mb-1.5">Interests</label>
                         <div className="flex flex-wrap gap-1.5">
                           {plan.audience.data.marketInterests.map((mi) => (
                             <span key={mi} className="inline-flex items-center gap-1 rounded-full bg-[#EBF5FB] px-2.5 py-1 text-[#1A7BB5]">
@@ -705,13 +813,13 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                     {/* Contextual keywords */}
                     {(plan.audience.data.contextualKeywords?.length ?? 0) > 0 && (
                       <div>
-                        <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">
+                        <label className="block text-[11px] font-medium text-muted-foreground mb-1.5">
                           <Hash className="mr-1 inline h-3 w-3" />
                           Contextual keywords
                         </label>
                         <div className="flex flex-wrap gap-1.5">
                           {plan.audience.data.contextualKeywords!.map((kw) => (
-                            <span key={kw} className="inline-flex items-center gap-1 rounded-full bg-[#F3F4F6] px-2.5 py-1 text-[#394859]">
+                            <span key={kw} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-foreground">
                               {kw}
                             </span>
                           ))}
@@ -720,8 +828,8 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                     )}
 
                     {/* Exclude segments */}
-                    <div className="rounded-lg border border-dashed border-[#E0E8F2] p-3">
-                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#8492A6]">
+                    <div className="rounded-lg border border-dashed border-border p-3">
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                         <MinusCircle className="h-3 w-3" />
                         Exclude
                       </div>
@@ -734,7 +842,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                           ))}
                         </div>
                       ) : (
-                        <p className="mt-1 text-[12px] text-[#C4CDD8]">No excluded segments. Click to add.</p>
+                        <p className="mt-1 text-[12px] text-muted-foreground/40">No excluded segments. Click to add.</p>
                       )}
                     </div>
                   </div>
@@ -752,18 +860,18 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                 {key === "bidding" && (
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">Bid strategy</label>
+                      <label className="block text-[11px] font-medium text-muted-foreground mb-1.5">Bid strategy</label>
                       <div className="flex items-center gap-2">
                         <span className="rounded-lg border border-[#2C9FDD] bg-[#EBF5FB] px-3 py-1.5 text-[12px] font-medium text-[#1A7BB5]">
                           Automatic
                         </span>
-                        <span className="rounded-lg border border-[#E0E8F2] px-3 py-1.5 text-[12px] text-[#C4CDD8]">
+                        <span className="rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground/40">
                           Manual (coming soon)
                         </span>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-[#8492A6] mb-1.5">Optimization target</label>
+                      <label className="block text-[11px] font-medium text-muted-foreground mb-1.5">Optimization target</label>
                       <div className="flex flex-wrap gap-1.5">
                         {OPTIMIZATION_TARGETS.map((opt) => {
                           const isActive = (plan.bidding.data.optimizationTarget || "conversions") === opt.id;
@@ -779,7 +887,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                                 "rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
                                 isActive
                                   ? "border-[#2C9FDD] bg-[#EBF5FB] text-[#1A7BB5]"
-                                  : "border-[#E0E8F2] text-[#8492A6] hover:text-[#394859]"
+                                  : "border-border text-muted-foreground hover:text-foreground"
                               )}
                             >
                               {opt.label}
@@ -804,29 +912,31 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                       className="hidden"
                     />
 
-                    {/* Action buttons */}
+                    {/* Action buttons — Upload is primary, Generate is secondary */}
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors hover:border-[#E0E8F2] hover:bg-[#F7F9FB]"
+                        className="flex-[1.2] rounded-lg border-2 border-dashed border-[#2C9FDD]/30 bg-[#EBF5FB]/30 px-4 py-6 text-center text-[12px] text-foreground transition-colors hover:border-[#2C9FDD]/50 hover:bg-[#EBF5FB]/60"
                       >
-                        <Upload className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
-                        Upload creative
+                        <Upload className="mx-auto mb-1.5 h-5 w-5 text-[#2C9FDD]" />
+                        <span className="font-medium">Upload your assets</span>
+                        <span className="mt-1 block text-[11px] text-muted-foreground">Images, video, or display ads</span>
                       </button>
                       <button
                         type="button"
                         onClick={handleGenerateAI}
                         disabled={isGenerating}
                         className={cn(
-                          "flex-1 rounded-lg border border-dashed border-[#E0E8F2] px-4 py-6 text-center text-[12px] text-[#8492A6] transition-colors",
+                          "flex-[0.8] rounded-lg border border-dashed border-border px-4 py-6 text-center text-[12px] text-muted-foreground transition-colors",
                           isGenerating
-                            ? "animate-pulse bg-[#F7F9FB]"
-                            : "hover:border-[#E0E8F2] hover:bg-[#F7F9FB]"
+                            ? "animate-pulse bg-accent"
+                            : "hover:border-border hover:bg-accent"
                         )}
                       >
-                        <Wand2 className="mx-auto mb-1.5 h-5 w-5 text-[#C4CDD8]" />
+                        <Wand2 className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/40" />
                         {isGenerating ? "Generating..." : "Generate with AI"}
+                        <span className="mt-1 block text-[11px] text-muted-foreground/40">~15 min · best for new CTV</span>
                       </button>
                     </div>
 
@@ -839,7 +949,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                           return (
                             <div
                               key={asset.id}
-                              className="group relative aspect-square overflow-hidden rounded-lg border border-[#E0E8F2]"
+                              className="group relative aspect-square overflow-hidden rounded-lg border border-border"
                             >
                               {isGradient ? (
                                 <div
@@ -861,7 +971,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
 
                               {/* AI badge */}
                               {asset.source === "ai-generated" && (
-                                <span className="absolute left-1.5 top-1.5 rounded bg-[#394859]/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                <span className="absolute left-1.5 top-1.5 rounded bg-foreground/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
                                   AI
                                 </span>
                               )}
@@ -870,7 +980,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                               <button
                                 type="button"
                                 onClick={() => handleRemoveCreative(asset.id)}
-                                className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#394859]/70 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-foreground/70 text-white opacity-0 transition-opacity group-hover:opacity-100"
                               >
                                 <X className="h-3 w-3" />
                               </button>
@@ -903,17 +1013,17 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
 
       {/* Keywords section — separate from the collapsible sections */}
       {hasKeywords && (
-        <div className="rounded-xl border border-[#E0E8F2] bg-white">
+        <div className="rounded-xl border border-border bg-white">
           <div className="flex items-center gap-2 px-4 py-3">
-            <Hash className="h-4 w-4 text-[#8492A6]" />
-            <span className="flex-1 text-[13px] font-medium text-[#394859]">
+            <Hash className="h-4 w-4 text-muted-foreground" />
+            <span className="flex-1 text-[13px] font-medium text-foreground">
               Keywords
             </span>
-            <span className="rounded-full bg-[#F3F4F6] px-2 py-0.5 text-[10px] font-medium text-[#8492A6]">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
               {plan.keywords.length}
             </span>
           </div>
-          <div className="border-t border-[#E0E8F2] px-4 pb-4 pt-3">
+          <div className="border-t border-border px-4 pb-4 pt-3">
             <div className="flex flex-wrap gap-1.5">
               {plan.keywords.map((kw) => (
                 <span
@@ -922,7 +1032,7 @@ export function StrategyCard({ plan, onUpdate }: StrategyCardProps) {
                     "rounded-full px-2.5 py-1 text-[12px]",
                     kw.selected
                       ? "bg-[#EBF5FB] text-[#1A7BB5]"
-                      : "bg-[#F3F4F6] text-[#8492A6]"
+                      : "bg-muted text-muted-foreground"
                   )}
                 >
                   {kw.label}

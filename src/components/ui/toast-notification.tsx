@@ -7,12 +7,16 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
 
 export function Toast() {
-  const { toast, dismissToast } = useCampaign();
+  const { toast, dismissToast, setActiveStrategy, setActiveNarrative, setActiveAudience } = useCampaign();
   const { setState } = useAICompanion();
 
   if (!toast.visible) return null;
 
   function handleActionClick() {
+    // Clear artifacts so the destination page renders (not the artifact canvas)
+    setActiveStrategy(null);
+    setActiveNarrative(null);
+    setActiveAudience(null);
     setState("resting");
     dismissToast();
   }

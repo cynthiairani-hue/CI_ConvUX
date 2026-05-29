@@ -1,7 +1,10 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
-import { Minus, Maximize2 } from "lucide-react";
+import { useRef, useEffect, useMemo, useCallback } from "react";
+import { X, ChevronUp } from "lucide-react";
+import { useChatPagination } from "@/hooks/use-chat-pagination";
+import { ChatScrollMinimap } from "./chat-scroll-minimap";
+import { cn } from "@/lib/utils";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { AIMessage } from "./ai-message";
 import { AIInput } from "./ai-input";
@@ -9,15 +12,31 @@ import { ChatChoices } from "./chat-choices";
 import { AdvertiserSetupForm } from "./advertiser-setup-form";
 import { KeywordChipSelector } from "./keyword-chip-selector";
 import { ChatSettingsMenu } from "./chat-settings-menu";
+import { ChatLayoutPicker } from "./chat-layout-picker";
+import { ChatOverflowMenu } from "./chat-overflow-menu";
 import { ChatHeaderMenu } from "./chat-header-menu";
 import { PlatformConnectionCard } from "./platform-connection-card";
 
-export function AISplitPanel({ width, onMinimize }: { width?: number; onMinimize?: () => void }) {
+export function AISplitPanel({ width, side = "left" }: { width?: number; side?: "left" | "right" }) {
   const {
     messages, isLoading, sendMessage, submitChoice, skipChoice,
-    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, expand,
+    submitAdvertiserSetup, submitKeywords, submitPlatformConnection, close,
   } = useAICompanion();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { visibleMessages, hasEarlier, loadEarlier, earlierCount } = useChatPagination(messages);
+
+  const handleLoadEarlier = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) { loadEarlier(); return; }
+    const prevHeight = el.scrollHeight;
+    const prevTop = el.scrollTop;
+    loadEarlier();
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevHeight + prevTop;
+      }
+    });
+  }, [loadEarlier]);
 
   const activeToolCall = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -101,45 +120,53 @@ export function AISplitPanel({ width, onMinimize }: { width?: number; onMinimize
 
   return (
     <aside
-      className="flex h-screen flex-col border-r bg-background"
+      className={cn("flex h-screen flex-col bg-background", side === "left" ? "border-r" : "border-l")}
       style={{ width: width ? `${width}px` : undefined, minWidth: 320, maxWidth: 640, flexShrink: 0 }}
     >
       <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
         <ChatHeaderMenu compact />
         <div className="flex items-center gap-0.5">
           <ChatSettingsMenu />
+          <ChatLayoutPicker />
+          <ChatOverflowMenu />
           <button
-            onClick={expand}
+            onClick={close}
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title="Expand"
+            title="Close"
           >
-            <Maximize2 className="h-3.5 w-3.5" />
+            <X className="h-3.5 w-3.5" />
           </button>
-          {onMinimize && (
-            <button
-              onClick={onMinimize}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              title="Minimize chat"
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-          )}
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto py-4">
-        {messages.map((msg) => (
-          <AIMessage key={msg.id} message={msg} />
-        ))}
-        {isLoading && (
-          <div className="px-4 py-3">
-            <div className="flex gap-1">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+      <div className="relative flex-1 overflow-hidden">
+        <div ref={scrollRef} className="h-full overflow-y-auto py-4">
+          {hasEarlier && (
+            <div className="flex justify-center pb-3">
+              <button
+                type="button"
+                onClick={handleLoadEarlier}
+                className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ChevronUp className="h-3 w-3" />
+                Load {earlierCount} earlier
+              </button>
             </div>
-          </div>
-        )}
+          )}
+          {visibleMessages.map((msg) => (
+            <AIMessage key={msg.id} message={msg} />
+          ))}
+          {isLoading && (
+            <div className="px-4 py-3">
+              <div className="flex gap-1">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+              </div>
+            </div>
+          )}
+        </div>
+        <ChatScrollMinimap messages={visibleMessages} scrollRef={scrollRef} />
       </div>
 
       <div className="px-4 py-3 space-y-3">

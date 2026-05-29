@@ -9,7 +9,7 @@ const CHAT_SESSIONS_KEY = "fuseiq-chat-sessions";
 /* ── Chat session types ── */
 
 export type ChatSessionStatus = "active" | "archived";
-export type ChatSessionGroup = "campaigns" | "performance" | "accounts" | "budgets" | "general";
+export type ChatSessionGroup = "campaigns" | "performance" | "accounts" | "budgets" | "creative" | "audiences" | "general";
 
 export interface ChatSessionMeta {
   id: string;
@@ -31,8 +31,10 @@ export interface StoredChatSession extends ChatSessionMeta {
 /* ── Chat session group inference ── */
 
 const GROUP_KEYWORDS: Record<ChatSessionGroup, string[]> = {
-  campaigns: ["campaign", "retargeting", "prospecting", "awareness", "launch", "build a", "media plan", "creative"],
+  campaigns: ["campaign", "retargeting", "prospecting", "awareness", "launch", "build a", "media plan"],
   performance: ["performing", "performance", "metrics", "roas", "cpc", "analytics", "report", "narrative", "cfo"],
+  creative: ["creative", "ad copy", "video", "image", "banner", "design", "asset", "generate creative"],
+  audiences: ["audience", "segment", "lookalike", "targeting", "cohort", "customer list"],
   accounts: ["connect", "account", "platform", "google ads", "meta ads", "shopify", "ga4", "tiktok", "linkedin"],
   budgets: ["budget", "spend", "allocation", "pacing", "forecast"],
   general: [],
@@ -65,6 +67,8 @@ export function autoNameSession(firstMessage: string): string {
 export const SESSION_GROUP_LABELS: Record<ChatSessionGroup, string> = {
   campaigns: "Campaigns",
   performance: "Performance & Reports",
+  creative: "Creative & Assets",
+  audiences: "Audiences & Targeting",
   accounts: "Data & Accounts",
   budgets: "Budget & Spend",
   general: "General",

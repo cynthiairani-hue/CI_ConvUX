@@ -53,7 +53,7 @@ export function getPersonalizedPrompts(
     return [
       { id: "since-last-visit", label: `What changed since my last visit?`, category: "performance", priority: 10 },
       { id: "optimize-top", label: `Top optimization moves for ${name}`, category: "campaign", priority: 9 },
-      { id: "cfo-narrative", label: "Draft my CFO narrative for May", category: "narrative", priority: 8 },
+      { id: "cfo-narrative", label: "Draft my CFO narrative", category: "narrative", priority: 8 },
       { id: "reallocate", label: "Where should I shift budget?", category: "budget", priority: 7 },
       { id: "retargeting-perf", label: "How is retargeting performing?", category: "performance", priority: 6 },
       { id: "new-campaign", label: `Launch a new campaign for ${name}`, category: "campaign", priority: 5 },
@@ -64,7 +64,7 @@ export function getPersonalizedPrompts(
   return [
     { id: "since-last-visit", label: "What changed since my last visit?", category: "performance", priority: 10 },
     { id: "optimize-top", label: "Top optimization strategies", category: "campaign", priority: 9 },
-    { id: "cfo-narrative", label: "Draft my CFO narrative for May", category: "narrative", priority: 8 },
+    { id: "cfo-narrative", label: "Draft my CFO narrative", category: "narrative", priority: 8 },
     { id: "compare", label: "Compare my active campaigns", category: "performance", priority: 7 },
     { id: "reallocate", label: "Where should I shift budget?", category: "budget", priority: 6 },
     { id: "new-campaign", label: "Launch a new campaign", category: "campaign", priority: 5 },

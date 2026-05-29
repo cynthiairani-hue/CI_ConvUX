@@ -56,25 +56,25 @@ export function AdvertiserSetupForm({
       {/* Header */}
       <div className="flex items-start gap-2 px-5 pb-1 pt-4">
         <div className="flex flex-1 flex-col min-w-0">
-          <span className="text-[14px] font-semibold text-[#394859] leading-[22px]">
+          <span className="text-[14px] font-semibold text-foreground leading-[22px]">
             {question}
           </span>
-          <span className="text-[14px] text-[#8492A6] leading-[22px]">
+          <span className="text-[14px] text-muted-foreground leading-[22px]">
             Tell us about the business you&apos;re advertising for.
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           <div className="flex items-center gap-1">
             <ChevronLeft className="h-3.5 w-3.5 text-[#BFCCD9]" />
-            <span className="text-[12px] text-[#8492A6] leading-[18px]">
+            <span className="text-[12px] text-muted-foreground leading-[18px]">
               {step} of {totalSteps}
             </span>
-            <ChevronRight className="h-3.5 w-3.5 text-[#394859]" />
+            <ChevronRight className="h-3.5 w-3.5 text-foreground" />
           </div>
           {onSkip && (
             <button
               onClick={onSkip}
-              className="rounded-full border border-[#E0E8F2] px-3 py-0.5 text-[12px] text-[#8492A6] transition-colors hover:bg-[#F9FAFB] hover:text-[#394859]"
+              className="rounded-full border border-border px-3 py-0.5 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               Skip
             </button>
@@ -84,8 +84,8 @@ export function AdvertiserSetupForm({
 
       <form onSubmit={handleSubmit}>
         {/* Company name */}
-        <div className="border-t border-[#E0E8F2] px-5 py-3">
-          <label className="mb-1.5 block text-[12px] font-medium text-[#8492A6] uppercase tracking-wider">
+        <div className="border-t border-border px-5 py-3">
+          <label className="mb-1.5 block text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
             Company name
           </label>
           <input
@@ -93,13 +93,13 @@ export function AdvertiserSetupForm({
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             placeholder="e.g. Acme Corp"
-            className="w-full rounded-lg border border-[#E0E8F2] bg-white px-3 py-2 text-[14px] text-[#394859] outline-none placeholder:text-[#BFCCD9] focus:border-[#2C9FDD] focus:ring-1 focus:ring-[#2C9FDD]/20"
+            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-[14px] text-foreground outline-none placeholder:text-[#BFCCD9] focus:border-ring focus:ring-1 focus:ring-[#2C9FDD]/20"
           />
         </div>
 
         {/* Website URL */}
-        <div className="border-t border-[#E0E8F2] px-5 py-3">
-          <label className="mb-1.5 block text-[12px] font-medium text-[#8492A6] uppercase tracking-wider">
+        <div className="border-t border-border px-5 py-3">
+          <label className="mb-1.5 block text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
             Website
           </label>
           <input
@@ -107,21 +107,21 @@ export function AdvertiserSetupForm({
             value={websiteUrl}
             onChange={(e) => setWebsiteUrl(e.target.value)}
             placeholder="e.g. acme.com"
-            className="w-full rounded-lg border border-[#E0E8F2] bg-white px-3 py-2 text-[14px] text-[#394859] outline-none placeholder:text-[#BFCCD9] focus:border-[#2C9FDD] focus:ring-1 focus:ring-[#2C9FDD]/20"
+            className="w-full rounded-lg border border-border bg-white px-3 py-2 text-[14px] text-foreground outline-none placeholder:text-[#BFCCD9] focus:border-ring focus:ring-1 focus:ring-[#2C9FDD]/20"
           />
         </div>
 
         {/* Industry */}
-        <div className="border-t border-[#E0E8F2] px-5 py-3">
-          <label className="mb-1.5 block text-[12px] font-medium text-[#8492A6] uppercase tracking-wider">
+        <div className="border-t border-border px-5 py-3">
+          <label className="mb-1.5 block text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
             Industry
           </label>
           <select
             value={industry}
             onChange={(e) => setIndustry(e.target.value as IABIndustry)}
             className={cn(
-              "w-full rounded-lg border border-[#E0E8F2] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#2C9FDD] focus:ring-1 focus:ring-[#2C9FDD]/20",
-              industry ? "text-[#394859]" : "text-[#BFCCD9]"
+              "w-full rounded-lg border border-border bg-white px-3 py-2 text-[14px] outline-none focus:border-ring focus:ring-1 focus:ring-[#2C9FDD]/20",
+              industry ? "text-foreground" : "text-[#BFCCD9]"
             )}
           >
             <option value="" disabled>
@@ -136,11 +136,11 @@ export function AdvertiserSetupForm({
         </div>
 
         {/* Restricted categories */}
-        <div className="border-t border-[#E0E8F2] px-5 py-3">
+        <div className="border-t border-border px-5 py-3">
           <button
             type="button"
             onClick={() => setShowRestricted(!showRestricted)}
-            className="flex w-full items-center gap-1.5 text-[12px] font-medium text-[#8492A6] uppercase tracking-wider"
+            className="flex w-full items-center gap-1.5 text-[12px] font-medium text-muted-foreground uppercase tracking-wider"
           >
             <span>Restricted content categories</span>
             {showRestricted ? (
@@ -161,15 +161,15 @@ export function AdvertiserSetupForm({
                 return (
                   <label
                     key={cat.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-[#F7F9FB]"
+                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleRestricted(cat.id)}
-                      className="h-3.5 w-3.5 rounded border-[#E0E8F2] text-[#2C9FDD] focus:ring-[#2C9FDD]/20"
+                      className="h-3.5 w-3.5 rounded border-border text-[#2C9FDD] focus:ring-[#2C9FDD]/20"
                     />
-                    <span className="text-[13px] text-[#394859]">{cat.label}</span>
+                    <span className="text-[13px] text-foreground">{cat.label}</span>
                   </label>
                 );
               })}
@@ -178,15 +178,15 @@ export function AdvertiserSetupForm({
         </div>
 
         {/* Submit */}
-        <div className="border-t border-[#E0E8F2] px-5 py-3">
+        <div className="border-t border-border px-5 py-3">
           <button
             type="submit"
             disabled={!isValid}
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-[14px] font-medium transition-colors",
               isValid
-                ? "bg-[#394859] text-white hover:bg-[#2D3A47]"
-                : "bg-[#E0E8F2] text-[#8492A6] cursor-not-allowed"
+                ? "bg-foreground text-white hover:bg-foreground/90"
+                : "bg-border text-muted-foreground cursor-not-allowed"
             )}
           >
             Continue

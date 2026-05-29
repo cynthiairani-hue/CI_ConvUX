@@ -43,6 +43,10 @@ interface CampaignContextValue {
   savedAdvertisers: Advertiser[];
   saveStrategy: (plan: StrategyPlan) => void;
   loadStrategy: (id: string) => void;
+  duplicateStrategy: (id: string) => void;
+  renameStrategy: (id: string, name: string) => void;
+  archiveStrategy: (id: string) => void;
+  removeStrategy: (id: string) => void;
   savedNarratives: CFONarrative[];
   activeNarrative: CFONarrative | null;
   setActiveNarrative: (narrative: CFONarrative | null) => void;
@@ -50,11 +54,16 @@ interface CampaignContextValue {
   loadNarrative: (id: string) => void;
   removeNarrative: (id: string) => void;
   duplicateNarrative: (id: string) => void;
+  renameNarrative: (id: string, name: string) => void;
   activeAudience: AudienceSegment | null;
   setActiveAudience: (audience: AudienceSegment | null) => void;
   savedAudiences: AudienceSegment[];
   saveAudience: (audience: AudienceSegment) => void;
   loadAudience: (id: string) => void;
+  duplicateAudience: (id: string) => void;
+  renameAudience: (id: string, name: string) => void;
+  archiveAudience: (id: string) => void;
+  removeAudience: (id: string) => void;
   approvalRequests: ApprovalRequest[];
   sendForApproval: (approverId: string, senderPersonaId: PersonaId) => void;
   resolveApproval: (
@@ -69,6 +78,8 @@ interface CampaignContextValue {
   toast: { message: string; visible: boolean; action?: { label: string; href: string } };
   dismissToast: () => void;
   showToast: (message: string, action?: { label: string; href: string }) => void;
+  /** True once localStorage data has been loaded into state — prevents hydration mismatches. */
+  hydrated: boolean;
 }
 
 const CampaignContext = createContext<CampaignContextValue | null>(null);
@@ -160,6 +171,56 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     if (found) setActiveStrategy(found);
   }, [savedStrategies]);
 
+  const duplicateStrategy = useCallback((id: string) => {
+    const found = savedStrategies.find((s) => s.id === id);
+    if (!found) return;
+    const copy: StrategyPlan = {
+      ...found,
+      id: `strategy-${Date.now()}`,
+      name: `${found.name} (copy)`,
+      status: "draft",
+      lastModifiedAt: new Date().toISOString(),
+      lastModifiedBy: "user",
+    };
+    setSavedStrategies((prev) => {
+      const next = [copy, ...prev];
+      persistStrategies(next);
+      return next;
+    });
+  }, [savedStrategies]);
+
+  const renameStrategy = useCallback((id: string, name: string) => {
+    setSavedStrategies((prev) => {
+      const next = prev.map((s) =>
+        s.id === id ? { ...s, name, lastModifiedAt: new Date().toISOString() } : s
+      );
+      persistStrategies(next);
+      return next;
+    });
+  }, []);
+
+  const archiveStrategy = useCallback((id: string) => {
+    setSavedStrategies((prev) => {
+      const next = prev.map((s) =>
+        s.id === id
+          ? { ...s, status: "archived" as const, lastModifiedAt: new Date().toISOString() }
+          : s
+      );
+      persistStrategies(next);
+      return next;
+    });
+    if (activeStrategy?.id === id) setActiveStrategy(null);
+  }, [activeStrategy]);
+
+  const removeStrategy = useCallback((id: string) => {
+    setSavedStrategies((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      persistStrategies(next);
+      return next;
+    });
+    if (activeStrategy?.id === id) setActiveStrategy(null);
+  }, [activeStrategy]);
+
   const saveNarrative = useCallback((narrative: CFONarrative) => {
     setSavedNarratives((prev) => {
       const exists = prev.findIndex((n) => n.id === narrative.id);
@@ -184,6 +245,14 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setSavedNarratives((prev) => prev.filter((n) => n.id !== id));
     if (activeNarrative?.id === id) setActiveNarrative(null);
   }, [activeNarrative]);
+
+  const renameNarrative = useCallback((id: string, name: string) => {
+    setSavedNarratives((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, name, lastModifiedAt: new Date().toISOString() } : n
+      )
+    );
+  }, []);
 
   const duplicateNarrative = useCallback((id: string) => {
     const found = savedNarratives.find((n) => n.id === id);
@@ -216,6 +285,55 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     const found = savedAudiences.find((a) => a.id === id);
     if (found) setActiveAudience(found);
   }, [savedAudiences]);
+
+  const duplicateAudience = useCallback((id: string) => {
+    const found = savedAudiences.find((a) => a.id === id);
+    if (!found) return;
+    const copy: AudienceSegment = {
+      ...found,
+      id: `audience-${Date.now()}`,
+      name: `${found.name} (copy)`,
+      status: "draft",
+      lastModifiedAt: new Date().toISOString(),
+    };
+    setSavedAudiences((prev) => {
+      const next = [copy, ...prev];
+      persistAudiences(next);
+      return next;
+    });
+  }, [savedAudiences]);
+
+  const renameAudience = useCallback((id: string, name: string) => {
+    setSavedAudiences((prev) => {
+      const next = prev.map((a) =>
+        a.id === id ? { ...a, name, lastModifiedAt: new Date().toISOString() } : a
+      );
+      persistAudiences(next);
+      return next;
+    });
+  }, []);
+
+  const archiveAudience = useCallback((id: string) => {
+    setSavedAudiences((prev) => {
+      const next = prev.map((a) =>
+        a.id === id
+          ? { ...a, status: "archived" as const, lastModifiedAt: new Date().toISOString() }
+          : a
+      );
+      persistAudiences(next);
+      return next;
+    });
+    if (activeAudience?.id === id) setActiveAudience(null);
+  }, [activeAudience]);
+
+  const removeAudience = useCallback((id: string) => {
+    setSavedAudiences((prev) => {
+      const next = prev.filter((a) => a.id !== id);
+      persistAudiences(next);
+      return next;
+    });
+    if (activeAudience?.id === id) setActiveAudience(null);
+  }, [activeAudience]);
 
   const dismissToast = useCallback(() => {
     setToast({ message: "", visible: false });
@@ -403,6 +521,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         savedAudiences,
         saveAudience,
         loadAudience,
+        duplicateAudience,
+        renameAudience,
+        archiveAudience,
+        removeAudience,
         approvalRequests,
         sendForApproval,
         resolveApproval,
@@ -416,6 +538,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         savedAdvertisers,
         saveStrategy,
         loadStrategy,
+        duplicateStrategy,
+        renameStrategy,
+        archiveStrategy,
+        removeStrategy,
         savedNarratives,
         activeNarrative,
         setActiveNarrative,
@@ -423,6 +549,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         loadNarrative,
         removeNarrative,
         duplicateNarrative,
+        renameNarrative,
+        hydrated,
       }}
     >
       {children}

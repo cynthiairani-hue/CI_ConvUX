@@ -50,7 +50,10 @@ export function getAIResponse(
   return fallbacks[index];
 }
 
-export function getWelcomeMessage(personaId: PersonaId): string {
+export function getWelcomeMessage(personaId: PersonaId, brandName?: string): string {
   void personaId;
+  if (brandName) {
+    return `Welcome to FuseIQ. I already know ${brandName} — your brand profile, industry context, and competitive landscape are loaded. Build a campaign, check performance, or ask me anything.`;
+  }
   return "Welcome to FuseIQ. I can help you build campaigns, connect data sources, create audiences, and optimize performance. What would you like to start with?";
 }
