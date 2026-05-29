@@ -1,10 +1,11 @@
-import type { StrategyPlan, Advertiser, CFONarrative, AudienceSegment, ApprovalRequest } from "@/types/campaign";
+import type { StrategyPlan, Advertiser, CFONarrative, AudienceSegment, ApprovalRequest, CompetitiveBrief } from "@/types/campaign";
 
 const STRATEGIES_KEY = "fuseiq-strategies";
 const ADVERTISERS_KEY = "fuseiq-advertisers";
 const NARRATIVES_KEY = "fuseiq-narratives";
 const AUDIENCES_KEY = "fuseiq-audiences";
 const APPROVALS_KEY = "fuseiq-approvals";
+const BRIEFS_KEY = "fuseiq-briefs";
 const CHAT_SESSIONS_KEY = "fuseiq-chat-sessions";
 
 /* ── Chat session types ── */
@@ -131,6 +132,14 @@ export function loadApprovals(): ApprovalRequest[] {
 
 export function persistApprovals(approvals: ApprovalRequest[]): void {
   safeSet(APPROVALS_KEY, approvals);
+}
+
+export function loadBriefs(): CompetitiveBrief[] {
+  return safeGet<CompetitiveBrief[]>(BRIEFS_KEY, []);
+}
+
+export function persistBriefs(briefs: CompetitiveBrief[]): void {
+  safeSet(BRIEFS_KEY, briefs);
 }
 
 /* ── Chat session persistence ── */

@@ -47,6 +47,7 @@ import {
 } from "@/lib/storage";
 import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
 import { ensureReturningSeed } from "@/data/seed-returning";
+import { buildCompetitiveBrief } from "@/data/competitive-flow";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
@@ -186,7 +187,7 @@ function nextId() {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
-  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience } = useCampaign();
+  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief } = useCampaign();
   const { collapseLeftRail } = useLayout();
   // Defer localStorage reads to useEffect to prevent hydration mismatches
   const [state, setStateRaw] = useState<AICompanionState>("resting");
@@ -306,8 +307,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     setActiveStrategy(null);
     setActiveNarrative(null);
     setActiveAudience(null);
+    setActiveBrief(null);
     return sessionId;
-  }, [activePersona.id, setActiveStrategy, setActiveNarrative, setActiveAudience]);
+  }, [activePersona.id, setActiveStrategy, setActiveNarrative, setActiveAudience, setActiveBrief]);
 
   useEffect(() => {
     initNewSession();
@@ -732,6 +734,42 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
       // Check for campaign intent — route to strategy flow instead of API
       const lower = content.toLowerCase();
+
+      // Competitive intelligence intent — opens the brief artifact (no pixel needed)
+      const isCompetitiveIntent =
+        lower.includes("competitor") ||
+        lower.includes("competitive") ||
+        lower.includes("competition") ||
+        lower.includes("positioned") ||
+        lower.includes("up against");
+
+      if (isCompetitiveIntent) {
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+        const brand = brandRef.current || getCurrentBrand();
+        const adv = advertiser || {
+          id: "adv-ffern-co",
+          companyName: brand?.name || "Your brand",
+          websiteUrl: brand?.domain || "your site",
+          industry: mapBrandIndustryToIAB(brand?.industry || "other"),
+          restrictedCategories: [],
+        };
+        setTimeout(() => {
+          const brief = buildCompetitiveBrief(adv);
+          saveBrief(brief);
+          setActiveBrief(brief);
+          const ack: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: `Pulled ${adv.companyName}'s competitive position from public web data — no pixel needed. Top competitors, where they're winning, and your white space are on the canvas. Connect your pixel to track share shifts continuously.`,
+          };
+          setMessages((prev) => [...prev, ack]);
+          setIsLoading(false);
+          setState("split");
+          collapseLeftRail();
+        }, 600);
+        return;
+      }
 
       // Audience intent — must be checked BEFORE campaign (because "build a" would match "build an audience")
       const isAudienceIntent =

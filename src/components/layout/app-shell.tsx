@@ -16,6 +16,7 @@ import { useLayout } from "@/contexts/layout-context";
 import { StrategyCard } from "@/components/patterns/strategy-card";
 import type { StrategyPlan } from "@/types/campaign";
 import { CFONarrativeCard } from "@/components/patterns/cfo-narrative-card";
+import { CompetitiveBriefCard } from "@/components/patterns/competitive-brief-card";
 import { AudienceCard } from "@/components/patterns/audience-card";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { FFERN_SEED_PERFORMANCE } from "@/data/seed-ffern";
@@ -412,6 +413,57 @@ function ResizeDivider({ onDrag }: { onDrag: (deltaX: number) => void }) {
   );
 }
 
+function SplitBriefCanvas({ brief }: { brief: NonNullable<ReturnType<typeof useCampaign>["activeBrief"]> }) {
+  const { setActiveBrief, showToast } = useCampaign();
+  const { setState } = useAICompanion();
+
+  function handleShare() {
+    showToast("Share link copied to clipboard");
+  }
+
+  function handleDiscard() {
+    setActiveBrief(null);
+    setState("fullscreen");
+  }
+
+  function handleConnectPixel() {
+    showToast("Site pixel connected — competitor tracking is on", { label: "View campaigns", href: "/campaigns" });
+  }
+
+  return (
+    <main className="flex flex-1 flex-col overflow-hidden">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
+        <div className="min-w-0">
+          <h1 className="truncate text-[14px] font-semibold text-foreground">{brief.name}</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleShare}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Share
+          </button>
+          <div className="mx-0.5 h-5 w-px bg-border" />
+          <button
+            type="button"
+            onClick={handleDiscard}
+            className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Close
+          </button>
+        </div>
+      </header>
+      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
+        <div className="mx-auto max-w-2xl">
+          <CompetitiveBriefCard brief={brief} onConnectPixel={handleConnectPixel} />
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<typeof useCampaign>["activeAudience"]> }) {
   const { setActiveAudience, saveAudience, showToast } = useCampaign();
   const { setState: setAIState } = useAICompanion();
@@ -477,11 +529,11 @@ function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<type
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { state, dockSide, setState } = useAICompanion();
-  const { activeStrategy, savedStrategies, activeNarrative, activeAudience } = useCampaign();
+  const { activeStrategy, savedStrategies, activeNarrative, activeAudience, activeBrief } = useCampaign();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
 
   const strategy = activeStrategy || savedStrategies[savedStrategies.length - 1];
-  const hasArtifact = !!(activeStrategy || activeNarrative || activeAudience);
+  const hasArtifact = !!(activeStrategy || activeNarrative || activeAudience || activeBrief);
   const { collapseLeftRail } = useLayout();
   // Track whether the user manually closed the AI panel this session
   const userClosedRef = useRef(false);
@@ -539,6 +591,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   const renderSplitCanvas = () => {
+    if (activeBrief) {
+      return <SplitBriefCanvas brief={activeBrief} />;
+    }
     if (activeAudience) {
       return <SplitAudienceCanvas segment={activeAudience} />;
     }

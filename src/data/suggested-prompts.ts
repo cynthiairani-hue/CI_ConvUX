@@ -28,11 +28,11 @@ export function getPersonalizedPrompts(
     // New user with known brand — onboarding-first prompts
     return [
       { id: "first-campaign", label: `Build ${name}'s first campaign`, category: "campaign", priority: 10 },
-      { id: "perf-check", label: `How is ${name} performing?`, category: "performance", priority: 9 },
-      { id: "connect-platforms", label: "Connect my ad accounts", category: "performance", priority: 8 },
-      { id: "budget-plan", label: `Plan ${name}'s monthly budget`, category: "budget", priority: 7 },
-      { id: "retargeting", label: "Build a retargeting campaign", category: "campaign", priority: 6 },
-      { id: "audience-explore", label: "What audiences should I target?", category: "audience", priority: 5 },
+      { id: "competitive", label: "How am I positioned against competitors?", category: "performance", priority: 9 },
+      { id: "perf-check", label: `How is ${name} performing?`, category: "performance", priority: 8 },
+      { id: "connect-platforms", label: "Connect my ad accounts", category: "performance", priority: 7 },
+      { id: "budget-plan", label: `Plan ${name}'s monthly budget`, category: "budget", priority: 6 },
+      { id: "retargeting", label: "Build a retargeting campaign", category: "campaign", priority: 5 },
     ];
   }
 
@@ -54,9 +54,9 @@ export function getPersonalizedPrompts(
       { id: "since-last-visit", label: `What changed since my last visit?`, category: "performance", priority: 10 },
       { id: "optimize-top", label: `Top optimization moves for ${name}`, category: "campaign", priority: 9 },
       { id: "cfo-narrative", label: "Draft my CFO narrative", category: "narrative", priority: 8 },
-      { id: "reallocate", label: "Where should I shift budget?", category: "budget", priority: 7 },
-      { id: "retargeting-perf", label: "How is retargeting performing?", category: "performance", priority: 6 },
-      { id: "new-campaign", label: `Launch a new campaign for ${name}`, category: "campaign", priority: 5 },
+      { id: "competitive", label: "How am I positioned against competitors?", category: "performance", priority: 7 },
+      { id: "reallocate", label: "Where should I shift budget?", category: "budget", priority: 6 },
+      { id: "retargeting-perf", label: "How is retargeting performing?", category: "performance", priority: 5 },
     ];
   }
 

@@ -6,6 +6,7 @@ import type {
   Advertiser,
 } from "@/types/campaign";
 import { buildStrategyFromIntent } from "./campaign-flow";
+import { buildCompetitiveBrief } from "./competitive-flow";
 import { mapBrandIndustryToIAB } from "./brand-profiles";
 import { buildNarrativeFromSeed } from "./narrative-flow";
 import { FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES } from "./seed-ffern";
@@ -170,6 +171,7 @@ export const SEEDED_KEYS = [
   "fuseiq-audiences",
   "fuseiq-narratives",
   "fuseiq-approvals",
+  "fuseiq-briefs",
   "fuseiq-chat-sessions",
 ] as const;
 
@@ -217,5 +219,6 @@ export function ensureReturningSeed(): void {
       (JSON.parse(localStorage.getItem("fuseiq-strategies") || "[]") as StrategyPlan[]);
     set("fuseiq-approvals", buildSeedApprovals(strats));
   }
+  if (isEmptyKey("fuseiq-briefs")) set("fuseiq-briefs", [buildCompetitiveBrief(ADVERTISER)]);
   if (isEmptyKey("fuseiq-chat-sessions")) set("fuseiq-chat-sessions", SEED_CHAT_SESSIONS);
 }

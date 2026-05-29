@@ -261,6 +261,32 @@ export interface CFONarrative {
   lastModifiedBy: string;
 }
 
+// --- Competitive Intelligence ---
+
+export interface CompetitorRow {
+  name: string;
+  /** Estimated traffic / share of voice, e.g. "18%". */
+  trafficShare: string;
+  /** Trend vs prior period, e.g. "+3 pts". */
+  trend: string;
+  /** Primary acquisition channel, e.g. "Paid social". */
+  primaryChannel: string;
+}
+
+export interface CompetitiveBrief {
+  id: string;
+  name: string;
+  advertiserId: string;
+  generatedAt: string;
+  marketPosition: StrategySection;
+  topCompetitors: StrategySection & { data: CompetitorRow[] };
+  messagingAngles: StrategySection;
+  whereToWin: StrategySection;
+  createdAt: string;
+  lastModifiedAt: string;
+  lastModifiedBy: string;
+}
+
 // --- Audience Segments ---
 
 export type AudienceSegmentType = "retargeting" | "lookalike" | "customer-list" | "interest";

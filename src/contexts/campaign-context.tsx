@@ -16,6 +16,7 @@ import type {
   StrategyPlan,
   CFONarrative,
   AudienceSegment,
+  CompetitiveBrief,
 } from "@/types/campaign";
 import { approvers } from "@/data/approvers";
 import { personas } from "@/data/personas";
@@ -31,6 +32,8 @@ import {
   persistAudiences,
   loadApprovals,
   persistApprovals,
+  loadBriefs,
+  persistBriefs,
 } from "@/lib/storage";
 import { ensureReturningSeed } from "@/data/seed-returning";
 
@@ -55,6 +58,11 @@ interface CampaignContextValue {
   setActiveNarrative: (narrative: CFONarrative | null) => void;
   saveNarrative: (narrative: CFONarrative) => void;
   loadNarrative: (id: string) => void;
+  savedBriefs: CompetitiveBrief[];
+  activeBrief: CompetitiveBrief | null;
+  setActiveBrief: (brief: CompetitiveBrief | null) => void;
+  saveBrief: (brief: CompetitiveBrief) => void;
+  loadBrief: (id: string) => void;
   removeNarrative: (id: string) => void;
   duplicateNarrative: (id: string) => void;
   renameNarrative: (id: string, name: string) => void;
@@ -97,6 +105,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [savedAdvertisers, setSavedAdvertisers] = useState<Advertiser[]>([]);
   const [savedNarratives, setSavedNarratives] = useState<CFONarrative[]>([]);
   const [activeNarrative, setActiveNarrative] = useState<CFONarrative | null>(null);
+  const [savedBriefs, setSavedBriefs] = useState<CompetitiveBrief[]>([]);
+  const [activeBrief, setActiveBrief] = useState<CompetitiveBrief | null>(null);
   const [activeAudience, setActiveAudience] = useState<AudienceSegment | null>(null);
   const [savedAudiences, setSavedAudiences] = useState<AudienceSegment[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>(
@@ -116,6 +126,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setSavedNarratives(loadNarratives());
     setSavedAudiences(loadAudiences());
     setApprovalRequests(loadApprovals());
+    setSavedBriefs(loadBriefs());
     setHydrated(true);
   }, []);
 
@@ -133,6 +144,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (hydrated) persistNarratives(savedNarratives);
   }, [savedNarratives, hydrated]);
+
+  // Persist competitive briefs to localStorage on change
+  useEffect(() => {
+    if (hydrated) persistBriefs(savedBriefs);
+  }, [savedBriefs, hydrated]);
 
   // Persist audiences to localStorage on change
   useEffect(() => {
@@ -252,6 +268,26 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     const found = savedNarratives.find((n) => n.id === id);
     if (found) setActiveNarrative(found);
   }, [savedNarratives]);
+
+  const saveBrief = useCallback((brief: CompetitiveBrief) => {
+    setSavedBriefs((prev) => {
+      const exists = prev.findIndex((b) => b.id === brief.id);
+      let next: CompetitiveBrief[];
+      if (exists >= 0) {
+        next = [...prev];
+        next[exists] = brief;
+      } else {
+        next = [...prev, brief];
+      }
+      persistBriefs(next);
+      return next;
+    });
+  }, []);
+
+  const loadBrief = useCallback((id: string) => {
+    const found = savedBriefs.find((b) => b.id === id);
+    if (found) setActiveBrief(found);
+  }, [savedBriefs]);
 
   const removeNarrative = useCallback((id: string) => {
     setSavedNarratives((prev) => prev.filter((n) => n.id !== id));
@@ -570,6 +606,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setActiveNarrative,
         saveNarrative,
         loadNarrative,
+        savedBriefs,
+        activeBrief,
+        setActiveBrief,
+        saveBrief,
+        loadBrief,
         removeNarrative,
         duplicateNarrative,
         renameNarrative,
