@@ -140,7 +140,8 @@ export function CanvasChatInput({ placeholder }: { placeholder?: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { isListening, hasSpeechAPI, toggleVoice } = useVoiceInput(value, setValue);
 
-  const showDropdown = isFocused && !value.trim();
+  // Show on focus — empty shows the full dropdown; typing shows type-ahead autocomplete.
+  const showDropdown = isFocused;
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -185,6 +186,7 @@ export function CanvasChatInput({ placeholder }: { placeholder?: string }) {
         <ChatInputDropdown
           onSelectPrompt={handleSelectPrompt}
           onSelectStrategy={handleSelectStrategy}
+          query={value}
         />
       )}
       <GradientBorder className="rounded-2xl bg-white shadow-sm">

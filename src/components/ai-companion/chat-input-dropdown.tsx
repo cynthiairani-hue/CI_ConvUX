@@ -12,6 +12,9 @@ import { SESSION_GROUP_LABELS, type ChatSessionGroup } from "@/lib/storage";
 interface ChatInputDropdownProps {
   onSelectPrompt: (text: string) => void;
   onSelectStrategy: (id: string) => void;
+  /** Current input value. When non-empty, the dropdown becomes a type-ahead
+   *  autocomplete of the suggested prompts (matching the page inputs). */
+  query?: string;
 }
 
 function timeAgo(iso: string): string {
@@ -147,13 +150,42 @@ function SessionActions({
   );
 }
 
-export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy }: ChatInputDropdownProps) {
+export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy, query }: ChatInputDropdownProps) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { chatSessions, loadChatSession, renameChatSession, archiveChatSession, deleteChatSession } = useAICompanion();
   const { savedStrategies, savedAdvertisers } = useCampaign();
 
   const brand = useBrand();
   const prompts = getPersonalizedPrompts(brand, savedStrategies?.length || 0);
+
+  // Type-ahead mode: when the user is typing, filter suggestions and render a
+  // compact autocomplete list (consistent with the page inputs). Empty input
+  // falls through to the full dropdown (suggestions + recent chats/strategies).
+  const q = (query || "").trim().toLowerCase();
+  if (q.length > 0) {
+    const matches = prompts.filter((p) => p.label.toLowerCase().includes(q)).slice(0, 6);
+    if (matches.length === 0) return null;
+    return (
+      <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-border bg-white shadow-[0px_4px_16px_rgba(71,88,114,0.12)]">
+        <div className="py-1.5">
+          {matches.map((prompt) => (
+            <button
+              key={prompt.id}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelectPrompt(prompt.label);
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-accent"
+            >
+              <Wand2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span>{prompt.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // Active sessions, sorted by last message time
   const activeSessions = chatSessions
