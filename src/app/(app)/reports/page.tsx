@@ -8,6 +8,7 @@ import { FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES } from "@/data/seed-ffern"
 import { SEED_PERFORMANCE, SEED_ANOMALIES } from "@/data/seed-company";
 import type { SeedMonthlyPerformance, SeedAnomaly } from "@/data/seed-company";
 import { PageChatInput } from "@/components/ai-companion/page-chat-input";
+import { fetchCubePerformance } from "@/lib/cube/client";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -543,7 +544,20 @@ export default function ReportsPage() {
   }>({ perf: [], anomalies: [], brandName: "" });
 
   useEffect(() => {
-    setData(getPerformanceData());
+    // Mock seed first so the UI is never empty (and the public demo stays mock).
+    const seed = getPerformanceData();
+    setData(seed);
+    // Then try real Cube data (local dev only — env-gated). On success, keep the
+    // seed's brand/anomalies but swap in real performance numbers.
+    let cancelled = false;
+    fetchCubePerformance().then((real) => {
+      if (!cancelled && real) {
+        setData((prev) => ({ ...prev, perf: real.perf }));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function handleOpenNarrative(id: string) {
