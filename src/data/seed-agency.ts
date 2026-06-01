@@ -14,12 +14,60 @@ export const AGENCY = {
 
 const CLIENTS_KEY = "fuseiq-agency-clients";
 
+/** Public favicon for a domain — real logos, public + reliable, no asset hotlinking. */
+export function faviconUrl(domain: string): string {
+  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+}
+
+/**
+ * Returning agency's confirmed roster — real Brainlabs clients drawn from their
+ * public case studies / client list (esteelauder.com, vans.com, harrods.com…).
+ * Public marketing info, presented as the agency's confirmed roster.
+ */
 export const BRAINLABS_CLIENTS: AgencyClient[] = [
-  { id: "client-ffern", name: "Ffern", domain: "ffern.co", industry: "Luxury fragrance", status: "active", monthlyBudget: 8000, lead: "Cynthia Irani", campaigns: 3 },
-  { id: "client-bloomwild", name: "Bloom & Wild", domain: "bloomandwild.com", industry: "DTC flowers & gifting", status: "active", monthlyBudget: 14000, lead: "Priya Shah", campaigns: 5 },
-  { id: "client-gymshark", name: "Gymshark", domain: "gymshark.com", industry: "Activewear apparel", status: "active", monthlyBudget: 40000, lead: "Marcus Patel", campaigns: 8 },
-  { id: "client-huel", name: "Huel", domain: "huel.com", industry: "DTC food & nutrition", status: "onboarding", monthlyBudget: 22000, lead: "Jordan Reyes", campaigns: 2 },
+  { id: "client-estee", name: "Estée Lauder", domain: "esteelauder.com", industry: "Beauty & cosmetics", status: "active", monthlyBudget: 180000, lead: "Priya Shah", campaigns: 12 },
+  { id: "client-vans", name: "Vans", domain: "vans.com", industry: "Footwear & apparel", status: "active", monthlyBudget: 95000, lead: "Marcus Patel", campaigns: 7 },
+  { id: "client-harrods", name: "Harrods", domain: "harrods.com", industry: "Luxury retail", status: "active", monthlyBudget: 120000, lead: "Cynthia Irani", campaigns: 9 },
+  { id: "client-simplybusiness", name: "Simply Business", domain: "simplybusiness.co.uk", industry: "SME insurance", status: "active", monthlyBudget: 40000, lead: "Priya Shah", campaigns: 5 },
+  { id: "client-expedia", name: "Expedia", domain: "expedia.com", industry: "Travel", status: "onboarding", monthlyBudget: 60000, lead: "Jordan Reyes", campaigns: 3 },
 ];
+
+/**
+ * Discovery pool for net-new onboarding — clients "found on brainlabs.co.uk"
+ * (their published client list). The agency confirms which they manage; nothing
+ * is added silently. Real product would enrich from legit sources + confirm;
+ * here it's a mocked discovery from public info.
+ */
+export interface DiscoveredClient {
+  name: string;
+  domain: string;
+  industry: string;
+}
+
+export const BRAINLABS_DISCOVERED: DiscoveredClient[] = [
+  { name: "Estée Lauder", domain: "esteelauder.com", industry: "Beauty & cosmetics" },
+  { name: "Capital One", domain: "capitalone.com", industry: "Financial services" },
+  { name: "Vans", domain: "vans.com", industry: "Footwear & apparel" },
+  { name: "Harrods", domain: "harrods.com", industry: "Luxury retail" },
+  { name: "Expedia", domain: "expedia.com", industry: "Travel" },
+  { name: "American Express", domain: "americanexpress.com", industry: "Financial services" },
+  { name: "Formula 1", domain: "formula1.com", industry: "Sports & entertainment" },
+  { name: "Simply Business", domain: "simplybusiness.co.uk", industry: "SME insurance" },
+];
+
+/** Turn a discovered client into a roster entry (onboarding, awaiting setup). */
+export function discoveredToClient(d: DiscoveredClient): AgencyClient {
+  return {
+    id: `client-${d.domain.split(".")[0]}`,
+    name: d.name,
+    domain: d.domain,
+    industry: d.industry,
+    status: "onboarding",
+    monthlyBudget: 0,
+    lead: "Unassigned",
+    campaigns: 0,
+  };
+}
 
 export const BRAINLABS_TEAM: AgencyTeamMember[] = [
   { id: "tm-cynthia", name: "Cynthia Irani", initials: "CI", role: "strategist" },

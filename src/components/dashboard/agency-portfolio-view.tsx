@@ -2,16 +2,19 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, ArrowRight, Sparkles, Building2 } from "lucide-react";
+import { Plus, ArrowRight, Sparkles, Building2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaign } from "@/contexts/campaign-context";
 import {
   AGENCY,
   BRAINLABS_TEAM,
+  BRAINLABS_DISCOVERED,
   ROLE_LABELS,
   persistAgencyClients,
   ensureAgencySeed,
   inferClientFromDomain,
+  discoveredToClient,
+  faviconUrl,
 } from "@/data/seed-agency";
 import type { AgencyClient } from "@/types/campaign";
 
@@ -21,15 +24,55 @@ const STATUS_STYLE: Record<AgencyClient["status"], string> = {
   paused: "bg-muted text-muted-foreground",
 };
 
+/** Client logo from favicon, with initials fallback if it fails to load. */
+function ClientLogo({ domain, name }: { domain: string; name: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-[12px] font-semibold text-foreground">
+        {name.slice(0, 2).toUpperCase()}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={faviconUrl(domain)}
+      alt=""
+      onError={() => setFailed(true)}
+      className="h-9 w-9 shrink-0 rounded-lg border border-border bg-white object-contain p-1.5"
+    />
+  );
+}
+
 export function AgencyPortfolioView() {
   const { showToast } = useCampaign();
   const router = useRouter();
   const [clients, setClients] = useState<AgencyClient[]>([]);
   const [domain, setDomain] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setClients(ensureAgencySeed());
   }, []);
+
+  function toggleDiscovered(d: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(d)) next.delete(d);
+      else next.add(d);
+      return next;
+    });
+  }
+
+  function addSelected() {
+    const picks = BRAINLABS_DISCOVERED.filter((d) => selected.has(d.domain)).map(discoveredToClient);
+    if (picks.length === 0) return;
+    const next = [...picks, ...clients];
+    setClients(next);
+    persistAgencyClients(next);
+    setSelected(new Set());
+    showToast(`Added ${picks.length} client${picks.length > 1 ? "s" : ""} to your roster`);
+  }
 
   function addClient(e: FormEvent) {
     e.preventDefault();
@@ -97,9 +140,47 @@ export function AgencyPortfolioView() {
       <div>
         <h2 className="mb-2 text-sm font-medium text-muted-foreground">Clients</h2>
         {clients.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-white px-4 py-10 text-center">
-            <p className="text-[13px] font-medium text-foreground">No clients yet</p>
-            <p className="mt-1 text-[12px] text-muted-foreground">Add your first client above to build their workspace.</p>
+          <div className="rounded-xl border border-border bg-white p-4">
+            <div className="mb-1 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-[#2C9FDD]" />
+              We found these clients on {AGENCY.domain}
+            </div>
+            <p className="mb-3 text-[12px] text-muted-foreground">
+              Add the ones you manage — nothing is added until you confirm.
+            </p>
+            <div className="space-y-1.5">
+              {BRAINLABS_DISCOVERED.map((d) => {
+                const on = selected.has(d.domain);
+                return (
+                  <button
+                    key={d.domain}
+                    type="button"
+                    onClick={() => toggleDiscovered(d.domain)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                      on ? "border-[#2C9FDD] bg-[#EBF5FB]" : "border-border hover:bg-accent"
+                    )}
+                  >
+                    <ClientLogo domain={d.domain} name={d.name} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-medium text-foreground">{d.name}</div>
+                      <div className="text-[11px] text-muted-foreground">{d.industry} · {d.domain}</div>
+                    </div>
+                    <span className={cn("flex h-5 w-5 items-center justify-center rounded border", on ? "border-[#2C9FDD] bg-[#2C9FDD] text-white" : "border-border")}>
+                      {on && <Check className="h-3 w-3" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={addSelected}
+              disabled={selected.size === 0}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add {selected.size > 0 ? `${selected.size} ` : ""}selected
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -110,9 +191,7 @@ export function AgencyPortfolioView() {
                 onClick={() => openClient(c)}
                 className="group flex w-full items-center gap-4 rounded-xl border border-border bg-white px-4 py-3.5 text-left transition-all hover:shadow-sm"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-[12px] font-semibold text-foreground">
-                  {c.name.slice(0, 2).toUpperCase()}
-                </div>
+                <ClientLogo domain={c.domain} name={c.name} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[13px] font-medium text-foreground">{c.name}</span>
