@@ -24,12 +24,12 @@ const STAGE_META: Record<FunnelStage, { label: string; tagline: string; icon: ty
 
 const STAGE_ORDER: FunnelStage[] = ["awareness", "consideration", "conversion"];
 
-const CHANNEL_TINT: Record<string, string> = {
-  ctv: "bg-[#2C9FDD]",
-  dooh: "bg-[#7C5CFC]",
-  lookalike: "bg-emerald-500",
-  social: "bg-amber-500",
-  retargeting: "bg-rose-500",
+// The budget bar is split by FUNNEL STAGE (not channel) so it reads as the
+// upper/mid/lower-funnel allocation — the thing a planner actually wants at a glance.
+const STAGE_TINT: Record<FunnelStage, { bar: string; dot: string }> = {
+  awareness: { bar: "bg-[#2C9FDD]", dot: "bg-[#2C9FDD]" },
+  consideration: { bar: "bg-[#7C5CFC]", dot: "bg-[#7C5CFC]" },
+  conversion: { bar: "bg-emerald-500", dot: "bg-emerald-500" },
 };
 
 function fmtMoney(n: number): string {
@@ -213,12 +213,29 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
     onChange({ ...setTotalBudget(plan, n), aiTouched: undefined });
     pushFlash();
   }
+  function handleConnectPixel() {
+    onChange({ ...plan, pixelReady: true, aiTouched: undefined });
+  }
   const aiTouched = plan.aiTouched ?? [];
 
   const { summary } = plan;
   const enabled = plan.campaigns.filter((c) => c.enabled);
   const convDelta = summary.estConversions - summary.targets.conversions;
   const roasDelta = summary.estRoas - summary.targets.roas;
+
+  // Per-stage rollups (enabled only) for the stage headers + the allocation bar.
+  function stageStat(stage: FunnelStage) {
+    const cs = plan.campaigns.filter((c) => c.funnelStage === stage && c.enabled);
+    const budget = cs.reduce((s, c) => s + c.budget, 0);
+    const impressions = cs.reduce((s, c) => s + c.forecast.impressions, 0);
+    const conversions = cs.reduce((s, c) => s + c.forecast.conversions, 0);
+    const revenue = cs.reduce((s, c) => s + (c.forecast.roas != null ? c.forecast.roas * c.budget : 0), 0);
+    const roas = budget > 0 ? Math.round((revenue / budget) * 10) / 10 : 0;
+    const pct = summary.totalBudget > 0 ? Math.round((budget / summary.totalBudget) * 100) : 0;
+    return { budget, impressions, conversions, roas, pct };
+  }
+  const linePct = (budget: number) =>
+    summary.totalBudget > 0 ? Math.round((budget / summary.totalBudget) * 100) : 0;
 
   return (
     <div className="space-y-4">
@@ -238,16 +255,32 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
           )}
         </div>
 
-        {/* Budget bar viz */}
+        {/* Budget allocation across the funnel */}
         <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-muted">
-          {enabled.map((c) => (
-            <div
-              key={c.id}
-              className={cn("h-full", CHANNEL_TINT[c.channel] ?? "bg-foreground")}
-              style={{ width: `${summary.totalBudget > 0 ? (c.budget / summary.totalBudget) * 100 : 0}%` }}
-              title={`${c.label} · ${fmtMoney(c.budget)}`}
-            />
-          ))}
+          {STAGE_ORDER.map((stage) => {
+            const s = stageStat(stage);
+            if (s.budget <= 0) return null;
+            return (
+              <div
+                key={stage}
+                className={cn("h-full", STAGE_TINT[stage].bar)}
+                style={{ width: `${s.pct}%` }}
+                title={`${STAGE_META[stage].label} · ${fmtMoney(s.budget)} · ${s.pct}%`}
+              />
+            );
+          })}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          {STAGE_ORDER.map((stage) => {
+            const s = stageStat(stage);
+            if (s.budget <= 0) return null;
+            return (
+              <span key={stage} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className={cn("h-2 w-2 rounded-full", STAGE_TINT[stage].dot)} />
+                {STAGE_META[stage].label} <span className="font-medium text-foreground">{s.pct}%</span>
+              </span>
+            );
+          })}
         </div>
 
         {/* Data-personalization callout (progressive readiness) */}
@@ -256,11 +289,20 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
           plan.pixelReady ? "bg-[#EBF5FB] text-[#1c6fa3]" : "bg-amber-50 text-amber-700"
         )}>
           {plan.pixelReady ? <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-          <span>
+          <span className="flex-1">
             {plan.pixelReady
               ? <>Personalized from this advertiser&apos;s account data and <span className="font-medium">{plan.benchmarkBasis}</span>.</>
-              : <>No pixel detected — projections use <span className="font-medium">{plan.benchmarkBasis}</span> instead.</>}
+              : <>No pixel detected — projections use <span className="font-medium">{plan.benchmarkBasis}</span>. Connect it to personalize the forecast with real CPA history.</>}
           </span>
+          {!plan.pixelReady && (
+            <button
+              type="button"
+              onClick={handleConnectPixel}
+              className="shrink-0 rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-amber-700"
+            >
+              Connect pixel
+            </button>
+          )}
         </div>
       </div>
 
@@ -288,15 +330,30 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
         const Icon = meta.icon;
         return (
           <div key={stage} className="rounded-2xl border border-border bg-white">
-            <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-foreground">
-                <Icon className="h-3.5 w-3.5" />
-              </span>
-              <div>
-                <div className="text-[13px] font-semibold text-foreground">{meta.label}</div>
-                <div className="text-[11px] text-muted-foreground">{meta.tagline}</div>
-              </div>
-            </div>
+            {(() => {
+              const s = stageStat(stage);
+              return (
+                <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-foreground">
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-semibold text-foreground">{meta.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{meta.tagline}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-[13px] font-semibold text-foreground">
+                      {fmtMoney(s.budget)} <span className="text-muted-foreground">· {s.pct}%</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {stage === "awareness"
+                        ? `${fmtImpr(s.impressions)} reach`
+                        : `${fmtNum(s.conversions)} conv · ${s.roas}× ROAS`}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             <div className="divide-y divide-border">
               {rows.map((c) => (
                 <div key={c.id} className={cn("flex items-start gap-3 px-4 py-3", !c.enabled && "opacity-50")}>
@@ -316,8 +373,11 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     <RowMetrics c={c} />
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} />
+                      <span className="text-[10px] text-muted-foreground">{c.enabled ? `${linePct(c.budget)}% of plan` : "off"}</span>
+                    </div>
                     <Toggle checked={c.enabled} onChange={() => handleToggle(c.id)} label={`Toggle ${c.label}`} />
-                    <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} />
                   </div>
                 </div>
               ))}
