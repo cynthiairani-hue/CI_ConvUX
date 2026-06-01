@@ -45,27 +45,35 @@ function fmtNum(n: number): string {
 }
 
 /** Inline budget input — local draft, commits on blur / Enter, re-syncs to plan. */
-function BudgetInput({ value, onCommit }: { value: number; onCommit: (n: number) => void }) {
-  const [draft, setDraft] = useState(String(value));
-  useEffect(() => setDraft(String(value)), [value]);
+function BudgetInput({ value, onCommit, aiHighlight }: { value: number; onCommit: (n: number) => void; aiHighlight?: boolean }) {
+  const [draft, setDraft] = useState(value.toLocaleString());
+  const [focused, setFocused] = useState(false);
+  useEffect(() => setDraft(value.toLocaleString()), [value]);
+  // A fresh AI change re-arms the purple highlight (even on the same field).
+  useEffect(() => { if (aiHighlight) setFocused(false); }, [aiHighlight, value]);
 
   function commit() {
     const n = Number(draft.replace(/[^0-9.]/g, ""));
     if (Number.isFinite(n) && n !== value) onCommit(n);
-    else setDraft(String(value));
+    else setDraft(value.toLocaleString());
   }
 
+  const highlighted = aiHighlight && !focused;
   return (
-    <div className="flex items-center rounded-md border border-border bg-white focus-within:border-ring">
+    <div className={cn(
+      "flex items-center rounded-md border bg-white transition-colors",
+      highlighted ? "border-[#7C5CFC] bg-[#F3F0FF]" : "border-border focus-within:border-ring"
+    )}>
       <span className="pl-2 text-[12px] text-muted-foreground">$</span>
       <input
         inputMode="numeric"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        onFocus={() => setFocused(true)}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          if (e.key === "Escape") setDraft(String(value));
+          if (e.key === "Escape") setDraft(value.toLocaleString());
         }}
         className="w-[72px] bg-transparent py-1 pl-0.5 pr-2 text-right text-[13px] font-medium text-foreground outline-none"
         aria-label="Channel budget"
@@ -123,28 +131,35 @@ function RowMetrics({ c }: { c: MediaCampaign }) {
 }
 
 function KpiTile({
-  label, value, delta, edit,
+  label, value, delta, edit, aiHighlight,
 }: {
   label: string;
   value: string;
   delta?: { up: boolean; text: string };
   /** When provided, the value becomes an editable budget field. */
   edit?: { amount: number; onCommit: (n: number) => void };
+  aiHighlight?: boolean;
 }) {
-  const [draft, setDraft] = useState(String(edit?.amount ?? 0));
+  const [draft, setDraft] = useState((edit?.amount ?? 0).toLocaleString());
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
-    if (edit) setDraft(String(edit.amount));
+    if (edit) setDraft(edit.amount.toLocaleString());
   }, [edit?.amount]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (aiHighlight) setFocused(false); }, [aiHighlight, edit?.amount]);
 
   function commit() {
     if (!edit) return;
     const n = Number(draft.replace(/[^0-9.]/g, ""));
     if (Number.isFinite(n) && n !== edit.amount) edit.onCommit(n);
-    else setDraft(String(edit.amount));
+    else setDraft(edit.amount.toLocaleString());
   }
 
+  const highlighted = aiHighlight && !focused;
   return (
-    <div className="rounded-xl border border-border bg-white px-4 py-3">
+    <div className={cn(
+      "rounded-xl border bg-white px-4 py-3 transition-colors",
+      highlighted ? "border-[#7C5CFC] bg-[#F3F0FF]" : "border-border"
+    )}>
       <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-baseline gap-2">
         {edit ? (
@@ -154,12 +169,13 @@ function KpiTile({
               inputMode="numeric"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onFocus={() => setFocused(true)}
               onBlur={commit}
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                if (e.key === "Escape") setDraft(String(edit.amount));
+                if (e.key === "Escape") setDraft(edit.amount.toLocaleString());
               }}
-              className="w-[88px] bg-transparent text-[18px] font-semibold tracking-tight text-foreground outline-none"
+              className="w-[100px] bg-transparent text-[18px] font-semibold tracking-tight text-foreground outline-none"
               aria-label="Total budget"
             />
           </div>
@@ -184,18 +200,20 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
     setFlash(true);
     window.setTimeout(() => setFlash(false), 1400);
   }
+  // Manual edits clear the AI-change highlight (it's the human's edit now).
   function handleBudget(id: string, n: number) {
-    onChange(editCampaignBudget(plan, id, n));
+    onChange({ ...editCampaignBudget(plan, id, n), aiTouched: undefined });
     pushFlash();
   }
   function handleToggle(id: string) {
-    onChange(toggleCampaign(plan, id));
+    onChange({ ...toggleCampaign(plan, id), aiTouched: undefined });
     pushFlash();
   }
   function handleTotal(n: number) {
-    onChange(setTotalBudget(plan, n));
+    onChange({ ...setTotalBudget(plan, n), aiTouched: undefined });
     pushFlash();
   }
+  const aiTouched = plan.aiTouched ?? [];
 
   const { summary } = plan;
   const enabled = plan.campaigns.filter((c) => c.enabled);
@@ -248,7 +266,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
 
       {/* Summary KPIs vs target */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={{ amount: summary.totalBudget, onCommit: handleTotal }} />
+        <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={{ amount: summary.totalBudget, onCommit: handleTotal }} aiHighlight={aiTouched.includes("total")} />
         <KpiTile
           label="Est. conversions"
           value={fmtNum(summary.estConversions)}
@@ -299,7 +317,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <Toggle checked={c.enabled} onChange={() => handleToggle(c.id)} label={`Toggle ${c.label}`} />
-                    <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} />
+                    <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} />
                   </div>
                 </div>
               ))}

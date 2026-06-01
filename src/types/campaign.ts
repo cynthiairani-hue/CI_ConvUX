@@ -373,6 +373,9 @@ export interface MediaPlan {
   summary: MediaPlanSummary;
   reviewState: MediaPlanReviewState;
   checkInDays: 30 | 45 | 60 | null; // set at activation
+  /** Field ids the AI just changed (campaign id, or "total") — highlighted in
+   *  the card until the user clicks into the field. Cleared on manual edits. */
+  aiTouched?: string[];
   createdAt: string;
   lastModifiedAt: string;
   lastModifiedBy: string;

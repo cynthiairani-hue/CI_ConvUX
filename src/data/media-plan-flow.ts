@@ -234,10 +234,19 @@ export type MediaPlanCommand =
   | { kind: "total"; amount: number }
   | { kind: "why"; channelKey: MediaChannelKey; channelLabel: string };
 
-/** Interpret a freeform message as an edit to the active plan. Returns null if it isn't one. */
-export function parseMediaPlanCommand(text: string, plan: MediaPlan): MediaPlanCommand | null {
+/** Interpret a freeform message as an edit to the active plan. Returns null if it isn't one.
+ *  `lastChannelKey` lets pronouns ("change it to 14000") resolve to the channel last edited. */
+export function parseMediaPlanCommand(
+  text: string,
+  plan: MediaPlan,
+  lastChannelKey?: MediaChannelKey | null
+): MediaPlanCommand | null {
   const t = text.toLowerCase().trim();
   const byKey = (k: MediaChannelKey) => plan.campaigns.find((c) => c.channel === k);
+  const hasPronoun = /\b(it|that|this)\b/.test(t);
+  // Resolve a channel from the text, falling back to the last-edited one for pronouns.
+  const chan = (seg: string): MediaChannelKey | null =>
+    matchChannelKey(seg) ?? (hasPronoun && lastChannelKey ? lastChannelKey : null);
 
   // "why CTV?" — explanation, no mutation.
   if (/\bwhy\b/.test(t)) {
@@ -272,7 +281,7 @@ export function parseMediaPlanCommand(text: string, plan: MediaPlan): MediaPlanC
   const deltaUp = /\b(increase|raise|bump|add|boost)\b/.test(t);
   const deltaDown = /\b(decrease|cut|reduce|lower|trim)\b/.test(t);
   if ((deltaUp || deltaDown) && /\bby\b/.test(t)) {
-    const k = matchChannelKey(t);
+    const k = chan(t);
     const amt = parseAmount((t.split(/\bby\b/)[1]) || "");
     if (k && amt) {
       const c = byKey(k);
@@ -282,7 +291,7 @@ export function parseMediaPlanCommand(text: string, plan: MediaPlan): MediaPlanC
 
   // "change CTV budget to 11458" / "set social to $30k"
   if (/\b(change|set|make|update|put)\b/.test(t) && /\bto\b/.test(t)) {
-    const k = matchChannelKey(t);
+    const k = chan(t);
     const amt = parseAmount((t.split(/\bto\b/)[1]) || "");
     if (amt != null) {
       if (k) {

@@ -24,7 +24,7 @@ import {
   type StrategyIntent,
   type StrategyFlowTool,
 } from "@/data/campaign-flow";
-import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestrictedCategory, ChatMode, DetailLevel, AudienceSegment, AudienceSegmentType, MediaPlan } from "@/types/campaign";
+import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestrictedCategory, ChatMode, DetailLevel, AudienceSegment, AudienceSegmentType, MediaPlan, MediaChannelKey } from "@/types/campaign";
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
 import { useCampaign } from "./campaign-context";
 import { useLayout } from "./layout-context";
@@ -559,6 +559,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   // ref to the active plan so refine actions (shift/why/activate) read fresh state.
   const mediaPlanFlowRef = useRef<{ stage: "idle" | "awaiting-brief"; brief: string }>({ stage: "idle", brief: "" });
   const activeMediaPlanRef = useRef<MediaPlan | null>(null);
+  // Last channel the user edited via chat — lets pronouns ("change it to…") resolve.
+  const lastEditedChannelRef = useRef<MediaChannelKey | null>(null);
   useEffect(() => {
     activeMediaPlanRef.current = activeMediaPlan;
   }, [activeMediaPlan]);
@@ -709,23 +711,27 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // Same single-source recalc as the chips, so chat and canvas always agree.
       if (activeMediaPlanRef.current) {
         const plan = activeMediaPlanRef.current;
-        const cmd = parseMediaPlanCommand(content, plan);
+        const cmd = parseMediaPlanCommand(content, plan, lastEditedChannelRef.current);
+        const keyOf = (id: string) => plan.campaigns.find((c) => c.id === id)?.channel ?? null;
         if (cmd) {
           setMessages((prev) => [...prev, userMsg]);
           let p = plan;
+          let touched: string[] = [];
           let reply = "";
           const f = (n: number) => n.toLocaleString();
           const outcome = (pl: typeof plan) =>
             `Now forecasting **${f(pl.summary.estConversions)} conversions** at **${pl.summary.estRoas}× ROAS** on $${f(pl.summary.totalBudget)} total.`;
           if (cmd.kind === "set") {
             p = editCampaignBudget(plan, cmd.channelId, cmd.amount);
-            setActiveMediaPlan(p);
+            touched = [cmd.channelId];
+            lastEditedChannelRef.current = keyOf(cmd.channelId);
             reply = `Set ${cmd.channelLabel} to $${f(cmd.amount)}. ${outcome(p)}`;
           } else if (cmd.kind === "delta") {
             const c = plan.campaigns.find((x) => x.id === cmd.channelId);
             const nb = Math.max(0, (c?.budget ?? 0) + cmd.amount);
             p = editCampaignBudget(plan, cmd.channelId, nb);
-            setActiveMediaPlan(p);
+            touched = [cmd.channelId];
+            lastEditedChannelRef.current = keyOf(cmd.channelId);
             reply = `${cmd.amount >= 0 ? "Increased" : "Reduced"} ${cmd.channelLabel} to $${f(nb)}. ${outcome(p)}`;
           } else if (cmd.kind === "shift") {
             const from = plan.campaigns.find((x) => x.id === cmd.fromId);
@@ -733,23 +739,39 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             const move = Math.min(cmd.amount, from?.budget ?? 0);
             p = editCampaignBudget(plan, cmd.toId, (to?.budget ?? 0) + move);
             p = editCampaignBudget(p, cmd.fromId, (from?.budget ?? 0) - move);
-            setActiveMediaPlan(p);
+            touched = [cmd.fromId, cmd.toId];
+            lastEditedChannelRef.current = keyOf(cmd.toId);
             reply = `Moved $${f(move)} from ${cmd.fromLabel} to ${cmd.toLabel}. ${outcome(p)}`;
           } else if (cmd.kind === "toggle") {
             const c = plan.campaigns.find((x) => x.id === cmd.channelId);
             if (c && c.enabled !== cmd.on) p = toggleCampaign(plan, cmd.channelId);
-            setActiveMediaPlan(p);
+            touched = [cmd.channelId];
+            lastEditedChannelRef.current = keyOf(cmd.channelId);
             reply = `Turned ${cmd.on ? "on" : "off"} ${cmd.channelLabel}. ${outcome(p)}`;
           } else if (cmd.kind === "total") {
             p = setTotalBudget(plan, cmd.amount);
-            setActiveMediaPlan(p);
+            touched = ["total", ...p.campaigns.filter((c) => c.enabled).map((c) => c.id)];
             reply = `Set the total to $${f(cmd.amount)} and rescaled the mix. ${outcome(p)}`;
           } else {
-            // why
+            // why — explanation only, no mutation
             reply = WHY_CHANNEL[cmd.channelKey];
           }
+          if (cmd.kind !== "why") setActiveMediaPlan({ ...p, aiTouched: touched });
           const replyMsg: ChatMessage = { id: nextId(), role: "assistant", content: reply };
           setMessages((prev) => [...prev, replyMsg]);
+          return;
+        }
+        // Edit-shaped but unresolved (e.g. "make it bigger", no channel/amount): ask
+        // rather than letting the language model fabricate a change it didn't make.
+        const looksLikeEdit = /\b(change|set|shift|move|increase|decrease|raise|lower|cut|bump|budget|spend|reallocate)\b/.test(content.toLowerCase());
+        if (looksLikeEdit) {
+          setMessages((prev) => [...prev, userMsg]);
+          const msg: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: "I can adjust the plan — which channel and to what? e.g. \"change CTV to $14,000\", \"shift $10k from DOOH to social\", or \"set the total to $90k\".",
+          };
+          setMessages((prev) => [...prev, msg]);
           return;
         }
       }
@@ -1939,7 +1961,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             move = Math.min(10_000, dooh.budget);
             p = editCampaignBudget(p, social.id, social.budget + move);
             p = editCampaignBudget(p, dooh.id, dooh.budget - move);
-            setActiveMediaPlan(p);
+            setActiveMediaPlan({ ...p, aiTouched: [dooh.id, social.id] });
           }
           const moveLabel = `$${(move / 1000).toLocaleString()}k`;
           reply = `Done — moved ${moveLabel} from DOOH to Social. Plan now forecasts **${p.summary.estConversions.toLocaleString()} conversions** at **${p.summary.estRoas}× ROAS**. Heads up: you lose DOOH's geo-fenced reach, and re-adding it (closed beta) is a manual step.`;
