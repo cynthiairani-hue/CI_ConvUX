@@ -24,7 +24,7 @@ import {
   type StrategyIntent,
   type StrategyFlowTool,
 } from "@/data/campaign-flow";
-import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestrictedCategory, ChatMode, DetailLevel, AudienceSegment, AudienceSegmentType } from "@/types/campaign";
+import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestrictedCategory, ChatMode, DetailLevel, AudienceSegment, AudienceSegmentType, MediaPlan } from "@/types/campaign";
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
 import { useCampaign } from "./campaign-context";
 import { useLayout } from "./layout-context";
@@ -49,7 +49,8 @@ import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
 import { ensureReturningSeed } from "@/data/seed-returning";
 import { buildCompetitiveBrief } from "@/data/competitive-flow";
 import { buildOperatorPlan } from "@/data/operator-flow";
-import { buildMediaPlan } from "@/data/media-plan-flow";
+import { buildMediaPlan, editCampaignBudget } from "@/data/media-plan-flow";
+import { getCapabilities } from "@/data/prerequisites";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
@@ -189,7 +190,7 @@ function nextId() {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
-  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan } = useCampaign();
+  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, activeMediaPlan } = useCampaign();
   const { collapseLeftRail } = useLayout();
   // Defer localStorage reads to useEffect to prevent hydration mismatches
   const [state, setStateRaw] = useState<AICompanionState>("resting");
@@ -554,6 +555,14 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     chatModeRef.current = chatMode;
   }, [chatMode]);
 
+  // Media-plan flow: track when we're awaiting a pasted brief, and keep a live
+  // ref to the active plan so refine actions (shift/why/activate) read fresh state.
+  const mediaPlanFlowRef = useRef<{ stage: "idle" | "awaiting-brief"; brief: string }>({ stage: "idle", brief: "" });
+  const activeMediaPlanRef = useRef<MediaPlan | null>(null);
+  useEffect(() => {
+    activeMediaPlanRef.current = activeMediaPlan;
+  }, [activeMediaPlan]);
+
   const callAPI = useCallback(
     async (allMessages: ChatMessage[]) => {
       const apiMessages = allMessages
@@ -691,6 +700,46 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const parsed = parseIntent(content);
         const merged = mergeIntent(currentCampaignIntent, parsed);
         evaluateAndRespond(merged, userMsg);
+        return;
+      }
+
+      // Media-plan brief intake: the previous turn invited a brief, so treat this
+      // message as the brief (intercept BEFORE intent routing so "campaigns"/
+      // "acquisition" in the brief don't misfire other flows). Then ask Kirby's
+      // two clarifying questions + surface the advertiser's data, with quick-reply
+      // chips. (Content mirrors the AdRoll Media Planner spec; rendered in our card.)
+      if (mediaPlanFlowRef.current.stage === "awaiting-brief") {
+        mediaPlanFlowRef.current = { stage: "idle", brief: content };
+        setMessages((prev) => [...prev, userMsg]);
+        const brand = brandRef.current || getCurrentBrand();
+        const brandName = brand?.name || "your brand";
+        const dataCallout = getCapabilities().hasSitePixel
+          ? `📊 **Found existing data for ${brandName}:** active pixel · I'll use the account's CPA history to personalise the forecast.`
+          : `⚠️ **No pixel detected for ${brand?.domain || "the site"} yet** — I'll base projections on ${brandName}'s vertical benchmarks instead.`;
+        const clarifyMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: `Got it — nice brief. Before I build the plan, two quick questions:\n\n1. Your brief mentions both acquisition and awareness. Should I weight the plan primarily toward conversions, or split more evenly between brand-building and direct response?\n2. The brief doesn't specify geography beyond "US" — are you open to testing Canada, or strictly US only?\n\n${dataCallout}`,
+        };
+        const choiceMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: "",
+          toolCall: {
+            type: "choices",
+            field: "media-plan-clarify",
+            question: "How should I weight the plan?",
+            step: 1,
+            totalSteps: 1,
+            multiSelect: false,
+            options: [
+              { id: "conversions-us", label: "Conversions first, awareness secondary — US only" },
+              { id: "even-split", label: "Even split between brand and conversion" },
+              { id: "include-canada", label: "Include Canada too" },
+            ],
+          },
+        };
+        setMessages((prev) => [...prev, clarifyMsg, choiceMsg]);
         return;
       }
 
@@ -838,35 +887,15 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
       if (isMediaPlanIntent) {
         setMessages((prev) => [...prev, userMsg]);
+        mediaPlanFlowRef.current = { stage: "awaiting-brief", brief: "" };
         const brand = brandRef.current || getCurrentBrand();
         const brandName = brand?.name || "your brand";
         const ackMsg: ChatMessage = {
           id: nextId(),
           role: "assistant",
-          content: `Let's build a real media plan for ${brandName} — tailored to your channels, not a template. One quick thing first:`,
+          content: `Let's build a media plan for ${brandName}. Paste the client brief or describe the campaign — goal, budget, audience, timeline — and I'll pull in ${brandName}'s account data, ask anything that's missing, then build it.`,
         };
-        const choiceMsg: ChatMessage = {
-          id: nextId(),
-          role: "assistant",
-          content: "",
-          toolCall: {
-            type: "choices",
-            field: "media-plan-objective",
-            question: "What's the primary objective for this plan?",
-            subtitle: `I'll allocate budget across the right channels for ${brandName} and set targets to match.`,
-            step: 1,
-            totalSteps: 1,
-            multiSelect: false,
-            options: [
-              { id: "awareness", label: "Awareness", detail: "Grow brand reach (CTV-led)" },
-              { id: "traffic", label: "Traffic", detail: "Drive qualified site visits" },
-              { id: "leads", label: "Leads", detail: "Capture new prospects" },
-              { id: "sales", label: "Sales", detail: "Drive purchases / ROAS" },
-              { id: "retargeting", label: "Retargeting", detail: "Re-engage recent visitors" },
-            ],
-          },
-        };
-        setMessages((prev) => [...prev, ackMsg, choiceMsg]);
+        setMessages((prev) => [...prev, ackMsg]);
         return;
       }
 
@@ -1768,38 +1797,92 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (field === "media-plan-objective") {
-        const objective = selected[0] || "awareness";
+      // The post-plan refine chips (Kirby's content, our pattern).
+      const makeRefineCard = (): ChatMessage => ({
+        id: nextId(),
+        role: "assistant",
+        content: "",
+        toolCall: {
+          type: "choices",
+          field: "media-plan-refine",
+          question: "Want to refine it?",
+          step: 1,
+          totalSteps: 1,
+          multiSelect: false,
+          options: [
+            { id: "activate", label: "Looks great — send for approval" },
+            { id: "shift-dooh-social", label: "Shift $10k from DOOH to social" },
+            { id: "why-ctv", label: "Why CTV for a DTC brand?" },
+            { id: "change-budget", label: "Change the budget" },
+          ],
+        },
+      });
+
+      if (field === "media-plan-clarify") {
+        // Map the clarify answer to an objective; geography answer keeps conversions-led.
+        const sel = selected[0] || "even-split";
+        const objective = sel === "even-split" ? "awareness" : "sales";
         setMessages((prev) => [...prev, userMsg]);
         setIsLoading(true);
         const brand = brandRef.current || getCurrentBrand();
         const adv = advertiser || {
-          id: "adv-ffern-co",
+          id: "adv-fallback",
           companyName: brand?.name || "Your brand",
           websiteUrl: brand?.domain || "your site",
           industry: mapBrandIndustryToIAB(brand?.industry || "other"),
           restrictedCategories: [],
         };
-        // Infer a starting monthly budget from the latest saved strategy, else default.
-        let monthly = 8000;
-        try {
-          const raw = typeof window !== "undefined" ? localStorage.getItem("fuseiq-strategies") : null;
-          const list = raw ? (JSON.parse(raw) as StrategyPlan[]) : [];
-          const last = list[list.length - 1];
-          if (last?.budgetSchedule?.data?.monthlyBudget) monthly = last.budgetSchedule.data.monthlyBudget;
-        } catch { /* default */ }
+        // Pull the total budget from the brief if stated, else a sensible default.
+        const brief = mediaPlanFlowRef.current.brief || "";
+        const budgetMatch = brief.match(/\$\s?([\d][\d,]{3,})/);
+        const total = budgetMatch ? Number(budgetMatch[1].replace(/,/g, "")) : 120_000;
         setTimeout(() => {
-          setActiveMediaPlan(buildMediaPlan(adv, objective, monthly));
-          const ack: ChatMessage = {
+          const plan = buildMediaPlan(adv, objective, total);
+          setActiveMediaPlan(plan);
+          const building: ChatMessage = { id: nextId(), role: "assistant", content: "Perfect. Building your plan now…" };
+          const narration: ChatMessage = {
             id: nextId(),
             role: "assistant",
-            content: `Here's your media plan for ${adv.companyName} — 5 channels grouped Awareness → Consideration → Conversion, benchmarked against ${adv.companyName}'s vertical. Edit any budget inline or tell me to shift spend, and the forecast recalculates. Send for approval when it's ready.`,
+            content: `Here's your media plan for **${adv.companyName}**. I've recommended ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}. Your brief mentioned display and social — I've added lookalike prospecting and DOOH based on the acquisition goal and seasonal context.\n\nOne thing to flag: **DOOH is currently in closed beta.** If you'd like to include it, we can help activate it manually for you — just let us know and we'll loop in the team.`,
           };
-          setMessages((prev) => [...prev, ack]);
+          setMessages((prev) => [...prev, building, narration, makeRefineCard()]);
           setIsLoading(false);
           setState("split");
           collapseLeftRail();
-        }, 600);
+        }, 700);
+        return;
+      }
+
+      if (field === "media-plan-refine") {
+        const sel = selected[0];
+        setMessages((prev) => [...prev, userMsg]);
+        const plan = activeMediaPlanRef.current;
+        let reply = "";
+        let repostChips = true;
+        if (sel === "activate") {
+          if (plan) setActiveMediaPlan({ ...plan, reviewState: "pending-approval", lastModifiedAt: new Date().toISOString() });
+          reply = "Sent to Marcus Patel for approval — you'll get the nod before anything goes live. Track it in Approvals.";
+          repostChips = false;
+        } else if (sel === "shift-dooh-social" && plan) {
+          const dooh = plan.campaigns.find((c) => c.channel === "dooh");
+          const social = plan.campaigns.find((c) => c.channel === "social");
+          let p = plan;
+          let move = 0;
+          if (dooh && social) {
+            move = Math.min(10_000, dooh.budget);
+            p = editCampaignBudget(p, social.id, social.budget + move);
+            p = editCampaignBudget(p, dooh.id, dooh.budget - move);
+            setActiveMediaPlan(p);
+          }
+          const moveLabel = `$${(move / 1000).toLocaleString()}k`;
+          reply = `Done — moved ${moveLabel} from DOOH to Social. Plan now forecasts **${p.summary.estConversions.toLocaleString()} conversions** at **${p.summary.estRoas}× ROAS**. Heads up: you lose DOOH's geo-fenced reach, and re-adding it (closed beta) is a manual step.`;
+        } else if (sel === "why-ctv") {
+          reply = "CTV is a brand play, not a direct-response channel — expect 3–5× better recall and a ~15–20% lift on your co-running retargeting over the flight, but few last-click conversions. That's why it sits in Awareness and reports VTR + brand-lift instead of ROAS. Want me to drop it and move the budget to lookalike prospecting?";
+        } else {
+          reply = "Sure — edit any channel's budget inline on the card, or change the total at the top and I'll rescale the mix. You can also tell me a number (e.g. “$90k”) and I'll apply it.";
+        }
+        const replyMsg: ChatMessage = { id: nextId(), role: "assistant", content: reply };
+        setMessages((prev) => [...prev, replyMsg, ...(repostChips ? [makeRefineCard()] : [])]);
         return;
       }
 
