@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import {
-  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, Power,
+  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle,
 } from "lucide-react";
 import type {
   FunnelStage, MediaCampaign, MediaPlan,
 } from "@/types/campaign";
-import { editCampaignBudget, toggleCampaign } from "@/data/media-plan-flow";
+import { editCampaignBudget, toggleCampaign, setTotalBudget } from "@/data/media-plan-flow";
 import { cn } from "@/lib/utils";
 
 interface MediaPlanCardProps {
@@ -74,6 +74,28 @@ function BudgetInput({ value, onCommit }: { value: number; onCommit: (n: number)
   );
 }
 
+/** On/off toggle switch — matches the app's standard switch (settings, strategy card). */
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      className={cn(
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        checked ? "bg-emerald-500" : "bg-[#D1D5DB]"
+      )}
+    >
+      <span
+        className={cn("inline-block rounded-full bg-white shadow-sm transition-transform", checked ? "translate-x-[18px]" : "translate-x-[3px]")}
+        style={{ width: 15, height: 15 }}
+      />
+    </button>
+  );
+}
+
 /** Specialty / standard metrics for one row. */
 function RowMetrics({ c }: { c: MediaCampaign }) {
   const f = c.forecast;
@@ -100,12 +122,50 @@ function RowMetrics({ c }: { c: MediaCampaign }) {
   );
 }
 
-function KpiTile({ label, value, delta }: { label: string; value: string; delta?: { up: boolean; text: string } }) {
+function KpiTile({
+  label, value, delta, edit,
+}: {
+  label: string;
+  value: string;
+  delta?: { up: boolean; text: string };
+  /** When provided, the value becomes an editable budget field. */
+  edit?: { amount: number; onCommit: (n: number) => void };
+}) {
+  const [draft, setDraft] = useState(String(edit?.amount ?? 0));
+  useEffect(() => {
+    if (edit) setDraft(String(edit.amount));
+  }, [edit?.amount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function commit() {
+    if (!edit) return;
+    const n = Number(draft.replace(/[^0-9.]/g, ""));
+    if (Number.isFinite(n) && n !== edit.amount) edit.onCommit(n);
+    else setDraft(String(edit.amount));
+  }
+
   return (
     <div className="rounded-xl border border-border bg-white px-4 py-3">
       <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-[18px] font-semibold tracking-tight text-foreground">{value}</span>
+        {edit ? (
+          <div className="flex items-baseline">
+            <span className="text-[18px] font-semibold tracking-tight text-foreground">$</span>
+            <input
+              inputMode="numeric"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") setDraft(String(edit.amount));
+              }}
+              className="w-[88px] bg-transparent text-[18px] font-semibold tracking-tight text-foreground outline-none"
+              aria-label="Total budget"
+            />
+          </div>
+        ) : (
+          <span className="text-[18px] font-semibold tracking-tight text-foreground">{value}</span>
+        )}
         {delta && (
           <span className={cn("inline-flex items-center gap-0.5 text-[11px] font-medium", delta.up ? "text-emerald-600" : "text-rose-500")}>
             {delta.up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
@@ -130,6 +190,10 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   }
   function handleToggle(id: string) {
     onChange(toggleCampaign(plan, id));
+    pushFlash();
+  }
+  function handleTotal(n: number) {
+    onChange(setTotalBudget(plan, n));
     pushFlash();
   }
 
@@ -184,7 +248,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
 
       {/* Summary KPIs vs target */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} />
+        <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={{ amount: summary.totalBudget, onCommit: handleTotal }} />
         <KpiTile
           label="Est. conversions"
           value={fmtNum(summary.estConversions)}
@@ -235,17 +299,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} />
-                    <button
-                      type="button"
-                      onClick={() => handleToggle(c.id)}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
-                        c.enabled ? "text-muted-foreground hover:bg-accent" : "text-foreground hover:bg-accent"
-                      )}
-                      aria-label={c.enabled ? "Turn channel off" : "Turn channel on"}
-                    >
-                      <Power className="h-3 w-3" /> {c.enabled ? "On" : "Off"}
-                    </button>
+                    <Toggle checked={c.enabled} onChange={() => handleToggle(c.id)} label={`Toggle ${c.label}`} />
                   </div>
                 </div>
               ))}

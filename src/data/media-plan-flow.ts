@@ -164,6 +164,21 @@ export function editCampaignBudget(plan: MediaPlan, campaignId: string, newBudge
   return recalcMediaPlan({ ...plan, campaigns });
 }
 
+/** Edit the TOTAL budget → rescale enabled channels proportionally, then recalc. */
+export function setTotalBudget(plan: MediaPlan, newTotal: number): MediaPlan {
+  const target = Math.max(0, Math.round(newTotal));
+  const enabled = plan.campaigns.filter((c) => c.enabled);
+  const current = enabled.reduce((s, c) => s + c.budget, 0);
+  if (current <= 0 || target <= 0) {
+    return recalcMediaPlan({ ...plan, summary: { ...plan.summary, totalBudget: target } });
+  }
+  const factor = target / current;
+  const campaigns = plan.campaigns.map((c) =>
+    c.enabled ? { ...c, budget: Math.round(c.budget * factor) } : c
+  );
+  return recalcMediaPlan({ ...plan, campaigns });
+}
+
 /** Channel on/off toggle → recalc (disabled channels drop out of the summary). */
 export function toggleCampaign(plan: MediaPlan, campaignId: string): MediaPlan {
   const campaigns = plan.campaigns.map((c) =>
