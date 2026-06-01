@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { usePersona } from "@/contexts/persona-context";
-import { useBrand } from "@/data/brand-profiles";
+import { useBrand, getCurrentBrand, mapBrandIndustryToIAB } from "@/data/brand-profiles";
+import { buildMediaPlan } from "@/data/media-plan-flow";
 import { cn } from "@/lib/utils";
 import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2, Check, X } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
@@ -137,9 +138,10 @@ export default function CampaignsPage() {
     savedStrategies, savedAdvertisers, setActiveStrategy,
     activeNarrative, setActiveNarrative, showToast,
     duplicateStrategy, renameStrategy, archiveStrategy, removeStrategy,
+    setActiveMediaPlan,
     hydrated,
   } = useCampaign();
-  const { openFullscreen } = useAICompanion();
+  const { openFullscreen, setState: setChatState } = useAICompanion();
   const { activePersona } = usePersona();
   // Agencies speak "media plan", not "campaign" — the plan is the unit of work.
   const isAgency = activePersona.vertical === "agency";
@@ -178,7 +180,25 @@ export default function CampaignsPage() {
   }
 
   function handleNewCampaign() {
-    openFullscreen(isAgency ? "build a media plan" : "Build me a campaign");
+    if (isAgency) {
+      // Manual-GUI-first (Notion-style): open the editable plan on the canvas
+      // directly — no chat. The AI stays reachable via the bottom-right bubble.
+      const brand = getCurrentBrand();
+      const adv = brand
+        ? {
+            id: `adv-${brand.domain.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+            companyName: brand.name,
+            websiteUrl: brand.domain,
+            industry: mapBrandIndustryToIAB(brand.industry),
+            restrictedCategories: [],
+          }
+        : { id: "adv-fallback", companyName: "Your client", websiteUrl: "your-site.com", industry: mapBrandIndustryToIAB("other"), restrictedCategories: [] };
+      try { sessionStorage.setItem("fuseiq-suppress-autochat", "1"); } catch { /* ignore */ }
+      setChatState("resting");
+      setActiveMediaPlan(buildMediaPlan(adv, "sales", 120_000));
+      return;
+    }
+    openFullscreen("Build me a campaign");
   }
 
   function handleAction(strategy: StrategyPlan, actionId: string) {
@@ -232,9 +252,11 @@ export default function CampaignsPage() {
         <div className="mx-auto my-auto w-full max-w-3xl px-4 sm:px-8 py-10">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-foreground">Campaigns</h1>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">{isAgency ? "Media Plans" : "Campaigns"}</h1>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
-                {isEmpty ? "Your campaigns will live here" : `${savedStrategies.length} campaign${savedStrategies.length === 1 ? "" : "s"}`}
+                {isEmpty
+                  ? isAgency ? "Your media plans will live here" : "Your campaigns will live here"
+                  : `${savedStrategies.length} ${isAgency ? "media plan" : "campaign"}${savedStrategies.length === 1 ? "" : "s"}`}
               </p>
             </div>
             {!isEmpty && (

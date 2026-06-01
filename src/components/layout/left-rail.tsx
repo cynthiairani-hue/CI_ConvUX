@@ -85,7 +85,7 @@ export function LeftRail() {
           <LeftRailNavItem
             key={item.id}
             icon={item.icon}
-            label={item.label}
+            label={item.id === "campaigns" && activePersona.vertical === "agency" ? "Media Plans" : item.label}
             href={item.href}
             badge={item.id === "approvals" ? pendingCount : item.id === "reports" ? narrativeCount : item.badge}
             isActive={pathname.startsWith(item.href)}

@@ -686,6 +686,46 @@ function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<type
   );
 }
 
+/**
+ * Reactive AI bubble (Notion-style). When the user opens a manual artifact GUI
+ * without the chat, this sits bottom-right and greets once per session with
+ * "I'm here if you need me," then stays out of the way.
+ */
+function ChatBubble({ onOpen }: { onOpen: () => void }) {
+  const [showTip, setShowTip] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem("fuseiq-bubble-tip-seen")) return;
+    setShowTip(true);
+    const t = window.setTimeout(() => setShowTip(false), 6000);
+    return () => window.clearTimeout(t);
+  }, []);
+  function dismissTip() {
+    setShowTip(false);
+    try { sessionStorage.setItem("fuseiq-bubble-tip-seen", "1"); } catch { /* ignore */ }
+  }
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5">
+      {showTip && (
+        <div className="flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5 text-[12px] text-foreground shadow-md animate-in fade-in slide-in-from-right-2 duration-300">
+          <span>I&apos;m here if you need me</span>
+          <button type="button" onClick={dismissTip} className="text-muted-foreground transition-colors hover:text-foreground" aria-label="Dismiss">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => { dismissTip(); onOpen(); }}
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-all hover:bg-foreground/90 hover:scale-105 active:scale-95"
+        title="Ask the AI"
+      >
+        <Sparkles className="h-5 w-5" />
+      </button>
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { state, dockSide, setState } = useAICompanion();
   const { activeStrategy, savedStrategies, activeNarrative, activeAudience, activeBrief, activeOperator, activeMediaPlan } = useCampaign();
@@ -723,6 +763,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     // Only trigger on transition from no-artifact → has-artifact
     if (!hasArtifact || wasOpen) return;
+    // Manual-GUI-first (Notion-style): a main CTA opened the artifact for manual
+    // editing — keep the chat closed; the bubble offers the AI reactively.
+    if (typeof window !== "undefined" && sessionStorage.getItem("fuseiq-suppress-autochat")) {
+      sessionStorage.removeItem("fuseiq-suppress-autochat");
+      return;
+    }
     // Don't auto-open if user explicitly closed this session
     if (userClosedRef.current) return;
     // Don't auto-open if AI is already showing
@@ -810,16 +856,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           state === "split";
         const showBubble = hasArtifact && !chatVisible;
         if (!showBubble) return null;
-        return (
-          <button
-            type="button"
-            onClick={() => setState("floating")}
-            className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-foreground text-background shadow-lg transition-all hover:bg-foreground/90 hover:scale-105 active:scale-95"
-            title="Open chat"
-          >
-            <Sparkles className="h-5 w-5" />
-          </button>
-        );
+        return <ChatBubble onOpen={() => setState("floating")} />;
       })()}
 
       <Toast />
