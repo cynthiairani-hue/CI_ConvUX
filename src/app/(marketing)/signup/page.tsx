@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Globe, Image, Sparkles, LayoutDashboard, Check } from "lucide-react";
+import { ArrowRight, Globe, Image, Sparkles, LayoutDashboard, Check, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBrandFromEmail, type BrandProfile } from "@/data/brand-profiles";
+import { BRAINLABS_DISCOVERED, faviconUrl, AGENCY } from "@/data/seed-agency";
 
 /* ──────────────────────────────────────────────
    Discovery step definition
@@ -19,7 +20,39 @@ interface DiscoveryStep {
   delayMs: number;     // time before this step completes (from its start)
 }
 
-function buildDiscoverySteps(brand: BrandProfile | null, domain: string): DiscoveryStep[] {
+function buildDiscoverySteps(brand: BrandProfile | null, domain: string, isAgency: boolean): DiscoveryStep[] {
+  if (isAgency) {
+    return [
+      {
+        id: "scan",
+        icon: Globe,
+        loading: `Scanning ${domain}...`,
+        complete: `${domain} scanned`,
+        delayMs: 1800,
+      },
+      {
+        id: "visual", // client roster discovery — drives the logo reveal
+        icon: Users,
+        loading: "Discovering your client roster...",
+        complete: `${BRAINLABS_DISCOVERED.length} clients found`,
+        delayMs: 2200,
+      },
+      {
+        id: "enrich",
+        icon: Image,
+        loading: "Pulling client logos & industries...",
+        complete: "Logos & industries pulled",
+        delayMs: 1600,
+      },
+      {
+        id: "workspace",
+        icon: LayoutDashboard,
+        loading: "Building your agency portfolio...",
+        complete: "Portfolio ready",
+        delayMs: 1200,
+      },
+    ];
+  }
   return [
     {
       id: "scan",
@@ -29,7 +62,7 @@ function buildDiscoverySteps(brand: BrandProfile | null, domain: string): Discov
       delayMs: 1800,
     },
     {
-      id: "imagery",
+      id: "visual", // brand imagery — drives the image reveal
       icon: Image,
       loading: "Extracting brand imagery...",
       complete: brand
@@ -63,16 +96,22 @@ function buildDiscoverySteps(brand: BrandProfile | null, domain: string): Discov
 function BrandDiscovery({
   brand,
   domain,
+  isAgency,
   onComplete,
 }: {
   brand: BrandProfile | null;
   domain: string;
+  isAgency: boolean;
   onComplete: () => void;
 }) {
-  const steps = buildDiscoverySteps(brand, domain);
+  const steps = buildDiscoverySteps(brand, domain, isAgency);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const [visibleImages, setVisibleImages] = useState(0);
+
+  const visualCount = isAgency
+    ? Math.min(BRAINLABS_DISCOVERED.length, 6)
+    : Math.min(brand?.heroImages.length ?? 0, 4);
 
   useEffect(() => {
     let timeout: NodeJS.Timeout;
@@ -87,11 +126,10 @@ function BrandDiscovery({
 
       setActiveStep(index);
 
-      // Stagger images in during the "imagery" step
-      if (steps[index].id === "imagery" && brand) {
-        const imgCount = Math.min(brand.heroImages.length, 4);
-        for (let img = 0; img < imgCount; img++) {
-          const t = setTimeout(() => setVisibleImages(img + 1), 400 + img * 350);
+      // Stagger the visual (brand images OR client logos) in during the visual step
+      if (steps[index].id === "visual" && visualCount > 0) {
+        for (let img = 0; img < visualCount; img++) {
+          const t = setTimeout(() => setVisibleImages(img + 1), 400 + img * 300);
           imageTimeouts.push(t);
         }
       }
@@ -113,8 +151,9 @@ function BrandDiscovery({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const imageryDone = completedSteps.includes("imagery");
-  const imageryActive = steps[activeStep]?.id === "imagery" && !imageryDone;
+  const visualDone = completedSteps.includes("visual");
+  const visualActive = steps[activeStep]?.id === "visual" && !visualDone;
+  const showVisual = (visualActive || visualDone) && visibleImages > 0;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -127,10 +166,14 @@ function BrandDiscovery({
           {/* Heading */}
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              Setting up your workspace
+              {isAgency ? "Setting up your agency workspace" : "Setting up your workspace"}
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              We&apos;re analyzing <span className="font-medium text-foreground">{domain}</span> to personalize your experience with your own brand imagery, industry context, and relevant recommendations.
+              {isAgency ? (
+                <>We&apos;re analyzing <span className="font-medium text-foreground">{domain}</span> to find your clients, pull their logos and industries, and build your portfolio.</>
+              ) : (
+                <>We&apos;re analyzing <span className="font-medium text-foreground">{domain}</span> to personalize your experience with your own brand imagery, industry context, and relevant recommendations.</>
+              )}
             </p>
           </div>
 
@@ -186,8 +229,32 @@ function BrandDiscovery({
             })}
           </div>
 
-          {/* Brand imagery — loads progressively during imagery step */}
-          {(imageryActive || imageryDone) && brand && visibleImages > 0 && (
+          {/* Agency: client logos load progressively during the roster-discovery step */}
+          {isAgency && showVisual && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground animate-in fade-in duration-300">
+                Clients found on {AGENCY.domain}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {BRAINLABS_DISCOVERED.slice(0, 6).map((c, i) => (
+                  <div
+                    key={c.domain}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg border border-border bg-white px-2.5 py-2 transition-all duration-500",
+                      i < visibleImages ? "opacity-100 scale-100" : "opacity-0 scale-95",
+                    )}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={faviconUrl(c.domain)} alt="" className="h-5 w-5 shrink-0 rounded object-contain" />
+                    <span className="truncate text-[11px] font-medium text-foreground">{c.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Brand: imagery loads progressively during the imagery step */}
+          {!isAgency && brand && showVisual && (
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground animate-in fade-in duration-300">
                 {brand.name} brand imagery
@@ -201,6 +268,7 @@ function BrandDiscovery({
                       i < visibleImages ? "opacity-100 scale-100" : "opacity-0 scale-95",
                     )}
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={src}
                       alt={`${brand.name} brand`}
@@ -244,6 +312,7 @@ export default function SignupPage() {
   const [phase, setPhase] = useState<"form" | "discovery">("form");
   const [discoveryBrand, setDiscoveryBrand] = useState<BrandProfile | null>(null);
   const [discoveryDomain, setDiscoveryDomain] = useState("");
+  const [discoveryIsAgency, setDiscoveryIsAgency] = useState(false);
 
   function handleEnter() {
     if (!profile) return;
@@ -259,6 +328,7 @@ export default function SignupPage() {
       // Net-new gets the brand-discovery flourish before landing.
       setDiscoveryDomain(s.email.split("@")[1] || "");
       setDiscoveryBrand(getBrandFromEmail(s.email));
+      setDiscoveryIsAgency(s.id === "agency");
       setPhase("discovery");
     } else {
       router.push("/home");
@@ -274,6 +344,7 @@ export default function SignupPage() {
       <BrandDiscovery
         brand={discoveryBrand}
         domain={discoveryDomain}
+        isAgency={discoveryIsAgency}
         onComplete={handleDiscoveryComplete}
       />
     );
