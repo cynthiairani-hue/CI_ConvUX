@@ -111,6 +111,47 @@ export function ensureAgencySeed(): AgencyClient[] {
   return BRAINLABS_CLIENTS;
 }
 
+/* ── Active client (agency "in-client" mode) ───────────────────────────────
+   Entering a client scopes the whole app to that client. We clear the shared
+   workspace keys on switch so the entered client reseeds fresh, then store the
+   active client. getCurrentBrand() reads this to resolve the brand. A full
+   reload re-hydrates everything against the new scope. */
+
+const ACTIVE_CLIENT_KEY = "fuseiq-active-client";
+const WORKSPACE_KEYS = [
+  "fuseiq-strategies", "fuseiq-advertisers", "fuseiq-audiences",
+  "fuseiq-narratives", "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions",
+];
+
+export interface ActiveClient {
+  id: string;
+  name: string;
+  domain: string;
+  industry: string;
+}
+
+export function getActiveClient(): ActiveClient | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(ACTIVE_CLIENT_KEY);
+    return raw ? (JSON.parse(raw) as ActiveClient) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Enter a client's scoped workspace (clears the prior scope; caller reloads). */
+export function enterClient(c: AgencyClient): void {
+  WORKSPACE_KEYS.forEach((k) => localStorage.removeItem(k));
+  localStorage.setItem(ACTIVE_CLIENT_KEY, JSON.stringify({ id: c.id, name: c.name, domain: c.domain, industry: c.industry }));
+}
+
+/** Return to the agency portfolio (clears client scope; caller reloads). */
+export function exitClient(): void {
+  WORKSPACE_KEYS.forEach((k) => localStorage.removeItem(k));
+  localStorage.removeItem(ACTIVE_CLIENT_KEY);
+}
+
 /** AI-native client onboarding: infer a client brand from a pasted domain. */
 export function inferClientFromDomain(input: string): AgencyClient {
   const domain = input

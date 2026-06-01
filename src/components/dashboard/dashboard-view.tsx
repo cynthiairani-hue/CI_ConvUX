@@ -7,6 +7,7 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
 import { usePersona } from "@/contexts/persona-context";
 import { AgencyPortfolioView } from "./agency-portfolio-view";
+import { getActiveClient, type ActiveClient } from "@/data/seed-agency";
 import {
   Megaphone,
   TrendingUp,
@@ -415,6 +416,13 @@ export function DashboardView() {
     setDemoState(getDemoUserState());
   }, []);
 
+  // Agency "in-client" mode: when a client is selected, the agency persona drops
+  // into that client's scoped single-brand dashboard (instead of the portfolio).
+  const [activeClient, setActiveClient] = useState<ActiveClient | null>(null);
+  useEffect(() => {
+    setActiveClient(getActiveClient());
+  }, []);
+
   const isReturningUser = hydrated && demoState === "first-time"
     ? false
     : hydrated && (savedStrategies?.length || 0) > 0;
@@ -441,8 +449,9 @@ export function DashboardView() {
     [startCampaignFlow, openFullscreen]
   );
 
-  // Agency persona gets the portfolio experience, not the single-brand dashboard.
-  if (hydrated && activePersona.vertical === "agency") {
+  // Agency persona gets the portfolio experience — UNLESS a client is selected,
+  // in which case it falls through to that client's scoped single-brand dashboard.
+  if (hydrated && activePersona.vertical === "agency" && !activeClient) {
     return (
       <div className="flex h-full flex-col">
         <div className="flex-1 overflow-y-auto">

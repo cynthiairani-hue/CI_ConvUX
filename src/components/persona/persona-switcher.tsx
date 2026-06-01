@@ -153,6 +153,9 @@ export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
               <button
                 key={persona.id}
                 onClick={() => {
+                  // Leaving any persona drops the agency "in-client" scope so a
+                  // stale client brand can't leak into another persona.
+                  localStorage.removeItem("fuseiq-active-client");
                   setActivePersona(persona.id);
                   setOpen(false);
                 }}

@@ -9,6 +9,7 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { usePersona } from "@/contexts/persona-context";
 import { navItems } from "@/data/navigation";
 import { LeftRailNavItem } from "./left-rail-nav-item";
+import { ClientSwitcher } from "./client-switcher";
 import { PersonaSwitcher } from "@/components/persona/persona-switcher";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,12 @@ export function LeftRail() {
           )}
         </button>
       </div>
+
+      {activePersona.vertical === "agency" && (
+        <div className={cn("border-b p-2", leftRailCollapsed && "px-2")}>
+          <ClientSwitcher collapsed={leftRailCollapsed} />
+        </div>
+      )}
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
         {navItems.map((item) => (

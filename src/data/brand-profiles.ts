@@ -213,6 +213,20 @@ export function getBrandFromEmail(email: string): BrandProfile | null {
 export function getCurrentBrand(): BrandProfile | null {
   if (typeof window === "undefined") return null;
   try {
+    // Agency "in-client" mode: an active client overrides brand resolution so
+    // the whole app scopes to that client (campaigns, reports, competitive, …).
+    const ac = localStorage.getItem("fuseiq-active-client");
+    if (ac) {
+      const c = JSON.parse(ac) as { name: string; domain: string; industry: string };
+      return {
+        domain: c.domain,
+        name: c.name,
+        industry: c.industry,
+        tagline: "",
+        heroImages: [],
+        cardImages: [],
+      };
+    }
     const stored = localStorage.getItem("fuseiq-user");
     if (stored) {
       const { email } = JSON.parse(stored);

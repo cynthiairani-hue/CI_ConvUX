@@ -212,9 +212,16 @@ function isEmptyKey(key: string): boolean {
 export function ensureReturningSeed(): void {
   if (typeof window === "undefined") return;
   if (localStorage.getItem("fuseiq-demo-user-state") === "first-time") return;
-  // Agency works per-client (see ensureAgencySeed) — don't seed a single-brand
-  // workspace for it, or it'd inherit the fallback brand's campaigns.
-  if (localStorage.getItem("fuseiq-persona") === "cynthia-agency") return;
+  // Agency portfolio (no client selected) works per-client (see ensureAgencySeed)
+  // — don't seed a single-brand workspace there. But once a client is entered,
+  // getCurrentBrand() resolves to that client, so seeding fills *their* scoped
+  // workspace (campaigns, audiences, reports) — which is exactly what we want.
+  if (
+    localStorage.getItem("fuseiq-persona") === "cynthia-agency" &&
+    !localStorage.getItem("fuseiq-active-client")
+  ) {
+    return;
+  }
 
   const set = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
   const adv = getSeedAdvertiser();

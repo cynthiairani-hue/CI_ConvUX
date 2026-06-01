@@ -84,6 +84,19 @@ need a different module with roles and permissions.
 
 **Out of scope:** real auth / RBAC / seat management. Simulated roles only.
 
+**DONE — per-client scoping (9C.2):** The agency now manages many SMB workspaces.
+A **client switcher in the left rail** (`client-switcher.tsx`) lets the agency
+enter any client; the whole app then scopes to that client (the exact SMB
+dashboard — "Welcome back", their KPIs, campaigns, audiences, reports), with
+"← All clients" to return to the Brainlabs portfolio. Mechanism: an
+`fuseiq-active-client` localStorage scope read by `getCurrentBrand()` (overrides
+brand resolution) + `ensureReturningSeed()` (seeds that client's workspace);
+entering/exiting clears the shared workspace keys and full-reloads so every
+context re-hydrates against the new scope. Portfolio roster cards and the rail
+switcher stay in sync (both call `enterClient`/`exitClient`). *v1 limitation:
+switching clients reseeds — per-client edits don't persist across switches; and
+a client's performance numbers use the generic seed (not brand-specific).*
+
 ---
 
 ### 9D — AI-execution vs manual-control choice (PRIORITY 4) — [Cynthia Irani / customer test]

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, ArrowRight, Sparkles, Building2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaign } from "@/contexts/campaign-context";
@@ -15,6 +14,7 @@ import {
   inferClientFromDomain,
   discoveredToClient,
   faviconUrl,
+  enterClient,
 } from "@/data/seed-agency";
 import type { AgencyClient } from "@/types/campaign";
 
@@ -46,7 +46,6 @@ function ClientLogo({ domain, name }: { domain: string; name: string }) {
 
 export function AgencyPortfolioView() {
   const { showToast } = useCampaign();
-  const router = useRouter();
   const [clients, setClients] = useState<AgencyClient[]>([]);
   const [domain, setDomain] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -87,8 +86,10 @@ export function AgencyPortfolioView() {
   }
 
   function openClient(c: AgencyClient) {
-    showToast(`Switched to ${c.name} — campaigns, audiences & reports are now scoped to them`);
-    router.push("/campaigns");
+    // Enter the client's scoped workspace. Full reload so every context
+    // (brand, campaigns, audiences, reports) re-hydrates against the client.
+    enterClient(c);
+    window.location.href = "/home";
   }
 
   const totalSpend = clients.reduce((s, c) => s + c.monthlyBudget, 0);
