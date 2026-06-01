@@ -110,32 +110,6 @@ export function AgencyPortfolioView() {
         </div>
       </div>
 
-      {/* Onboard a client — the AI-native moment */}
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
-          <Sparkles className="h-3.5 w-3.5 text-[#2C9FDD]" />
-          Onboard a client
-        </div>
-        <form onSubmit={addClient} className="flex items-center gap-2">
-          <input
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            placeholder="Paste a client's website (e.g. represent.com)"
-            className="flex-1 rounded-lg border border-border px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-ring"
-          />
-          <button
-            type="submit"
-            disabled={!domain.trim()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add client
-          </button>
-        </form>
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
-          We&apos;ll pull their brand, industry, assets, and competitors from the site — no manual setup.
-        </p>
-      </div>
-
       {/* Client roster */}
       <div>
         <h2 className="mb-2 text-sm font-medium text-muted-foreground">Clients</h2>
@@ -216,6 +190,32 @@ export function AgencyPortfolioView() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Onboard a new client — below the roster: agencies arrive with clients first */}
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+          <Sparkles className="h-3.5 w-3.5 text-[#2C9FDD]" />
+          Onboard another client
+        </div>
+        <form onSubmit={addClient} className="flex items-center gap-2">
+          <input
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="Paste a client's website (e.g. represent.com)"
+            className="flex-1 rounded-lg border border-border px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-ring"
+          />
+          <button
+            type="submit"
+            disabled={!domain.trim()}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add client
+          </button>
+        </form>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          We&apos;ll pull their brand, industry, assets, and competitors from the site — no manual setup.
+        </p>
       </div>
 
       {/* Team & roles */}
