@@ -823,15 +823,18 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Media-plan intent — checked BEFORE campaign ("media plan" also matches campaign).
+      // Media-plan intent — AGENCY persona only (cross-channel media planning is an
+      // agency capability). Checked BEFORE campaign ("media plan" also matches campaign).
       // Unlike a generic template, we ask ONE sharp question (objective) then build a
       // tailored, editable artifact; budget is inferred and editable.
+      const personaId = typeof window !== "undefined" ? localStorage.getItem("fuseiq-persona") : null;
       const isMediaPlanIntent =
-        lower.includes("media plan") ||
-        lower.includes("plan my media") ||
-        lower.includes("plan my spend across") ||
-        lower.includes("channel plan") ||
-        lower.includes("plan my channels");
+        personaId === "cynthia-agency" &&
+        (lower.includes("media plan") ||
+          lower.includes("plan my media") ||
+          lower.includes("plan my spend across") ||
+          lower.includes("channel plan") ||
+          lower.includes("plan my channels"));
 
       if (isMediaPlanIntent) {
         setMessages((prev) => [...prev, userMsg]);

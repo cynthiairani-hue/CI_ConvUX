@@ -55,15 +55,6 @@ export const universalTasks: GettingStartedTask[] = [
       "Get an instant competitive read — top rivals, where they're winning, and your white space. No pixel needed.",
     cta: "See competitors",
     status: "not-started",
-    priority: "essential",
-  },
-  {
-    id: "see-performance",
-    title: "See what's performing",
-    description:
-      "Get an instant view of your marketing performance across channels.",
-    cta: "View performance",
-    status: "not-started",
     priority: "optional",
   },
   {
