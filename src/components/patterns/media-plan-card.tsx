@@ -297,9 +297,9 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     </p>
                     <RowMetrics c={c} />
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} />
+                  <div className="flex shrink-0 items-center gap-3">
                     <Toggle checked={c.enabled} onChange={() => handleToggle(c.id)} label={`Toggle ${c.label}`} />
+                    <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} />
                   </div>
                 </div>
               ))}

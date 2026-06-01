@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
+import { usePersona } from "@/contexts/persona-context";
 import { useBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
 import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2, Check, X } from "lucide-react";
@@ -139,6 +140,9 @@ export default function CampaignsPage() {
     hydrated,
   } = useCampaign();
   const { openFullscreen } = useAICompanion();
+  const { activePersona } = usePersona();
+  // Agencies speak "media plan", not "campaign" — the plan is the unit of work.
+  const isAgency = activePersona.vertical === "agency";
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -174,7 +178,7 @@ export default function CampaignsPage() {
   }
 
   function handleNewCampaign() {
-    openFullscreen("Build me a campaign");
+    openFullscreen(isAgency ? "build a media plan" : "Build me a campaign");
   }
 
   function handleAction(strategy: StrategyPlan, actionId: string) {
@@ -240,7 +244,7 @@ export default function CampaignsPage() {
                 className="flex items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-foreground/90"
               >
                 <Plus className="h-4 w-4" />
-                New campaign
+                {isAgency ? "New media plan" : "New campaign"}
               </button>
             )}
           </div>
@@ -277,9 +281,13 @@ export default function CampaignsPage() {
                   <Megaphone className="h-6 w-6 text-foreground/70" strokeWidth={1.5} />
                 </div>
               )}
-              <h2 className="text-base font-semibold text-foreground">Build your first campaign</h2>
+              <h2 className="text-base font-semibold text-foreground">
+                {isAgency ? "Build your first media plan" : "Build your first campaign"}
+              </h2>
               <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-                The AI will walk you through targeting, budget, and creative — step by step.
+                {isAgency
+                  ? "The AI will plan your channel mix, budgets, and forecast — grouped by funnel stage."
+                  : "The AI will walk you through targeting, budget, and creative — step by step."}
               </p>
               <button
                 type="button"
