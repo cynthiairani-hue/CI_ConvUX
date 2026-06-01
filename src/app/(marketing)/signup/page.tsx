@@ -221,44 +221,48 @@ function BrandDiscovery({
    Signup page — two phases
    ────────────────────────────────────────────── */
 
+type ScenarioId = "smb" | "abm" | "agency";
+type StartState = "net-new" | "returning";
+
+const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; persona: string; email: string }[] = [
+  { id: "smb", label: "SMB", role: "B2C marketer", brand: "Ffern · luxury fragrance", persona: "cynthia-b2c", email: "cynthia@ffern.co" },
+  { id: "abm", label: "ABM", role: "B2B marketer", brand: "Norwest Analytics · B2B SaaS", persona: "cynthia-b2b", email: "cynthia@norwest.io" },
+  { id: "agency", label: "Agency", role: "Manages a client roster", brand: "Brainlabs · performance agency", persona: "cynthia-agency", email: "cynthia@brainlabs.co.uk" },
+];
+
+const SEED_KEYS = [
+  "fuseiq-strategies", "fuseiq-advertisers", "fuseiq-narratives", "fuseiq-audiences",
+  "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions", "fuseiq-agency-clients",
+  "fuseiq-chat-mode", "fuseiq-detail-level", "fuseiq-layout-state", "fuseiq-entry-layout",
+  "fuseiq-floating-panel", "fuseiq-dock-side",
+];
+
 export default function SignupPage() {
   const router = useRouter();
-  const [name, setName] = useState("Cynthia Irani");
-  const [email, setEmail] = useState("");
+  const [profile, setProfile] = useState<ScenarioId | null>(null);
+  const [start, setStart] = useState<StartState>("returning");
   const [phase, setPhase] = useState<"form" | "discovery">("form");
   const [discoveryBrand, setDiscoveryBrand] = useState<BrandProfile | null>(null);
   const [discoveryDomain, setDiscoveryDomain] = useState("");
 
-  const canSubmit = name.trim() && email.trim();
+  function handleEnter() {
+    if (!profile) return;
+    const s = SCENARIOS.find((x) => x.id === profile)!;
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
+    // Reset all demo state so each scenario loads clean — no leftovers.
+    SEED_KEYS.forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem("fuseiq-user", JSON.stringify({ name: "Cynthia Irani", email: s.email }));
+    localStorage.setItem("fuseiq-persona", s.persona);
+    localStorage.setItem("fuseiq-demo-user-state", start === "net-new" ? "first-time" : "returning");
 
-    // Clear any previous session data so the home page shows first-time experience
-    localStorage.removeItem("fuseiq-strategies");
-    localStorage.removeItem("fuseiq-advertisers");
-    localStorage.removeItem("fuseiq-narratives");
-    localStorage.removeItem("fuseiq-audiences");
-    localStorage.removeItem("fuseiq-approvals");
-    localStorage.removeItem("fuseiq-chat-mode");
-    localStorage.removeItem("fuseiq-detail-level");
-    localStorage.removeItem("fuseiq-layout-state");
-    localStorage.removeItem("fuseiq-entry-layout");
-    localStorage.removeItem("fuseiq-floating-panel");
-    localStorage.removeItem("fuseiq-dock-side");
-    localStorage.removeItem("fuseiq-chat-sessions");
-
-    // Save new user to localStorage
-    localStorage.setItem("fuseiq-user", JSON.stringify({ name, email }));
-
-    // Extract domain for discovery screen
-    const domain = email.split("@")[1]?.toLowerCase() || "";
-    const brand = getBrandFromEmail(email);
-
-    setDiscoveryDomain(domain);
-    setDiscoveryBrand(brand);
-    setPhase("discovery");
+    if (start === "net-new") {
+      // Net-new gets the brand-discovery flourish before landing.
+      setDiscoveryDomain(s.email.split("@")[1] || "");
+      setDiscoveryBrand(getBrandFromEmail(s.email));
+      setPhase("discovery");
+    } else {
+      router.push("/home");
+    }
   }
 
   const handleDiscoveryComplete = useCallback(() => {
@@ -284,66 +288,77 @@ export default function SignupPage() {
       </header>
 
       <main className="flex flex-1 items-center justify-center px-6 py-16">
-        <form onSubmit={handleSubmit} className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-lg space-y-8">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              Create your account
+              Choose your starting point
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Get started with FuseIQ. We&apos;ll personalize your experience as
-              you go.
+              Pick a profile and a starting state — FuseIQ loads that experience, fully set up.
             </p>
           </div>
 
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-foreground"
-              >
-                Name
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                placeholder="Your name"
-              />
+          {/* Profile */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Profile</p>
+            <div className="grid grid-cols-3 gap-3">
+              {SCENARIOS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setProfile(s.id)}
+                  className={cn(
+                    "flex flex-col items-start rounded-xl border p-4 text-left transition-all",
+                    profile === s.id ? "border-[#2C9FDD] bg-[#EBF5FB] shadow-sm" : "border-border bg-background hover:border-foreground/20"
+                  )}
+                >
+                  <span className="text-[14px] font-semibold text-foreground">{s.label}</span>
+                  <span className="mt-0.5 text-[12px] text-muted-foreground">{s.role}</span>
+                  <span className="mt-2 text-[11px] text-muted-foreground/70">{s.brand}</span>
+                </button>
+              ))}
             </div>
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-foreground"
-              >
-                Work email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1.5 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                placeholder="you@company.com"
-              />
+          </div>
+
+          {/* Starting state */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Starting state</p>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { id: "net-new" as StartState, label: "Net-new", desc: "Empty workspace, onboarding flow" },
+                { id: "returning" as StartState, label: "Returning", desc: "Fully populated workspace" },
+              ]).map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setStart(o.id)}
+                  className={cn(
+                    "flex flex-col items-start rounded-xl border p-4 text-left transition-all",
+                    start === o.id ? "border-[#2C9FDD] bg-[#EBF5FB] shadow-sm" : "border-border bg-background hover:border-foreground/20"
+                  )}
+                >
+                  <span className="text-[13px] font-semibold text-foreground">{o.label}</span>
+                  <span className="mt-0.5 text-[12px] text-muted-foreground">{o.desc}</span>
+                </button>
+              ))}
             </div>
           </div>
 
           <button
-            type="submit"
-            disabled={!canSubmit}
+            type="button"
+            onClick={handleEnter}
+            disabled={!profile}
             className={cn(
               "inline-flex w-full items-center justify-center gap-2 rounded-md px-6 py-3 text-sm font-medium transition-colors",
-              canSubmit
+              profile
                 ? "bg-foreground text-background hover:bg-foreground/90"
                 : "cursor-not-allowed bg-muted text-muted-foreground"
             )}
           >
-            Get started
+            Enter FuseIQ
             <ArrowRight className="h-4 w-4" />
           </button>
-        </form>
+        </div>
       </main>
     </div>
   );

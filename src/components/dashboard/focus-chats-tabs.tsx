@@ -538,7 +538,7 @@ export function FocusChatsTabs({
 
   const brand = useBrand();
   const brandName = brand?.name || "your brand";
-  const anomalies = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
+  const anomalies = brand?.domain === "ffern.co" ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
 
   const focusItems = useMemo(
     () => buildFocusItems(anomalies, strategies, brandName),

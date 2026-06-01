@@ -375,7 +375,7 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
       {/* Grey canvas background — card floats on it */}
       <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
         <div className="mx-auto max-w-2xl">
-          <CFONarrativeCard narrative={narrative} seedData={brand ? FFERN_SEED_PERFORMANCE : undefined} hideHeaderActions />
+          <CFONarrativeCard narrative={narrative} seedData={brand?.domain === "ffern.co" ? FFERN_SEED_PERFORMANCE : undefined} hideHeaderActions />
         </div>
       </div>
     </main>

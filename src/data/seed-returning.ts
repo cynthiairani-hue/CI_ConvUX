@@ -7,9 +7,10 @@ import type {
 } from "@/types/campaign";
 import { buildStrategyFromIntent } from "./campaign-flow";
 import { buildCompetitiveBrief } from "./competitive-flow";
-import { mapBrandIndustryToIAB } from "./brand-profiles";
+import { mapBrandIndustryToIAB, getCurrentBrand } from "./brand-profiles";
 import { buildNarrativeFromSeed } from "./narrative-flow";
 import { FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES } from "./seed-ffern";
+import { SEED_PERFORMANCE, SEED_ANOMALIES } from "./seed-company";
 import { SEED_CHAT_SESSIONS } from "./seed-chats";
 
 /**
@@ -25,27 +26,41 @@ import { SEED_CHAT_SESSIONS } from "./seed-chats";
  * empty, and never runs in "first-time" demo mode.
  */
 
-const ADVERTISER: Advertiser = {
-  id: "adv-ffern",
-  companyName: "Ffern",
-  websiteUrl: "ffern.co",
-  industry: mapBrandIndustryToIAB("Luxury Fragrance"),
-  restrictedCategories: [],
-};
+/** Advertiser for the seed — derived from the signed-in brand (Ffern, Norwest, …). */
+function getSeedAdvertiser(): Advertiser {
+  const brand = getCurrentBrand();
+  if (brand) {
+    return {
+      id: `adv-${brand.domain.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+      companyName: brand.name,
+      websiteUrl: brand.domain,
+      industry: mapBrandIndustryToIAB(brand.industry),
+      restrictedCategories: [],
+    };
+  }
+  return {
+    id: "adv-ffern-co",
+    companyName: "Ffern",
+    websiteUrl: "ffern.co",
+    industry: mapBrandIndustryToIAB("Luxury Fragrance"),
+    restrictedCategories: [],
+  };
+}
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toISOString();
 }
 
-function buildSeedStrategies(): StrategyPlan[] {
+function buildSeedStrategies(adv: Advertiser): StrategyPlan[] {
+  const n = adv.companyName;
   const mk = (objective: string, overrides: Partial<StrategyPlan>): StrategyPlan => ({
-    ...buildStrategyFromIntent({ objective }, ADVERTISER),
+    ...buildStrategyFromIntent({ objective }, adv),
     ...overrides,
   });
   return [
     mk("awareness", {
       id: "seed-strat-awareness",
-      name: "Ffern — Summer 25 CTV Launch",
+      name: `${n} — Summer 25 CTV Launch`,
       status: "active",
       createdAt: daysAgo(21),
       lastModifiedAt: daysAgo(3),
@@ -53,7 +68,7 @@ function buildSeedStrategies(): StrategyPlan[] {
     }),
     mk("retargeting", {
       id: "seed-strat-retargeting",
-      name: "Ffern — Site Retargeting",
+      name: `${n} — Site Retargeting`,
       status: "pending-approval",
       createdAt: daysAgo(5),
       lastModifiedAt: daysAgo(1),
@@ -61,7 +76,7 @@ function buildSeedStrategies(): StrategyPlan[] {
     }),
     mk("traffic", {
       id: "seed-strat-traffic",
-      name: "Ffern — Waitlist Traffic",
+      name: `${n} — Demand Capture`,
       status: "draft",
       createdAt: daysAgo(2),
       lastModifiedAt: daysAgo(2),
@@ -69,7 +84,7 @@ function buildSeedStrategies(): StrategyPlan[] {
     }),
     mk("sales", {
       id: "seed-strat-sales",
-      name: "Ffern — Spring Conversion",
+      name: `${n} — Conversion Push`,
       status: "paused",
       createdAt: daysAgo(40),
       lastModifiedAt: daysAgo(12),
@@ -78,14 +93,15 @@ function buildSeedStrategies(): StrategyPlan[] {
   ];
 }
 
-function buildSeedAudiences(): AudienceSegment[] {
+function buildSeedAudiences(adv: Advertiser): AudienceSegment[] {
+  const n = adv.companyName;
   return [
     {
       id: "seed-aud-retargeting",
-      name: "Ffern — Site Visitors (Last 30 Days)",
+      name: `${n} — Site Visitors (Last 30 Days)`,
       type: "retargeting",
       status: "active",
-      advertiserId: ADVERTISER.id,
+      advertiserId: adv.id,
       estimatedSize: "18,400 - 22,100",
       rules: [
         { label: "Source", value: "Website visitors", provenance: { source: "user_input", reasoning: "Visitors to ffern.co in the last 30 days" } },
@@ -98,13 +114,13 @@ function buildSeedAudiences(): AudienceSegment[] {
     },
     {
       id: "seed-aud-lookalike",
-      name: "Ffern — Lookalike (Top LTV Customers)",
+      name: `${n} — Lookalike (Top LTV Customers)`,
       type: "lookalike",
       status: "ready",
-      advertiserId: ADVERTISER.id,
+      advertiserId: adv.id,
       estimatedSize: "340,000 - 520,000",
       rules: [
-        { label: "Seed audience", value: "Top 20% customers by LTV", provenance: { source: "ai_inferred", reasoning: "Highest-value subscribers as the model seed" } },
+        { label: "Seed audience", value: "Top 20% customers by LTV", provenance: { source: "ai_inferred", reasoning: "Highest-value customers as the model seed" } },
         { label: "Similarity", value: "1-3% expansion", provenance: { source: "ai_inferred", reasoning: "Tight expansion preserves quality" } },
       ],
       platforms: ["Meta", "Google"],
@@ -113,14 +129,14 @@ function buildSeedAudiences(): AudienceSegment[] {
     },
     {
       id: "seed-aud-interest",
-      name: "Ffern — Clean Beauty & Niche Fragrance",
+      name: `${n} — High-Intent Interest`,
       type: "interest",
       status: "active",
-      advertiserId: ADVERTISER.id,
+      advertiserId: adv.id,
       estimatedSize: "1.2M - 2.4M",
       rules: [
-        { label: "Interests", value: "Clean beauty, niche perfumery, artisan goods", provenance: { source: "ai_inferred", reasoning: "Aligned with Ffern's positioning" } },
-        { label: "Demographics", value: "25-54, high household income", provenance: { source: "ai_inferred", reasoning: "Luxury fragrance buyer profile" } },
+        { label: "Interests", value: "Category-relevant interests & behaviors", provenance: { source: "ai_inferred", reasoning: `Aligned with ${n}'s positioning` } },
+        { label: "Demographics", value: "Core buyer profile", provenance: { source: "ai_inferred", reasoning: `${n}'s highest-converting demographic` } },
       ],
       platforms: ["Meta", "TikTok"],
       createdAt: daysAgo(10),
@@ -129,12 +145,16 @@ function buildSeedAudiences(): AudienceSegment[] {
   ];
 }
 
-function buildSeedNarratives(): CFONarrative[] {
-  const may = buildNarrativeFromSeed(FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES, { month: 5, year: 2026 });
-  const apr = buildNarrativeFromSeed(FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES, { month: 4, year: 2026 });
+function buildSeedNarratives(adv: Advertiser): CFONarrative[] {
+  const isFfern = adv.websiteUrl === "ffern.co";
+  const perf = isFfern ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+  const anomalies = isFfern ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
+  const n = adv.companyName;
+  const may = buildNarrativeFromSeed(perf, anomalies, { month: 5, year: 2026 });
+  const apr = buildNarrativeFromSeed(perf, anomalies, { month: 4, year: 2026 });
   return [
-    { ...may, id: "seed-narr-may", name: "Ffern — May 2026 Performance", status: "final", advertiserId: ADVERTISER.id, createdAt: daysAgo(8), lastModifiedAt: daysAgo(8), lastModifiedBy: "Cynthia Irani" },
-    { ...apr, id: "seed-narr-apr", name: "Ffern — April 2026 Performance", status: "final", advertiserId: ADVERTISER.id, createdAt: daysAgo(38), lastModifiedAt: daysAgo(36), lastModifiedBy: "Cynthia Irani" },
+    { ...may, id: "seed-narr-may", name: `${n} — May 2026 Performance`, status: "final", advertiserId: adv.id, createdAt: daysAgo(8), lastModifiedAt: daysAgo(8), lastModifiedBy: "Cynthia Irani" },
+    { ...apr, id: "seed-narr-apr", name: `${n} — April 2026 Performance`, status: "final", advertiserId: adv.id, createdAt: daysAgo(38), lastModifiedAt: daysAgo(36), lastModifiedBy: "Cynthia Irani" },
   ];
 }
 
@@ -192,33 +212,37 @@ function isEmptyKey(key: string): boolean {
 export function ensureReturningSeed(): void {
   if (typeof window === "undefined") return;
   if (localStorage.getItem("fuseiq-demo-user-state") === "first-time") return;
+  // Agency works per-client (see ensureAgencySeed) — don't seed a single-brand
+  // workspace for it, or it'd inherit the fallback brand's campaigns.
+  if (localStorage.getItem("fuseiq-persona") === "cynthia-agency") return;
 
   const set = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
+  const adv = getSeedAdvertiser();
 
   let strategies: StrategyPlan[] | null = null;
   if (isEmptyKey("fuseiq-strategies")) {
-    strategies = buildSeedStrategies();
+    strategies = buildSeedStrategies(adv);
     set("fuseiq-strategies", strategies);
   }
-  // Ensure the canonical Ffern advertiser is present (merge, not skip-if-empty)
-  // so seeded strategies' advertiserId always resolves to "Ffern" in the UI,
+  // Ensure the canonical advertiser is present (merge, not skip-if-empty) so
+  // seeded strategies' advertiserId always resolves to the brand name in the UI,
   // even if the app also auto-infers a separate advertiser at runtime.
   try {
     const advs = JSON.parse(localStorage.getItem("fuseiq-advertisers") || "[]") as Advertiser[];
-    if (!advs.some((a) => a.id === ADVERTISER.id)) {
-      set("fuseiq-advertisers", [ADVERTISER, ...advs]);
+    if (!advs.some((a) => a.id === adv.id)) {
+      set("fuseiq-advertisers", [adv, ...advs]);
     }
   } catch {
-    set("fuseiq-advertisers", [ADVERTISER]);
+    set("fuseiq-advertisers", [adv]);
   }
-  if (isEmptyKey("fuseiq-audiences")) set("fuseiq-audiences", buildSeedAudiences());
-  if (isEmptyKey("fuseiq-narratives")) set("fuseiq-narratives", buildSeedNarratives());
+  if (isEmptyKey("fuseiq-audiences")) set("fuseiq-audiences", buildSeedAudiences(adv));
+  if (isEmptyKey("fuseiq-narratives")) set("fuseiq-narratives", buildSeedNarratives(adv));
   if (isEmptyKey("fuseiq-approvals")) {
     const strats =
       strategies ||
       (JSON.parse(localStorage.getItem("fuseiq-strategies") || "[]") as StrategyPlan[]);
     set("fuseiq-approvals", buildSeedApprovals(strats));
   }
-  if (isEmptyKey("fuseiq-briefs")) set("fuseiq-briefs", [buildCompetitiveBrief(ADVERTISER)]);
+  if (isEmptyKey("fuseiq-briefs")) set("fuseiq-briefs", [buildCompetitiveBrief(adv)]);
   if (isEmptyKey("fuseiq-chat-sessions")) set("fuseiq-chat-sessions", SEED_CHAT_SESSIONS);
 }

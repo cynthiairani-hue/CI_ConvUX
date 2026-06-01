@@ -1216,8 +1216,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         // After all thinking steps, deliver the actual result
         setTimeout(() => {
           try {
-            const perfData = brand ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
-            const anomalyData = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
+            const perfData = brand?.domain === "ffern.co" ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+            const anomalyData = brand?.domain === "ffern.co" ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
             const narrative = buildNarrativeFromSeed(perfData, anomalyData, period);
             if (brand) {
               narrative.name = `${brand.name} — May 2026 Performance`;
@@ -1407,8 +1407,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
         setTimeout(() => {
           try {
-            const perfData = brand ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
-            const anomalyData = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
+            const perfData = brand?.domain === "ffern.co" ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+            const anomalyData = brand?.domain === "ffern.co" ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
             const narrative = buildNarrativeFromSeed(perfData, anomalyData, period);
             if (brand) {
               narrative.name = `${brand.name} — May 2026 Executive Summary`;
@@ -2163,8 +2163,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setTimeout(() => {
           setIsLoading(false);
           try {
-            const perfData = brand ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
-            const anomalyData = brand ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
+            const perfData = brand?.domain === "ffern.co" ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+            const anomalyData = brand?.domain === "ffern.co" ? FFERN_SEED_ANOMALIES : SEED_ANOMALIES;
             const period = { month: 5, year: 2026 };
             const narrative = buildNarrativeFromSeed(perfData, anomalyData, period);
             if (brand) {

@@ -30,11 +30,15 @@ export interface BrandProfile {
 
 const FFERN_CDN = "https://cdn.sanity.io/images/1ciyq081/production";
 
+const UNSPLASH = "https://images.unsplash.com";
+
 /** Alias map — common domain variations that should resolve to the canonical domain */
 const DOMAIN_ALIASES: Record<string, string> = {
   "ffern.com": "ffern.co",
   "www.ffern.co": "ffern.co",
   "www.ffern.com": "ffern.co",
+  "norwestanalytics.com": "norwest.io",
+  "www.norwest.io": "norwest.io",
 };
 
 export const brandProfiles: Record<string, BrandProfile> = {
@@ -90,6 +94,43 @@ export const brandProfiles: Record<string, BrandProfile> = {
         "artisanal luxury",
         "fragrance discovery",
         "DTC beauty brands",
+      ],
+    },
+  },
+  "norwest.io": {
+    domain: "norwest.io",
+    name: "Norwest Analytics",
+    industry: "B2B SaaS",
+    tagline: "The analytics layer for modern revenue teams.",
+    heroImages: [
+      `${UNSPLASH}/photo-1551288049-bebda4e38f71?w=600&h=400&fit=crop&auto=format`,
+      `${UNSPLASH}/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop&auto=format`,
+      `${UNSPLASH}/photo-1504384308090-c894fdcc538d?w=600&h=400&fit=crop&auto=format`,
+      `${UNSPLASH}/photo-1551836022-d5d88e9218df?w=600&h=400&fit=crop&auto=format`,
+    ],
+    cardImages: [
+      `${UNSPLASH}/photo-1551288049-bebda4e38f71?w=200&h=200&fit=crop&auto=format`,
+      `${UNSPLASH}/photo-1460925895917-afdab827c52f?w=200&h=200&fit=crop&auto=format`,
+      `${UNSPLASH}/photo-1504384308090-c894fdcc538d?w=200&h=200&fit=crop&auto=format`,
+    ],
+    keywords: {
+      brand: ["Norwest Analytics", "Norwest platform", "Norwest BI"],
+      product: [
+        "revenue analytics",
+        "marketing attribution",
+        "pipeline analytics",
+        "self-serve BI",
+        "data activation",
+        "RevOps platform",
+      ],
+      competitor: ["Looker", "Tableau", "ThoughtSpot", "Amplitude", "Mixpanel"],
+      interest: [
+        "RevOps",
+        "marketing analytics",
+        "B2B SaaS",
+        "data-driven marketing",
+        "attribution",
+        "demand generation",
       ],
     },
   },

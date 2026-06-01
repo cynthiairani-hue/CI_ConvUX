@@ -423,7 +423,7 @@ export function DashboardView() {
   const perfData = useMemo(() => {
     if (!isReturningUser) return null;
     const b = getCurrentBrand();
-    return b ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+    return b?.domain === "ffern.co" ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
   }, [isReturningUser]);
 
   const essentialTasks = universalTasks.filter((t) => t.priority === "essential");
