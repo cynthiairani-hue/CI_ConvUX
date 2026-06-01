@@ -1,97 +1,184 @@
 import type {
   Advertiser,
+  IABIndustry,
+  MediaCampaign,
+  MediaForecast,
   MediaPlan,
-  MediaChannelAllocation,
-  MediaKpiTarget,
-  StrategySection,
 } from "@/types/campaign";
 import { getCapabilities } from "./prerequisites";
 
 /**
- * Media Plan builder (better than a generic prose template).
+ * Media Plan builder + single-source recalc engine.
  *
- * Tailors the channel mix to the brand's reality (B2C luxury → CTV/Meta/TikTok/
- * Display/DOOH, never a B2B LinkedIn default) and the chosen objective. Every
- * number carries provenance + confidence; conversion-dependent KPIs gate on the
- * site pixel via the prerequisite engine. Artifact-first and fully editable.
+ * Mirrors the AdRoll Media Planner spec's behaviour: 5 channels grouped
+ * Awareness → Consideration → Conversion, each an editable budget row with its
+ * own forecast. The spec's hardcoded prototype had THREE disagreeing number
+ * sources (headline 5,380 vs recalc 4,580 vs chat 5,510); we deliberately fix
+ * that — there is ONE source of truth:
+ *   summary.estConversions === Σ enabled campaign.forecast.conversions
+ *   blended ROAS = Σ revenue / Σ spend   (a real ratio, not "rises with spend")
+ *
+ * Both inline canvas edits and AI chat refinements run the SAME recalc, so the
+ * card and the narration can never diverge (two modalities, one artifact).
  */
 
-function section(
-  label: string,
-  value: string,
-  reasoning: string,
-  confidence: "high" | "medium" | "low" = "medium",
-  readiness: "ready" | "limited" | "blocked" = "ready"
-): StrategySection {
+const TEMPLATE_TOTAL = 120_000;
+
+/** Channel template at the $120k reference budget (mirrors the spec's worked example). */
+const CHANNEL_TEMPLATE: Omit<MediaCampaign, "forecast">[] = [
+  {
+    id: "mc-ctv",
+    channel: "ctv",
+    label: "Connected TV (CTV)",
+    description: "Brand awareness via premium streaming",
+    funnelStage: "awareness",
+    status: "available",
+    budget: 12_000,
+    baseBudget: 12_000,
+    enabled: true,
+    baseForecast: { impressions: 2_400_000, conversions: 0, roas: null, cpa: null, vtr: 82, brandLift: 18, cpm: 5 },
+  },
+  {
+    id: "mc-dooh",
+    channel: "dooh",
+    label: "Digital Out-of-Home (DOOH)",
+    description: "Geo-targeted high-traffic markets",
+    funnelStage: "awareness",
+    status: "closed_beta",
+    budget: 8_000,
+    baseBudget: 8_000,
+    enabled: true,
+    baseForecast: { impressions: 1_300_000, conversions: 0, roas: null, cpa: null, cpm: 6, markets: 8, audiencePool: 22_000 },
+  },
+  {
+    id: "mc-lookalike",
+    channel: "lookalike",
+    label: "Lookalike Prospecting",
+    description: "Find new customers at scale",
+    funnelStage: "consideration",
+    status: "available",
+    budget: 38_000,
+    baseBudget: 38_000,
+    enabled: true,
+    baseForecast: { impressions: 7_600_000, conversions: 1_900, roas: 3.1, cpa: 20 },
+  },
+  {
+    id: "mc-social",
+    channel: "social",
+    label: "Social — Meta & Instagram",
+    description: "Awareness + DTC conversion",
+    funnelStage: "consideration",
+    status: "available",
+    budget: 30_000,
+    baseBudget: 30_000,
+    enabled: true,
+    baseForecast: { impressions: 5_000_000, conversions: 1_200, roas: 3.2, cpa: 25 },
+  },
+  {
+    id: "mc-retargeting",
+    channel: "retargeting",
+    label: "Site Retargeting",
+    description: "Convert warm visitors",
+    funnelStage: "conversion",
+    status: "available",
+    budget: 32_000,
+    baseBudget: 32_000,
+    enabled: true,
+    baseForecast: { impressions: 3_200_000, conversions: 1_480, roas: 4.8, cpa: 21 },
+  },
+];
+
+const OBJ_TITLE: Record<string, string> = {
+  awareness: "Brand Launch",
+  traffic: "Demand Capture",
+  leads: "Lead Generation",
+  sales: "Conversion Push",
+  retargeting: "Retargeting Plan",
+};
+
+const VERTICAL_WORD: Partial<Record<IABIndustry, string>> = {
+  "style-fashion": "beauty & fashion",
+  "technology-computing": "B2B SaaS",
+  "business-finance": "finance",
+  "healthy-living": "health & wellness",
+  "food-drink": "food & beverage",
+  travel: "travel",
+  automotive: "automotive",
+  entertainment: "media & entertainment",
+  sports: "sports",
+};
+
+function scaleForecast(f: MediaForecast, factor: number): MediaForecast {
   return {
-    label,
-    value,
-    provenance: { source: "ai_inferred", reasoning, confidence },
-    readiness,
-    editable: true,
-    authorshipState: "proposed",
-    filled: true,
-    editHistory: [],
+    ...f,
+    impressions: Math.round(f.impressions * factor),
+    conversions: Math.round(f.conversions * factor),
+    audiencePool: f.audiencePool != null ? Math.round(f.audiencePool * factor) : undefined,
   };
 }
 
-// Objective → channel allocation (percentages). B2C luxury channel set.
-const MIX_BY_OBJECTIVE: Record<string, { channel: string; pct: number; rationale: string }[]> = {
-  awareness: [
-    { channel: "CTV / OTT", pct: 40, rationale: "Highest brand recall; unskippable full-screen — ideal for a luxury launch" },
-    { channel: "Meta", pct: 25, rationale: "Scaled reach + creative testing across feed, stories, reels" },
-    { channel: "TikTok", pct: 20, rationale: "Discovery + cultural reach with the fragrance-curious audience" },
-    { channel: "Display", pct: 10, rationale: "Cheap incremental reach and frequency support" },
-    { channel: "DOOH", pct: 5, rationale: "High-traffic physical moments to extend the launch" },
-  ],
-  traffic: [
-    { channel: "Meta", pct: 35, rationale: "Best cost-per-click engine for considered DTC traffic" },
-    { channel: "TikTok", pct: 25, rationale: "Lower-funnel discovery driving site visits" },
-    { channel: "Display", pct: 20, rationale: "Broad, efficient click volume" },
-    { channel: "CTV / OTT", pct: 20, rationale: "Top-of-funnel demand that feeds branded search & direct" },
-  ],
-  leads: [
-    { channel: "Meta", pct: 40, rationale: "Strongest lead-gen + on-platform forms for DTC" },
-    { channel: "Display", pct: 25, rationale: "Retarget + prospect at low CPMs" },
-    { channel: "TikTok", pct: 20, rationale: "New-audience lead capture" },
-    { channel: "CTV / OTT", pct: 15, rationale: "Demand generation that lifts lead volume downstream" },
-  ],
-  sales: [
-    { channel: "Meta", pct: 40, rationale: "Conversion-optimized across prospecting + retargeting" },
-    { channel: "Display", pct: 30, rationale: "Retargeting site visitors & cart abandoners to purchase" },
-    { channel: "TikTok", pct: 20, rationale: "Incremental new-customer acquisition" },
-    { channel: "CTV / OTT", pct: 10, rationale: "Awareness halo to keep the funnel full" },
-  ],
-  retargeting: [
-    { channel: "Display", pct: 45, rationale: "Cheapest, highest-frequency way to re-reach visitors" },
-    { channel: "Meta", pct: 35, rationale: "Dynamic product retargeting from your catalog" },
-    { channel: "CTV / OTT", pct: 20, rationale: "Premium re-engagement of recent visitors on the big screen" },
-  ],
-};
+/** Recompute one campaign's forecast from its current budget (linear from base). */
+function recalcForecast(c: MediaCampaign): MediaForecast {
+  const scale = c.baseBudget > 0 ? c.budget / c.baseBudget : 0;
+  const f = c.baseForecast;
+  const conversions = Math.round(f.conversions * scale);
+  return {
+    ...f,
+    impressions: Math.round(f.impressions * scale),
+    conversions,
+    // ROAS is a per-channel ratio — constant, NOT scaling with spend.
+    roas: f.roas,
+    cpa: conversions > 0 ? Math.round(c.budget / conversions) : null,
+    audiencePool: f.audiencePool != null ? Math.round(f.audiencePool * scale) : undefined,
+  };
+}
 
-const OBJ_LABEL: Record<string, string> = {
-  awareness: "Awareness",
-  traffic: "Traffic",
-  leads: "Lead generation",
-  sales: "Sales",
-  retargeting: "Retargeting",
-};
+/**
+ * The single source of truth: recompute every per-channel forecast, then derive
+ * the summary KPIs from the ENABLED campaigns only. Call this after any edit
+ * (inline budget change, channel toggle, or AI refine) — never store a separate
+ * headline number.
+ */
+export function recalcMediaPlan(plan: MediaPlan, stampedAt: string = new Date().toISOString()): MediaPlan {
+  const campaigns = plan.campaigns.map((c) => ({ ...c, forecast: recalcForecast(c) }));
+  const active = campaigns.filter((c) => c.enabled);
+  const totalBudget = active.reduce((s, c) => s + c.budget, 0);
+  const estConversions = active.reduce((s, c) => s + c.forecast.conversions, 0);
+  const estImpressions = active.reduce((s, c) => s + c.forecast.impressions, 0);
+  const revenue = active.reduce((s, c) => s + (c.forecast.roas != null ? c.forecast.roas * c.budget : 0), 0);
+  const estRoas = totalBudget > 0 ? Math.round((revenue / totalBudget) * 10) / 10 : 0;
+  return {
+    ...plan,
+    campaigns,
+    summary: { ...plan.summary, totalBudget, estConversions, estRoas, estImpressions },
+    lastModifiedAt: stampedAt,
+    lastModifiedBy: "you",
+  };
+}
 
-function kpiTargets(objective: string): MediaKpiTarget[] {
-  if (objective === "awareness" || objective === "traffic") {
-    return [
-      { metric: "Reach", m1: "1.8M", m2: "3.2M", m3: "4.5M", tracking: "Platform + panel" },
-      { metric: "Completed views", m1: "620K", m2: "1.1M", m3: "1.6M", tracking: "CTV / video analytics" },
-      { metric: "Avg. frequency", m1: "2.1", m2: "2.8", m3: "3.2", tracking: "Cross-platform dedup" },
-      { metric: "Site visits", m1: "14K", m2: "26K", m3: "38K", tracking: "GA4" },
-    ];
-  }
-  return [
-    { metric: "New customers", m1: "180", m2: "320", m3: "480", tracking: "Pixel + GA4" },
-    { metric: "CPA", m1: "$42", m2: "$34", m3: "$28", tracking: "Platform + pixel" },
-    { metric: "ROAS", m1: "2.4x", m2: "3.3x", m3: "4.1x", tracking: "Revenue attribution" },
-    { metric: "Conversion rate", m1: "1.6%", m2: "2.1%", m3: "2.6%", tracking: "GA4 + Shopify" },
-  ];
+/** Inline budget edit → recalc. */
+export function editCampaignBudget(plan: MediaPlan, campaignId: string, newBudget: number): MediaPlan {
+  const campaigns = plan.campaigns.map((c) =>
+    c.id === campaignId ? { ...c, budget: Math.max(0, Math.round(newBudget)) } : c
+  );
+  return recalcMediaPlan({ ...plan, campaigns });
+}
+
+/** Channel on/off toggle → recalc (disabled channels drop out of the summary). */
+export function toggleCampaign(plan: MediaPlan, campaignId: string): MediaPlan {
+  const campaigns = plan.campaigns.map((c) =>
+    c.id === campaignId ? { ...c, enabled: !c.enabled } : c
+  );
+  return recalcMediaPlan({ ...plan, campaigns });
+}
+
+function flightLabel(now: Date, durationDays: number): string {
+  const end = new Date(now.getTime() + durationDays * 86_400_000);
+  const m = (d: Date) => d.toLocaleString("en-US", { month: "short" });
+  const startM = m(now);
+  const endM = m(end);
+  const year = end.getFullYear();
+  return startM === endM ? `${startM} ${year}` : `${startM}–${endM} ${year}`;
 }
 
 export function buildMediaPlan(
@@ -99,75 +186,55 @@ export function buildMediaPlan(
   objective: string,
   monthlyBudget: number
 ): MediaPlan {
-  const now = new Date().toISOString();
-  const obj = MIX_BY_OBJECTIVE[objective] ? objective : "awareness";
-  const caps = getCapabilities();
-  const conversionObjective = obj === "leads" || obj === "sales" || obj === "retargeting";
-  const kpiBlocked = conversionObjective && !caps.hasSitePixel;
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const durationDays = 90;
+  // The plan total is the flight budget; scale the $120k template proportionally.
+  const total = monthlyBudget > 0 ? monthlyBudget : TEMPLATE_TOTAL;
+  const factor = total / TEMPLATE_TOTAL;
+  const pixelReady = getCapabilities().hasSitePixel;
 
-  const channelMix: MediaChannelAllocation[] = MIX_BY_OBJECTIVE[obj].map((c) => ({
-    channel: c.channel,
-    pct: c.pct,
-    monthly: Math.round((monthlyBudget * c.pct) / 100),
-    rationale: c.rationale,
-  }));
+  const campaigns: MediaCampaign[] = CHANNEL_TEMPLATE.map((t) => {
+    const baseBudget = Math.round(t.budget * factor);
+    const baseForecast = scaleForecast(t.baseForecast, factor);
+    return {
+      ...t,
+      budget: baseBudget,
+      baseBudget,
+      baseForecast,
+      forecast: baseForecast,
+    };
+  });
 
-  const channels = channelMix.map((c) => c.channel).join(", ");
+  const vertical = VERTICAL_WORD[advertiser.industry] ?? "your";
+  const title = OBJ_TITLE[objective] ?? "Growth Plan";
 
-  return {
+  const plan: MediaPlan = {
     id: "mediaplan-active",
-    name: `${advertiser.companyName} — ${OBJ_LABEL[obj]} Media Plan`,
+    name: `${advertiser.companyName} — ${title}`,
     advertiserId: advertiser.id,
-    objective: obj,
-    monthlyBudget,
-    flight: "Next 90 days",
-    budgetSection: section(
-      "Budget",
-      `$${monthlyBudget.toLocaleString()}/month · ${OBJ_LABEL[obj]} · Next 90 days`,
-      "Starting budget — edit to match your plan. Allocation below scales with this number.",
-      "medium"
-    ),
-    channelMix: {
-      ...section(
-        "Channel mix & allocation",
-        `${channels} — weighted for ${OBJ_LABEL[obj].toLowerCase()}`,
-        `Allocation is tuned to ${advertiser.companyName}'s B2C luxury profile — CTV/OTT, social, and display, not B2B channels. Weights shift with the objective.`,
-        "high"
-      ),
-      data: channelMix,
+    title,
+    objective,
+    flight: flightLabel(now, durationDays),
+    durationDays,
+    benchmarkBasis: `${vertical} vertical · benchmarks`,
+    pixelReady,
+    campaigns,
+    summary: {
+      totalBudget: total,
+      estConversions: 0,
+      estRoas: 0,
+      estImpressions: 0,
+      // Targets the plan is measured against (scaled with budget).
+      targets: { conversions: Math.round(4_200 * factor), roas: 3.0 },
     },
-    audienceStrategy: section(
-      "Audience strategy",
-      "Tier 1 retargeting · Tier 2 lookalikes · Tier 3 interest",
-      "Tier 1: site visitors & cart abandoners (last 30 days). Tier 2: lookalikes from top customers by LTV. Tier 3: clean-beauty / niche-fragrance / luxury-goods interest.",
-      "medium"
-    ),
-    phasing: section(
-      "Phasing",
-      "Foundation → Launch → Scale over the flight",
-      "Phase 1 (wk 1-2): seed audiences, ready creative, connect tracking. Phase 2 (wk 3-4): launch CTV awareness + social prospecting. Phase 3 (wk 5+): shift budget to winners, layer retargeting & DOOH.",
-      "medium"
-    ),
-    kpiTargets: {
-      ...section(
-        "KPI targets",
-        kpiBlocked ? "Conversion targets need your site pixel" : "Ramped monthly targets",
-        kpiBlocked
-          ? "These targets optimize against on-site conversions, which require the site pixel. Connect it to activate conversion tracking; awareness metrics work without it."
-          : "Targets ramp as the algorithms learn and budget concentrates on top performers. Confidence rises after the first 14 days of data.",
-        kpiBlocked ? "low" : "medium",
-        kpiBlocked ? "limited" : "ready"
-      ),
-      data: kpiTargets(obj),
-    },
-    forecast: section(
-      "Forecast",
-      "Directional — firms up after 14 days of live data",
-      "Forecast is modeled from the budget, channel mix, and audience size. Treat the first two weeks as a learning period; actuals will refine these.",
-      "low"
-    ),
-    createdAt: now,
-    lastModifiedAt: now,
+    reviewState: "draft",
+    checkInDays: null,
+    createdAt: nowIso,
+    lastModifiedAt: nowIso,
     lastModifiedBy: "system",
   };
+
+  // Derive the summary from the campaigns — single source of truth.
+  return recalcMediaPlan(plan, nowIso);
 }

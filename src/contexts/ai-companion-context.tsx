@@ -1793,7 +1793,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           const ack: ChatMessage = {
             id: nextId(),
             role: "assistant",
-            content: `Here's your ${objective} media plan for ${adv.companyName} — channel mix, audience tiers, phasing, and ramped targets, all on the canvas. Every number shows its basis; edit anything, then send for approval or activate.`,
+            content: `Here's your media plan for ${adv.companyName} — 5 channels grouped Awareness → Consideration → Conversion, benchmarked against ${adv.companyName}'s vertical. Edit any budget inline or tell me to shift spend, and the forecast recalculates. Send for approval when it's ready.`,
           };
           setMessages((prev) => [...prev, ack]);
           setIsLoading(false);

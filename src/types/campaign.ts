@@ -312,37 +312,67 @@ export interface AgencyTeamMember {
   role: AgencyRole;
 }
 
-// --- Media Plan (cross-channel allocation) ---
+// --- Media Plan (funnel-grouped, inline-editable, single-source forecast) ---
+// Per the AdRoll Media Planner spec: channels grouped Awareness→Consideration→
+// Conversion, each an editable budget row with a per-channel forecast. ONE
+// source of truth — summary.estConversions === Σ campaign.forecast.conversions,
+// blended ROAS is a real ratio (revenue/spend), never "scales with spend."
 
-export interface MediaChannelAllocation {
-  channel: string;
-  pct: number;
-  monthly: number;
-  rationale: string;
+export type FunnelStage = "awareness" | "consideration" | "conversion";
+export type MediaChannelKey = "ctv" | "dooh" | "lookalike" | "social" | "retargeting";
+export type MediaChannelStatus = "available" | "closed_beta";
+
+export interface MediaForecast {
+  impressions: number;
+  conversions: number; // 0 for awareness channels — they're brand plays
+  roas: number | null; // null for awareness
+  cpa: number | null; // null for awareness
+  // Specialty metrics — present only on the channels that report them:
+  vtr?: number; // CTV view-through-rate %
+  brandLift?: number; // CTV brand-lift %
+  cpm?: number; // CTV / DOOH CPM ($)
+  markets?: number; // DOOH market count
+  audiencePool?: number; // DOOH geo-fenced pool size
 }
 
-export interface MediaKpiTarget {
-  metric: string;
-  m1: string;
-  m2: string;
-  m3: string;
-  tracking: string;
+export interface MediaCampaign {
+  id: string;
+  channel: MediaChannelKey;
+  label: string;
+  description: string;
+  funnelStage: FunnelStage;
+  status: MediaChannelStatus;
+  budget: number; // editable inline
+  enabled: boolean; // on/off toggle
+  baseBudget: number; // reference point for linear recalc
+  baseForecast: MediaForecast; // forecast at baseBudget
+  forecast: MediaForecast; // recalculated from current budget
 }
+
+export interface MediaPlanSummary {
+  totalBudget: number;
+  estConversions: number;
+  estRoas: number;
+  estImpressions: number;
+  targets: { conversions: number; roas: number };
+}
+
+export type MediaPlanReviewState = "draft" | "pending-approval" | "approved" | "active";
 
 export interface MediaPlan {
   id: string;
   name: string;
   advertiserId: string;
+  title: string; // e.g. "SPF Launch"
   objective: string;
-  monthlyBudget: number;
-  flight: string;
-  /** Editable monthly budget total (provenance-tagged). */
-  budgetSection: StrategySection;
-  channelMix: StrategySection & { data: MediaChannelAllocation[] };
-  audienceStrategy: StrategySection;
-  phasing: StrategySection;
-  kpiTargets: StrategySection & { data: MediaKpiTarget[] };
-  forecast: StrategySection;
+  flight: string; // e.g. "May–Jul 2026"
+  durationDays: number;
+  benchmarkBasis: string; // e.g. "beauty vertical · benchmarks"
+  pixelReady: boolean; // false ⇒ vertical-benchmark fallback callout
+  campaigns: MediaCampaign[]; // funnel-ordered
+  summary: MediaPlanSummary;
+  reviewState: MediaPlanReviewState;
+  checkInDays: 30 | 45 | 60 | null; // set at activation
   createdAt: string;
   lastModifiedAt: string;
   lastModifiedBy: string;

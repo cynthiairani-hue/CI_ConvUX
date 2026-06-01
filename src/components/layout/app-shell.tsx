@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, Bot } from "lucide-react";
+import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, Bot, CheckCircle2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { approvers } from "@/data/approvers";
 import { usePersona } from "@/contexts/persona-context";
@@ -429,15 +429,50 @@ function ResizeDivider({ onDrag }: { onDrag: (deltaX: number) => void }) {
   );
 }
 
+const MP_REVIEW_STYLE: Record<string, { label: string; tint: string }> = {
+  draft: { label: "Draft", tint: "bg-muted text-muted-foreground" },
+  "pending-approval": { label: "Pending approval", tint: "bg-amber-50 text-amber-600" },
+  approved: { label: "Approved", tint: "bg-emerald-50 text-emerald-600" },
+  active: { label: "Active", tint: "bg-emerald-50 text-emerald-600" },
+};
+
 function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof useCampaign>["activeMediaPlan"]> }) {
   const { setActiveMediaPlan, showToast } = useCampaign();
   const { setState } = useAICompanion();
 
+  // Build → Approve → Activate, explicit and visible (review scales with impact).
+  function sendForApproval() {
+    setActiveMediaPlan({ ...plan, reviewState: "pending-approval", lastModifiedAt: new Date().toISOString() });
+    showToast("Sent to Marcus Patel for approval — Slack notification fired");
+  }
+  function approve() {
+    setActiveMediaPlan({ ...plan, reviewState: "approved", lastModifiedAt: new Date().toISOString() });
+    showToast("Media plan approved — ready to activate");
+  }
+  function activate() {
+    setActiveMediaPlan({ ...plan, reviewState: "active", checkInDays: 45, lastModifiedAt: new Date().toISOString() });
+    showToast(`${plan.campaigns.filter((c) => c.enabled).length} campaigns created in AdRoll · check-in set for +45 days`);
+  }
+
+  const review = MP_REVIEW_STYLE[plan.reviewState] ?? MP_REVIEW_STYLE.draft;
+
   return (
     <main className="flex flex-1 flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
-        <h1 className="truncate text-[14px] font-semibold text-foreground">{plan.name}</h1>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="truncate text-[14px] font-semibold text-foreground">{plan.name}</h1>
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", review.tint)}>
+            {review.label}
+          </span>
+        </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => showToast("Plan exported to PDF")}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <FileDown className="h-3.5 w-3.5" /> Export
+          </button>
           <button
             type="button"
             onClick={() => showToast("Share link copied to clipboard")}
@@ -445,6 +480,24 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           >
             <Share2 className="h-3.5 w-3.5" /> Share
           </button>
+
+          {/* Lifecycle primary action — advances the gate */}
+          {plan.reviewState === "draft" && (
+            <button type="button" onClick={sendForApproval} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+              <Send className="h-3.5 w-3.5" /> Send for approval
+            </button>
+          )}
+          {plan.reviewState === "pending-approval" && (
+            <button type="button" onClick={approve} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+            </button>
+          )}
+          {plan.reviewState === "approved" && (
+            <button type="button" onClick={activate} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+              <Zap className="h-3.5 w-3.5" /> Activate
+            </button>
+          )}
+
           <div className="mx-0.5 h-5 w-px bg-border" />
           <button
             type="button"
@@ -457,10 +510,15 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
       </header>
       <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
         <div className="mx-auto my-auto w-full max-w-2xl">
-          <MediaPlanCard
-            plan={plan}
-            onConnectPixel={() => showToast("Site pixel connected — conversion tracking is on", { label: "View campaigns", href: "/campaigns" })}
-          />
+          {plan.reviewState === "active" && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>
+                {plan.campaigns.filter((c) => c.enabled).length} campaigns created · all <span className="font-medium">awaiting creative</span> · check-in scheduled for {plan.checkInDays} days. Upload creative and they go live within 24h.
+              </span>
+            </div>
+          )}
+          <MediaPlanCard plan={plan} onChange={(updated) => setActiveMediaPlan(updated)} />
         </div>
       </div>
     </main>
