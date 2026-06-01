@@ -287,6 +287,31 @@ export interface CompetitiveBrief {
   lastModifiedBy: string;
 }
 
+// --- Agency (portfolio of client brands) ---
+
+export type AgencyClientStatus = "active" | "onboarding" | "paused";
+export type AgencyRole = "strategist" | "account-lead" | "client";
+
+export interface AgencyClient {
+  id: string;
+  name: string;
+  domain: string;
+  industry: string;
+  status: AgencyClientStatus;
+  monthlyBudget: number;
+  /** Account lead's display name. */
+  lead: string;
+  /** Active campaign count (display). */
+  campaigns: number;
+}
+
+export interface AgencyTeamMember {
+  id: string;
+  name: string;
+  initials: string;
+  role: AgencyRole;
+}
+
 // --- Media Plan (cross-channel allocation) ---
 
 export interface MediaChannelAllocation {

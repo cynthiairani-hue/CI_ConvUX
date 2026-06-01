@@ -5,6 +5,8 @@ import { universalTasks } from "@/data/personas";
 import { CanvasChatInput } from "@/components/ai-companion/canvas-chat-input";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
+import { usePersona } from "@/contexts/persona-context";
+import { AgencyPortfolioView } from "./agency-portfolio-view";
 import {
   Megaphone,
   TrendingUp,
@@ -398,6 +400,7 @@ function getUserInfo(): UserInfo {
 export function DashboardView() {
   const { openFullscreen, startCampaignFlow } = useAICompanion();
   const { savedStrategies, hydrated } = useCampaign();
+  const { activePersona } = usePersona();
   const [userInfo, setUserInfo] = useState<UserInfo>({ name: "there", brand: null });
 
   useEffect(() => {
@@ -437,6 +440,22 @@ export function DashboardView() {
     },
     [startCampaignFlow, openFullscreen]
   );
+
+  // Agency persona gets the portfolio experience, not the single-brand dashboard.
+  if (hydrated && activePersona.vertical === "agency") {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex-1 overflow-y-auto">
+          <AgencyPortfolioView />
+        </div>
+        <div className="shrink-0 pb-6 pt-2">
+          <div className="mx-auto max-w-3xl px-4 sm:px-8">
+            <CanvasChatInput placeholder="Ask about a client, or onboard a new one..." />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Personalized greeting — different for returning users
   const greeting = isReturningUser
