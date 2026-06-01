@@ -61,8 +61,8 @@ function BudgetInput({ value, onCommit, aiHighlight }: { value: number; onCommit
   const highlighted = aiHighlight && !focused;
   return (
     <div className={cn(
-      "flex items-center rounded-md border bg-white transition-colors",
-      highlighted ? "border-[#7C5CFC] bg-[#F3F0FF]" : "border-border focus-within:border-ring"
+      "flex items-center rounded-lg border bg-white transition-colors",
+      highlighted ? "border-[#7C5CFC] bg-[#F3F0FF]" : "border-border focus-within:border-[#2C9FDD]"
     )}>
       <span className="pl-2 text-[12px] text-muted-foreground">$</span>
       <input
@@ -240,7 +240,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   return (
     <div className="space-y-4">
       {/* Plan header */}
-      <div className="rounded-2xl border border-border bg-white p-5">
+      <div className="rounded-xl border border-border bg-white p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{plan.name}</h2>
@@ -298,7 +298,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
             <button
               type="button"
               onClick={handleConnectPixel}
-              className="shrink-0 rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-amber-700"
+              className="shrink-0 rounded-lg bg-foreground px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-foreground/90"
             >
               Connect pixel
             </button>
@@ -329,7 +329,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
         const meta = STAGE_META[stage];
         const Icon = meta.icon;
         return (
-          <div key={stage} className="rounded-2xl border border-border bg-white">
+          <div key={stage} className="rounded-xl border border-border bg-white">
             {(() => {
               const s = stageStat(stage);
               return (
