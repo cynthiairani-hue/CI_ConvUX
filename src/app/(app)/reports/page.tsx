@@ -598,8 +598,8 @@ export default function ReportsPage() {
   if (!hydrated) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          <div className="mx-auto my-auto w-full max-w-3xl px-4 sm:px-8 py-10">
             <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">Loading...</p>
           </div>
@@ -610,8 +610,8 @@ export default function ReportsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="mx-auto my-auto w-full max-w-3xl px-4 sm:px-8 py-10">
           {/* Page header */}
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>
           <p className="mt-1 text-sm text-muted-foreground">

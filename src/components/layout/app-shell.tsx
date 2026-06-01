@@ -280,11 +280,11 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
         </div>
       </header>
       {/* Grey canvas background — card floats on it */}
-      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
+      <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
         {showReturnBanner && (
           <ReturnVisitBanner strategy={strategy} onDismiss={() => setShowReturnBanner(false)} />
         )}
-        <div className="mx-auto max-w-2xl">
+        <div className="mx-auto my-auto w-full max-w-2xl">
           <StrategyCard plan={strategy} onUpdate={handleStrategyUpdate} />
         </div>
       </div>
@@ -373,8 +373,8 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
         </div>
       </header>
       {/* Grey canvas background — card floats on it */}
-      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
-        <div className="mx-auto max-w-2xl">
+      <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
+        <div className="mx-auto my-auto w-full max-w-2xl">
           <CFONarrativeCard narrative={narrative} seedData={brand?.domain === "ffern.co" ? FFERN_SEED_PERFORMANCE : undefined} hideHeaderActions />
         </div>
       </div>
@@ -455,8 +455,8 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           </button>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
-        <div className="mx-auto max-w-2xl">
+      <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
+        <div className="mx-auto my-auto w-full max-w-2xl">
           <MediaPlanCard
             plan={plan}
             onConnectPixel={() => showToast("Site pixel connected — conversion tracking is on", { label: "View campaigns", href: "/campaigns" })}
@@ -500,8 +500,8 @@ function SplitOperatorCanvas({ operator }: { operator: NonNullable<ReturnType<ty
           Close
         </button>
       </header>
-      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
-        <div className="mx-auto max-w-2xl">
+      <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
+        <div className="mx-auto my-auto w-full max-w-2xl">
           <OperatorAuthorizationCard
             plan={operator}
             onAuthorize={handleAuthorize}
@@ -556,8 +556,8 @@ function SplitBriefCanvas({ brief }: { brief: NonNullable<ReturnType<typeof useC
           </button>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
-        <div className="mx-auto max-w-2xl">
+      <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
+        <div className="mx-auto my-auto w-full max-w-2xl">
           <CompetitiveBriefCard brief={brief} onConnectPixel={handleConnectPixel} />
         </div>
       </div>
@@ -619,8 +619,8 @@ function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<type
           </button>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto bg-accent px-8 py-8">
-        <div className="mx-auto max-w-2xl">
+      <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
+        <div className="mx-auto my-auto w-full max-w-2xl">
           <AudienceCard segment={segment} onUpdate={handleUpdate} />
         </div>
       </div>

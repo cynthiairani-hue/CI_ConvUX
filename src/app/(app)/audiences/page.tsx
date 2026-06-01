@@ -196,8 +196,8 @@ export default function AudiencesPage() {
   if (!hydrated) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          <div className="mx-auto my-auto w-full max-w-3xl px-4 sm:px-8 py-10">
             <h1 className="text-xl font-semibold tracking-tight text-foreground">Audiences</h1>
             <p className="mt-0.5 text-[13px] text-muted-foreground">Loading...</p>
           </div>
@@ -208,8 +208,8 @@ export default function AudiencesPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 sm:px-8 py-10">
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="mx-auto my-auto w-full max-w-3xl px-4 sm:px-8 py-10">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-foreground">Audiences</h1>

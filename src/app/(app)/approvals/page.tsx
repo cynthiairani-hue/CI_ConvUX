@@ -36,7 +36,7 @@ export default function ApprovalsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex flex-1 flex-col overflow-y-auto">
         {!hasContent ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
@@ -50,7 +50,7 @@ export default function ApprovalsPage() {
             </div>
           </div>
         ) : (
-          <div className="mx-auto max-w-3xl px-4 sm:px-8 py-8">
+          <div className="mx-auto my-auto w-full max-w-3xl px-4 sm:px-8 py-8">
             <h1 className="text-lg font-semibold text-foreground">Approvals</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Review and manage approval requests.

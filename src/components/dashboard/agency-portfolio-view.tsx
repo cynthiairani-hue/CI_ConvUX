@@ -116,7 +116,7 @@ export function AgencyPortfolioView() {
   const totalSpend = clients.reduce((s, c) => s + c.monthlyBudget, 0);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 sm:px-8 py-10">
+    <div className="mx-auto my-auto w-full max-w-3xl space-y-6 px-4 sm:px-8 py-10">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background">

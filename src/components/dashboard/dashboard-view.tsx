@@ -454,7 +454,7 @@ export function DashboardView() {
   if (hydrated && activePersona.vertical === "agency" && !activeClient) {
     return (
       <div className="flex h-full flex-col">
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-1 flex-col overflow-y-auto">
           <AgencyPortfolioView />
         </div>
         <div className="shrink-0 pb-6 pt-2">
@@ -477,8 +477,8 @@ export function DashboardView() {
 
   return (
     <div className="flex h-full flex-col">
-    <div className="flex-1 overflow-y-auto">
-    <div className="mx-auto max-w-3xl space-y-6 px-4 sm:px-8 py-10">
+    <div className="flex flex-1 flex-col overflow-y-auto">
+    <div className="mx-auto my-auto w-full max-w-3xl space-y-6 px-4 sm:px-8 py-10">
       <h1 className="text-xl font-semibold tracking-tight text-foreground">
         {greeting}
       </h1>
