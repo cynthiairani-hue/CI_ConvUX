@@ -195,7 +195,7 @@ export default function CampaignsPage() {
         : { id: "adv-fallback", companyName: "Your client", websiteUrl: "your-site.com", industry: mapBrandIndustryToIAB("other"), restrictedCategories: [] };
       try { sessionStorage.setItem("fuseiq-suppress-autochat", "1"); } catch { /* ignore */ }
       setChatState("resting");
-      setActiveMediaPlan(buildMediaPlan(adv, "sales", 120_000));
+      setActiveMediaPlan(buildMediaPlan(adv, "plan", 120_000));
       return;
     }
     openFullscreen("Build me a campaign");
