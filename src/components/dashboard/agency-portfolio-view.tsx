@@ -7,9 +7,7 @@ import { cn } from "@/lib/utils";
 import { useCampaign } from "@/contexts/campaign-context";
 import {
   AGENCY,
-  BRAINLABS_TEAM,
   BRAINLABS_DISCOVERED,
-  ROLE_LABELS,
   persistAgencyClients,
   ensureAgencySeed,
   inferClientFromDomain,
@@ -285,27 +283,6 @@ export function AgencyPortfolioView() {
         <p className="mt-1.5 text-[11px] text-muted-foreground">
           We&apos;ll pull their brand, industry, assets, and competitors from the site — no manual setup.
         </p>
-      </div>
-
-      {/* Team & roles */}
-      <div>
-        <h2 className="mb-2 text-sm font-medium text-muted-foreground">Team &amp; roles</h2>
-        <div className="overflow-hidden rounded-xl border border-border bg-white">
-          {BRAINLABS_TEAM.map((m, i) => (
-            <div key={m.id} className={cn("flex items-center gap-3 px-4 py-3", i > 0 && "border-t border-border")}>
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-foreground">
-                {m.initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium text-foreground">{m.name}</div>
-                <div className="text-[11px] text-muted-foreground">{ROLE_LABELS[m.role].can}</div>
-              </div>
-              <span className="shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-foreground">
-                {ROLE_LABELS[m.role].label}
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

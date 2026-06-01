@@ -49,7 +49,7 @@ import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
 import { ensureReturningSeed } from "@/data/seed-returning";
 import { buildCompetitiveBrief } from "@/data/competitive-flow";
 import { buildOperatorPlan } from "@/data/operator-flow";
-import { buildMediaPlan, editCampaignBudget } from "@/data/media-plan-flow";
+import { buildMediaPlan, editCampaignBudget, toggleCampaign, setTotalBudget, parseMediaPlanCommand, WHY_CHANNEL } from "@/data/media-plan-flow";
 import { getCapabilities } from "@/data/prerequisites";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
@@ -701,6 +701,57 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const merged = mergeIntent(currentCampaignIntent, parsed);
         evaluateAndRespond(merged, userMsg);
         return;
+      }
+
+      // Active media plan: interpret freeform edit commands ("change CTV budget
+      // to 11,458", "shift $10k from DOOH to social", "why CTV?") as plan edits —
+      // BEFORE intent routing, so they don't misfire the campaign/keyword flow.
+      // Same single-source recalc as the chips, so chat and canvas always agree.
+      if (activeMediaPlanRef.current) {
+        const plan = activeMediaPlanRef.current;
+        const cmd = parseMediaPlanCommand(content, plan);
+        if (cmd) {
+          setMessages((prev) => [...prev, userMsg]);
+          let p = plan;
+          let reply = "";
+          const f = (n: number) => n.toLocaleString();
+          const outcome = (pl: typeof plan) =>
+            `Now forecasting **${f(pl.summary.estConversions)} conversions** at **${pl.summary.estRoas}× ROAS** on $${f(pl.summary.totalBudget)} total.`;
+          if (cmd.kind === "set") {
+            p = editCampaignBudget(plan, cmd.channelId, cmd.amount);
+            setActiveMediaPlan(p);
+            reply = `Set ${cmd.channelLabel} to $${f(cmd.amount)}. ${outcome(p)}`;
+          } else if (cmd.kind === "delta") {
+            const c = plan.campaigns.find((x) => x.id === cmd.channelId);
+            const nb = Math.max(0, (c?.budget ?? 0) + cmd.amount);
+            p = editCampaignBudget(plan, cmd.channelId, nb);
+            setActiveMediaPlan(p);
+            reply = `${cmd.amount >= 0 ? "Increased" : "Reduced"} ${cmd.channelLabel} to $${f(nb)}. ${outcome(p)}`;
+          } else if (cmd.kind === "shift") {
+            const from = plan.campaigns.find((x) => x.id === cmd.fromId);
+            const to = plan.campaigns.find((x) => x.id === cmd.toId);
+            const move = Math.min(cmd.amount, from?.budget ?? 0);
+            p = editCampaignBudget(plan, cmd.toId, (to?.budget ?? 0) + move);
+            p = editCampaignBudget(p, cmd.fromId, (from?.budget ?? 0) - move);
+            setActiveMediaPlan(p);
+            reply = `Moved $${f(move)} from ${cmd.fromLabel} to ${cmd.toLabel}. ${outcome(p)}`;
+          } else if (cmd.kind === "toggle") {
+            const c = plan.campaigns.find((x) => x.id === cmd.channelId);
+            if (c && c.enabled !== cmd.on) p = toggleCampaign(plan, cmd.channelId);
+            setActiveMediaPlan(p);
+            reply = `Turned ${cmd.on ? "on" : "off"} ${cmd.channelLabel}. ${outcome(p)}`;
+          } else if (cmd.kind === "total") {
+            p = setTotalBudget(plan, cmd.amount);
+            setActiveMediaPlan(p);
+            reply = `Set the total to $${f(cmd.amount)} and rescaled the mix. ${outcome(p)}`;
+          } else {
+            // why
+            reply = WHY_CHANNEL[cmd.channelKey];
+          }
+          const replyMsg: ChatMessage = { id: nextId(), role: "assistant", content: reply };
+          setMessages((prev) => [...prev, replyMsg]);
+          return;
+        }
       }
 
       // Media-plan brief intake: the previous turn invited a brief, so treat this
@@ -1832,18 +1883,34 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           industry: mapBrandIndustryToIAB(brand?.industry || "other"),
           restrictedCategories: [],
         };
-        // Pull the total budget from the brief if stated, else a sensible default.
+        // Pull the brief's budget + goal so the plan is measured against what the
+        // client actually asked for (honest target vs forecast).
         const brief = mediaPlanFlowRef.current.brief || "";
         const budgetMatch = brief.match(/\$\s?([\d][\d,]{3,})/);
         const total = budgetMatch ? Number(budgetMatch[1].replace(/,/g, "")) : 120_000;
+        const convMatch = brief.match(/([\d][\d,]{2,})\s*(?:new\s+)?(?:customer|acquisition|conversion)/i);
+        const roasMatch = brief.match(/(\d+(?:\.\d+)?)\s*x\b/i) || brief.match(/roas[^\d]*(\d+(?:\.\d+)?)/i);
+        const goal = {
+          conversions: convMatch ? Number(convMatch[1].replace(/,/g, "")) : undefined,
+          roas: roasMatch ? Number(roasMatch[1]) : undefined,
+        };
         setTimeout(() => {
-          const plan = buildMediaPlan(adv, objective, total);
+          const plan = buildMediaPlan(adv, objective, total, goal);
           setActiveMediaPlan(plan);
           const building: ChatMessage = { id: nextId(), role: "assistant", content: "Perfect. Building your plan now…" };
+          // Honest gap: if the forecast is short of the brief's conversion goal, say so + offer to close it.
+          const conv = plan.summary.estConversions;
+          const goalConv = plan.summary.targets.conversions;
+          let gapLine = "";
+          if (goal.conversions && conv < goalConv) {
+            const pct = Math.round((conv / goalConv) * 100);
+            const raiseTo = Math.round((plan.summary.totalBudget * goalConv) / conv / 1000) * 1000;
+            gapLine = `\n\nHeads up: this forecasts **${conv.toLocaleString()} conversions — about ${pct}% of your ${goalConv.toLocaleString()} goal**, at ${plan.summary.estRoas}× ROAS (ahead of your ${plan.summary.targets.roas}× target). To close the gap, I can shift budget from awareness into retargeting, or raise the total to ~$${raiseTo.toLocaleString()}. Just tell me which.`;
+          }
           const narration: ChatMessage = {
             id: nextId(),
             role: "assistant",
-            content: `Here's your media plan for **${adv.companyName}**. I've recommended ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}. Your brief mentioned display and social — I've added lookalike prospecting and DOOH based on the acquisition goal and seasonal context.\n\nOne thing to flag: **DOOH is currently in closed beta.** If you'd like to include it, we can help activate it manually for you — just let us know and we'll loop in the team.`,
+            content: `Here's your media plan for **${adv.companyName}**. I've recommended ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}. Your brief mentioned display and social — I've added lookalike prospecting and DOOH based on the acquisition goal and seasonal context.\n\nOne thing to flag: **DOOH is currently in closed beta.** If you'd like to include it, we can help activate it manually for you — just let us know and we'll loop in the team.${gapLine}`,
           };
           setMessages((prev) => [...prev, building, narration, makeRefineCard()]);
           setIsLoading(false);
