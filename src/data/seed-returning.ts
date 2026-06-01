@@ -5,6 +5,7 @@ import type {
   ApprovalRequest,
   Advertiser,
 } from "@/types/campaign";
+import type { PersonaId } from "@/types/persona";
 import { buildStrategyFromIntent } from "./campaign-flow";
 import { buildCompetitiveBrief } from "./competitive-flow";
 import { mapBrandIndustryToIAB, getCurrentBrand } from "./brand-profiles";
@@ -162,11 +163,16 @@ function buildSeedApprovals(strategies: StrategyPlan[]): ApprovalRequest[] {
   const retarget = strategies.find((s) => s.id === "seed-strat-retargeting");
   if (!retarget) return [];
   const ts = new Date(Date.now() - 86_400_000).toLocaleString();
+  // Sent BY the acting persona (whichever Cynthia is signed in) → Marcus, the
+  // account-lead/approver. This makes it show under "Sent by me · awaiting
+  // Marcus" in every scenario, so the portfolio attention signal that links here
+  // actually resolves to a visible request.
+  const me = (localStorage.getItem("fuseiq-persona") || "cynthia-b2c") as PersonaId;
   return [
     {
       id: "seed-approval-retargeting",
       strategy: retarget,
-      sentBy: "cynthia-b2c",
+      sentBy: me,
       sentByName: "Cynthia Irani",
       sentTo: "marcus-patel",
       sentToName: "Marcus Patel",
@@ -174,7 +180,7 @@ function buildSeedApprovals(strategies: StrategyPlan[]): ApprovalRequest[] {
       comments: [
         {
           id: "seed-comment-1",
-          authorId: "cynthia-b2c",
+          authorId: me,
           authorName: "Cynthia Irani",
           content: "Starting at $2K/mo — flag if you want it higher before we launch. Audience is gated on the site pixel install.",
           timestamp: ts,

@@ -152,6 +152,46 @@ export function exitClient(): void {
   localStorage.removeItem(ACTIVE_CLIENT_KEY);
 }
 
+/* ── Portfolio attention feed (9C.3) ───────────────────────────────────────
+   The agency's morning hot path is triage: "what across my book needs me now?"
+   Each signal is a Notice (artifact-shaped, evidence-tagged) stamped with its
+   client; acting on it enters that client's scope and deep-links to the surface
+   where they Propose → Authorize. Mock data, plausible + client-specific. */
+
+export type SignalKind = "approval" | "anomaly" | "draft" | "opportunity" | "setup";
+
+export interface ClientSignal {
+  id: string;
+  clientId: string;
+  kind: SignalKind;
+  title: string;
+  detail: string;
+  /** Short evidence/urgency tag — freshness, confidence, or expected impact. */
+  meta: string;
+  /** Surface to deep-link to inside the client's scoped workspace. */
+  target: "home" | "campaigns" | "audiences" | "reports" | "approvals";
+}
+
+/** Signals keyed by roster client id. Ordered within a client by urgency. */
+const CLIENT_SIGNALS: ClientSignal[] = [
+  { id: "sig-estee-approval", clientId: "client-estee", kind: "approval", title: "Site Retargeting awaiting Marcus's sign-off", detail: "You sent the $2K/mo retargeting plan to Marcus Patel for approval before launch.", meta: "1d ago", target: "approvals" },
+  { id: "sig-estee-opp", clientId: "client-estee", kind: "opportunity", title: "Shift spend to Google Shopping", detail: "Shopping ROAS is 6.9x vs Meta's 3.8x. A 15% reallocation should lift blended return.", meta: "+$2.1K/mo", target: "campaigns" },
+  { id: "sig-vans-anomaly", clientId: "client-vans", kind: "anomaly", title: "Paid Social CPA trending up", detail: "Two lowest-performing lookalikes are dragging CAC. AI proposes pausing them and returning budget.", meta: "high confidence", target: "campaigns" },
+  { id: "sig-harrods-draft", clientId: "client-harrods", kind: "draft", title: "“Demand Capture” draft missing creative", detail: "Campaign is built but has no creative or forecast — complete it to launch.", meta: "2d idle", target: "campaigns" },
+  { id: "sig-simply-opp", clientId: "client-simplybusiness", kind: "opportunity", title: "Lookalike audience ready to expand", detail: "Seed crossed 2,000 records — the model can now build a 1–3% lookalike.", meta: "audience ready", target: "audiences" },
+  { id: "sig-expedia-setup", clientId: "client-expedia", kind: "setup", title: "Finish onboarding — connect ad accounts", detail: "Expedia is still onboarding. Link Google & Meta to start tracking results.", meta: "onboarding", target: "home" },
+];
+
+const SIGNAL_ORDER: Record<SignalKind, number> = { approval: 0, anomaly: 1, setup: 2, draft: 3, opportunity: 4 };
+
+/** Attention signals for the clients currently on the roster, urgency-ordered. */
+export function getPortfolioSignals(clients: AgencyClient[]): ClientSignal[] {
+  const ids = new Set(clients.map((c) => c.id));
+  return CLIENT_SIGNALS.filter((s) => ids.has(s.clientId)).sort(
+    (a, b) => SIGNAL_ORDER[a.kind] - SIGNAL_ORDER[b.kind]
+  );
+}
+
 /** AI-native client onboarding: infer a client brand from a pasted domain. */
 export function inferClientFromDomain(input: string): AgencyClient {
   const domain = input

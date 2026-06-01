@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
-import { Plus, ArrowRight, Sparkles, Building2, Check } from "lucide-react";
+import { Plus, ArrowRight, Sparkles, Building2, Check, Clock, TrendingUp, PencilLine, Plug } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaign } from "@/contexts/campaign-context";
 import {
@@ -15,8 +16,19 @@ import {
   discoveredToClient,
   faviconUrl,
   enterClient,
+  getPortfolioSignals,
+  type SignalKind,
 } from "@/data/seed-agency";
 import type { AgencyClient } from "@/types/campaign";
+
+/** Visual treatment per signal kind — calm, evidence-first, not alarmist. */
+const SIGNAL_STYLE: Record<SignalKind, { icon: LucideIcon; chip: string; tint: string }> = {
+  approval: { icon: Clock, chip: "In approval", tint: "bg-amber-50 text-amber-600" },
+  anomaly: { icon: TrendingUp, chip: "Needs review", tint: "bg-amber-50 text-amber-600" },
+  setup: { icon: Plug, chip: "Setup", tint: "bg-amber-50 text-amber-600" },
+  draft: { icon: PencilLine, chip: "Draft", tint: "bg-muted text-muted-foreground" },
+  opportunity: { icon: Sparkles, chip: "Opportunity", tint: "bg-[#EBF5FB] text-[#2C9FDD]" },
+};
 
 const STATUS_STYLE: Record<AgencyClient["status"], string> = {
   active: "bg-emerald-50 text-emerald-600",
@@ -92,6 +104,15 @@ export function AgencyPortfolioView() {
     window.location.href = "/home";
   }
 
+  /** Act on a triage signal: enter that client, deep-link to the right surface. */
+  function actOnSignal(clientId: string, target: string) {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return;
+    enterClient(c);
+    window.location.href = `/${target}`;
+  }
+
+  const signals = getPortfolioSignals(clients);
   const totalSpend = clients.reduce((s, c) => s + c.monthlyBudget, 0);
 
   return (
@@ -110,6 +131,53 @@ export function AgencyPortfolioView() {
           </p>
         </div>
       </div>
+
+      {/* Needs your attention — cross-client triage feed (the agency hot path) */}
+      {signals.length > 0 && (
+        <div>
+          <h2 className="mb-2 text-sm font-medium text-muted-foreground">
+            Needs your attention
+          </h2>
+          <div className="space-y-2">
+            {signals.map((s) => {
+              const client = clients.find((c) => c.id === s.clientId);
+              if (!client) return null;
+              const { icon: Icon, chip, tint } = SIGNAL_STYLE[s.kind];
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => actOnSignal(s.clientId, s.target)}
+                  className="group flex w-full items-start gap-3 rounded-xl border border-border bg-white px-4 py-3 text-left transition-all hover:shadow-sm"
+                >
+                  <ClientLogo domain={client.domain} name={client.name} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {client.name}
+                      </span>
+                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", tint)}>
+                        <Icon className="h-3 w-3" />
+                        {chip}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-[13px] font-medium text-foreground">
+                      {s.title}
+                    </div>
+                    <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">
+                      {s.detail}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2 pt-0.5">
+                    <span className="hidden text-[11px] text-muted-foreground sm:inline">{s.meta}</span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Client roster */}
       <div>
