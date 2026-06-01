@@ -49,6 +49,7 @@ import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
 import { ensureReturningSeed } from "@/data/seed-returning";
 import { buildCompetitiveBrief } from "@/data/competitive-flow";
 import { buildOperatorPlan } from "@/data/operator-flow";
+import { buildMediaPlan } from "@/data/media-plan-flow";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
@@ -188,7 +189,7 @@ function nextId() {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
-  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator } = useCampaign();
+  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan } = useCampaign();
   const { collapseLeftRail } = useLayout();
   // Defer localStorage reads to useEffect to prevent hydration mismatches
   const [state, setStateRaw] = useState<AICompanionState>("resting");
@@ -310,8 +311,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     setActiveAudience(null);
     setActiveBrief(null);
     setActiveOperator(null);
+    setActiveMediaPlan(null);
     return sessionId;
-  }, [activePersona.id, setActiveStrategy, setActiveNarrative, setActiveAudience, setActiveBrief, setActiveOperator]);
+  }, [activePersona.id, setActiveStrategy, setActiveNarrative, setActiveAudience, setActiveBrief, setActiveOperator, setActiveMediaPlan]);
 
   useEffect(() => {
     initNewSession();
@@ -818,6 +820,50 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           setState("split");
           collapseLeftRail();
         }, 500);
+        return;
+      }
+
+      // Media-plan intent — checked BEFORE campaign ("media plan" also matches campaign).
+      // Unlike a generic template, we ask ONE sharp question (objective) then build a
+      // tailored, editable artifact; budget is inferred and editable.
+      const isMediaPlanIntent =
+        lower.includes("media plan") ||
+        lower.includes("plan my media") ||
+        lower.includes("plan my spend across") ||
+        lower.includes("channel plan") ||
+        lower.includes("plan my channels");
+
+      if (isMediaPlanIntent) {
+        setMessages((prev) => [...prev, userMsg]);
+        const brand = brandRef.current || getCurrentBrand();
+        const brandName = brand?.name || "your brand";
+        const ackMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: `Let's build a real media plan for ${brandName} — tailored to your channels, not a template. One quick thing first:`,
+        };
+        const choiceMsg: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: "",
+          toolCall: {
+            type: "choices",
+            field: "media-plan-objective",
+            question: "What's the primary objective for this plan?",
+            subtitle: `I'll allocate budget across the right channels for ${brandName} and set targets to match.`,
+            step: 1,
+            totalSteps: 1,
+            multiSelect: false,
+            options: [
+              { id: "awareness", label: "Awareness", detail: "Grow brand reach (CTV-led)" },
+              { id: "traffic", label: "Traffic", detail: "Drive qualified site visits" },
+              { id: "leads", label: "Leads", detail: "Capture new prospects" },
+              { id: "sales", label: "Sales", detail: "Drive purchases / ROAS" },
+              { id: "retargeting", label: "Retargeting", detail: "Re-engage recent visitors" },
+            ],
+          },
+        };
+        setMessages((prev) => [...prev, ackMsg, choiceMsg]);
         return;
       }
 
@@ -1716,6 +1762,41 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setMessages((prev) => [...prev, userMsg]);
         // Continue the campaign flow with the chosen mode
         continueCampaignFlow(chosenMode);
+        return;
+      }
+
+      if (field === "media-plan-objective") {
+        const objective = selected[0] || "awareness";
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+        const brand = brandRef.current || getCurrentBrand();
+        const adv = advertiser || {
+          id: "adv-ffern-co",
+          companyName: brand?.name || "Your brand",
+          websiteUrl: brand?.domain || "your site",
+          industry: mapBrandIndustryToIAB(brand?.industry || "other"),
+          restrictedCategories: [],
+        };
+        // Infer a starting monthly budget from the latest saved strategy, else default.
+        let monthly = 8000;
+        try {
+          const raw = typeof window !== "undefined" ? localStorage.getItem("fuseiq-strategies") : null;
+          const list = raw ? (JSON.parse(raw) as StrategyPlan[]) : [];
+          const last = list[list.length - 1];
+          if (last?.budgetSchedule?.data?.monthlyBudget) monthly = last.budgetSchedule.data.monthlyBudget;
+        } catch { /* default */ }
+        setTimeout(() => {
+          setActiveMediaPlan(buildMediaPlan(adv, objective, monthly));
+          const ack: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: `Here's your ${objective} media plan for ${adv.companyName} — channel mix, audience tiers, phasing, and ramped targets, all on the canvas. Every number shows its basis; edit anything, then send for approval or activate.`,
+          };
+          setMessages((prev) => [...prev, ack]);
+          setIsLoading(false);
+          setState("split");
+          collapseLeftRail();
+        }, 600);
         return;
       }
 

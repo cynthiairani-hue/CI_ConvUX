@@ -287,6 +287,42 @@ export interface CompetitiveBrief {
   lastModifiedBy: string;
 }
 
+// --- Media Plan (cross-channel allocation) ---
+
+export interface MediaChannelAllocation {
+  channel: string;
+  pct: number;
+  monthly: number;
+  rationale: string;
+}
+
+export interface MediaKpiTarget {
+  metric: string;
+  m1: string;
+  m2: string;
+  m3: string;
+  tracking: string;
+}
+
+export interface MediaPlan {
+  id: string;
+  name: string;
+  advertiserId: string;
+  objective: string;
+  monthlyBudget: number;
+  flight: string;
+  /** Editable monthly budget total (provenance-tagged). */
+  budgetSection: StrategySection;
+  channelMix: StrategySection & { data: MediaChannelAllocation[] };
+  audienceStrategy: StrategySection;
+  phasing: StrategySection;
+  kpiTargets: StrategySection & { data: MediaKpiTarget[] };
+  forecast: StrategySection;
+  createdAt: string;
+  lastModifiedAt: string;
+  lastModifiedBy: string;
+}
+
 // --- Operator (delegated agentic execution) ---
 
 export type OperatorScope =
