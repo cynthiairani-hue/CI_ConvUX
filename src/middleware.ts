@@ -31,6 +31,9 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Gate everything except Next internals and static assets.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Gate EVERYTHING (pages, API, and JS/CSS bundles) so nothing is readable
+  // unauthenticated — only favicon is exempt. Once a visitor enters the password,
+  // the browser attaches Basic Auth to all same-origin requests, so the app loads
+  // normally. (Unset SITE_PASSWORD ⇒ this whole check no-ops.)
+  matcher: ["/((?!favicon.ico).*)"],
 };
