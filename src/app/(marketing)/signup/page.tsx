@@ -362,11 +362,14 @@ export default function SignupPage() {
       <main className="flex flex-1 items-center justify-center px-6 py-16">
         <div className="w-full max-w-lg space-y-8">
           <div>
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Internal demo
+            </div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              Choose your starting point
+              Choose a demo scenario
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Pick a profile and a starting state — FuseIQ loads that experience, fully set up.
+              Internal demo selector — pick a profile and starting state, and FuseIQ loads that experience fully set up.
             </p>
           </div>
 

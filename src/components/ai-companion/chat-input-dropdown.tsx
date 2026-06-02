@@ -5,6 +5,7 @@ import { Wand2, Clock, MessageSquare, MoreHorizontal, Pencil, Archive, Trash2, C
 import { cn } from "@/lib/utils";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
+import { usePersona } from "@/contexts/persona-context";
 import { getPersonalizedPrompts } from "@/data/suggested-prompts";
 import { useBrand } from "@/data/brand-profiles";
 import { SESSION_GROUP_LABELS, type ChatSessionGroup } from "@/lib/storage";
@@ -154,9 +155,10 @@ export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy, query }: C
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { chatSessions, loadChatSession, renameChatSession, archiveChatSession, deleteChatSession } = useAICompanion();
   const { savedStrategies, savedAdvertisers } = useCampaign();
+  const { activePersona } = usePersona();
 
   const brand = useBrand();
-  const prompts = getPersonalizedPrompts(brand, savedStrategies?.length || 0);
+  const prompts = getPersonalizedPrompts(brand, savedStrategies?.length || 0, { isAgency: activePersona.vertical === "agency" });
 
   // Type-ahead mode: when the user is typing, filter suggestions and render a
   // compact autocomplete list (consistent with the page inputs). Empty input

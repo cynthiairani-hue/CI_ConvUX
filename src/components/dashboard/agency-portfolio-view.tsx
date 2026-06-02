@@ -35,12 +35,14 @@ const STATUS_STYLE: Record<AgencyClient["status"], string> = {
 };
 
 /** Client logo from favicon, with initials fallback if it fails to load. */
-function ClientLogo({ domain, name, size = "md" }: { domain: string; name: string; size?: "sm" | "md" }) {
+function ClientLogo({ domain, name, size = "md" }: { domain: string; name: string; size?: "sm" | "md" | "lg" }) {
   const [failed, setFailed] = useState(false);
-  const dim = size === "sm" ? "h-7 w-7 p-1" : "h-9 w-9 p-1.5";
+  const box = size === "sm" ? "h-7 w-7" : size === "lg" ? "h-12 w-12" : "h-9 w-9";
+  const pad = size === "sm" ? "p-1" : size === "lg" ? "p-2" : "p-1.5";
+  const text = size === "lg" ? "text-[14px]" : "text-[11px]";
   if (failed) {
     return (
-      <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-muted text-[11px] font-semibold text-foreground", size === "sm" ? "h-7 w-7" : "h-9 w-9")}>
+      <div className={cn("flex shrink-0 items-center justify-center rounded-xl bg-muted font-semibold text-foreground", box, text)}>
         {name.slice(0, 2).toUpperCase()}
       </div>
     );
@@ -50,7 +52,7 @@ function ClientLogo({ domain, name, size = "md" }: { domain: string; name: strin
       src={faviconUrl(domain)}
       alt=""
       onError={() => setFailed(true)}
-      className={cn("shrink-0 rounded-lg border border-border bg-white object-contain", dim)}
+      className={cn("shrink-0 rounded-xl border border-border bg-white object-contain", box, pad)}
     />
   );
 }
@@ -241,51 +243,48 @@ export function AgencyPortfolioView() {
               />
             </form>
 
-            <div className="overflow-hidden rounded-xl border border-border bg-white">
-              {filtered.length === 0 ? (
-                <div className="px-4 py-6 text-center text-[13px] text-muted-foreground">No clients match “{query}”.</div>
-              ) : (
-                filtered.map((c, i) => {
+            {filtered.length === 0 ? (
+              <div className="rounded-xl border border-border bg-white px-4 py-6 text-center text-[13px] text-muted-foreground">
+                No clients match “{query}”.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {filtered.map((c) => {
                   const count = reviewCount.get(c.id) ?? 0;
                   return (
                     <button
                       key={c.id}
                       type="button"
                       onClick={() => openClient(c)}
-                      className={cn(
-                        "group flex w-full items-center gap-3.5 px-4 py-3 text-left transition-colors hover:bg-accent/40",
-                        i > 0 && "border-t border-border"
-                      )}
+                      className="group flex h-full flex-col rounded-xl border border-border bg-white p-4 text-left transition-all hover:border-foreground/20 hover:shadow-sm"
                     >
-                      <ClientLogo domain={c.domain} name={c.name} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[13px] font-medium text-foreground">{c.name}</span>
-                          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", STATUS_STYLE[c.status])}>
-                            {c.status}
+                      <div className="flex items-start justify-between gap-2">
+                        <ClientLogo domain={c.domain} name={c.name} size="lg" />
+                        {count > 0 && (
+                          <span title={`${count} to review`} className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
+                            {count}
                           </span>
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">{c.industry}</div>
+                        )}
                       </div>
-                      {count > 0 && (
-                        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
-                          {count} to review
+                      <div className="mt-3 truncate text-[13px] font-semibold text-foreground">{c.name}</div>
+                      <div className="mt-1">
+                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", STATUS_STYLE[c.status])}>
+                          {c.status}
                         </span>
-                      )}
-                      <div className="hidden shrink-0 text-right sm:block">
-                        <div className="text-[12.5px] font-medium text-foreground">
+                      </div>
+                      <div className="mt-auto pt-3">
+                        <div className="text-[14px] font-semibold tracking-tight text-foreground">
                           {c.monthlyBudget > 0 ? `$${c.monthlyBudget.toLocaleString()}/mo` : "—"}
                         </div>
-                        <div className="text-[11px] text-muted-foreground">
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">
                           {c.campaigns} {c.campaigns === 1 ? "campaign" : "campaigns"}
                         </div>
                       </div>
-                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
                     </button>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )}
           </div>
 
           {/* Add client — collapsed behind a CTA (not a daily task) */}

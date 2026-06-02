@@ -19,10 +19,35 @@ export interface SuggestedPrompt {
 export function getPersonalizedPrompts(
   brand: BrandProfile | null,
   savedStrategyCount: number,
+  opts?: { isAgency?: boolean },
 ): SuggestedPrompt[] {
   const name = brand?.name || "your brand";
   const isNew = savedStrategyCount < 2; // First 90 days / new user
   const hasActivity = savedStrategyCount >= 1;
+
+  // Agency profile: portfolio-level (All clients) vs working inside a client.
+  if (opts?.isAgency) {
+    if (brand) {
+      // Scoped into a client — prompts are about that client.
+      return [
+        { id: "media-plan", label: `Build a media plan for ${name}`, category: "campaign", priority: 10 },
+        { id: "perf-check", label: `How is ${name} performing?`, category: "performance", priority: 9 },
+        { id: "attention", label: `What needs my attention for ${name}?`, category: "performance", priority: 8 },
+        { id: "retargeting", label: "Build a retargeting campaign", category: "campaign", priority: 7 },
+        { id: "audience-explore", label: `What audiences should ${name} target?`, category: "audience", priority: 6 },
+        { id: "report", label: `Draft ${name}'s monthly report`, category: "narrative", priority: 5 },
+      ];
+    }
+    // Portfolio view — prompts are about the book of clients.
+    return [
+      { id: "attention", label: "Which client needs me today?", category: "performance", priority: 10 },
+      { id: "compare", label: "Compare performance across clients", category: "performance", priority: 9 },
+      { id: "media-plan", label: "Build a media plan", category: "campaign", priority: 8 },
+      { id: "report", label: "Draft a client report", category: "narrative", priority: 7 },
+      { id: "reallocate", label: "Where should I shift budget across the book?", category: "budget", priority: 6 },
+      { id: "onboard", label: "Onboard a new client", category: "campaign", priority: 5 },
+    ];
+  }
 
   if (isNew && brand) {
     // New user with known brand — onboarding-first prompts
