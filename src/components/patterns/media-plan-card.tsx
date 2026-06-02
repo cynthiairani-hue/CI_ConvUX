@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, X, MapPin,
+  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, X, MapPin, Copy,
 } from "lucide-react";
 import type {
   FunnelStage, MediaCampaign, MediaChannelKey, MediaPlan,
@@ -86,11 +86,13 @@ function BudgetInput({ value, onCommit, aiHighlight }: { value: number; onCommit
 }
 
 /** Inline text field for a line's location / creative — commits on blur / Enter. */
-function LineField({ value, placeholder, icon, onCommit }: { value: string; placeholder: string; icon?: React.ReactNode; onCommit: (v: string) => void }) {
+function LineField({ value, label, placeholder, icon, onCommit }: { value: string; label?: string; placeholder: string; icon?: React.ReactNode; onCommit: (v: string) => void }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
   return (
-    <div className="flex items-center gap-1 rounded-md border border-border bg-white px-1.5 py-0.5 focus-within:border-[#2C9FDD]">
+    <label className="block">
+      {label && <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>}
+      <span className="flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 focus-within:border-[#2C9FDD]">
       {icon}
       <input
         value={draft}
@@ -101,10 +103,11 @@ function LineField({ value, placeholder, icon, onCommit }: { value: string; plac
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") { setDraft(value); (e.target as HTMLInputElement).blur(); }
         }}
-        className="w-[120px] bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground/60"
-        aria-label={placeholder}
+        className="w-full min-w-0 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground/60"
+        aria-label={label || placeholder}
       />
-    </div>
+      </span>
+    </label>
   );
 }
 
@@ -137,17 +140,20 @@ function LineLabel({ value, onCommit }: { value: string; onCommit: (v: string) =
   );
 }
 
-/** "+ Add line" channel picker — adds a fresh line item to a flight (stage). */
-function AddLinePicker({ onAdd }: { onAdd: (channel: MediaChannelKey) => void }) {
+/** Channel picker — adds a fresh line/flight to a stage. Label configurable. */
+function AddLinePicker({ onAdd, label = "Add line", block = false }: { onAdd: (channel: MediaChannelKey) => void; label?: string; block?: boolean }) {
   return (
-    <div className="relative inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-medium text-[#1A7BB5] transition-colors hover:bg-[#EBF5FB]">
-      <Plus className="h-3 w-3" />
-      Add line
+    <div className={cn(
+      "relative inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-2 text-[12px] font-medium text-[#1A7BB5] transition-colors hover:bg-[#EBF5FB]",
+      block && "flex w-full border border-dashed border-[#9ED0EC]"
+    )}>
+      <Plus className="h-3.5 w-3.5" />
+      {label}
       <select
         value=""
         onChange={(e) => { if (e.target.value) onAdd(e.target.value as MediaChannelKey); e.currentTarget.value = ""; }}
         className="absolute inset-0 cursor-pointer opacity-0"
-        aria-label="Add a line — choose channel"
+        aria-label={`${label} — choose channel`}
       >
         <option value="" disabled>Choose a channel…</option>
         {CHANNEL_OPTIONS.map((o) => (
@@ -450,118 +456,119 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
         <KpiTile label="Est. impressions" value={fmtImpr(summary.estImpressions)} />
       </div>
 
-      {/* Funnel-grouped campaign rows */}
-      {STAGE_ORDER.map((stage) => {
-        const rows = plan.campaigns.filter((c) => c.funnelStage === stage);
-        if (rows.length === 0) return null;
-        const meta = STAGE_META[stage];
-        const Icon = meta.icon;
-        return (
-          <div key={stage} className="rounded-xl border border-border bg-white">
-            {(() => {
-              const s = stageStat(stage);
-              return (
-                <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-foreground">
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-semibold text-foreground">{meta.label}</div>
-                    <div className="text-[11px] text-muted-foreground">{meta.tagline}</div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="text-[13px] font-semibold text-foreground">
-                      {fmtMoney(s.budget)} <span className="text-muted-foreground">· {s.pct}%</span>
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {stage === "awareness"
-                        ? `${fmtImpr(s.impressions)} reach`
-                        : `${fmtNum(s.conversions)} conv · ${s.roas}× ROAS`}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-            <div className="divide-y divide-border">
-              {rows.map((c) => (
-                <div key={c.id} className={cn("flex items-start gap-3 px-4 py-3", !c.enabled && "opacity-50")}>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <LineLabel value={c.label} onCommit={(v) => handleField(c.id, { label: v })} />
-                      {c.location && (
-                        <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground">
-                          <MapPin className="h-2.5 w-2.5" /> {c.location}
-                        </span>
-                      )}
-                      {c.status === "closed_beta" && (
-                        <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600">
-                          Closed beta
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-[12px] text-muted-foreground">
-                      {c.description}
-                      {c.status === "closed_beta" && " · we'll help activate this manually"}
-                    </p>
-                    <RowMetrics c={c} />
-                    {/* Per-line attributes — audience, market, creative, keywords (full line-item edit) */}
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <LineField
-                        value={c.audience ?? ""}
-                        placeholder="Audience"
-                        onCommit={(v) => handleField(c.id, { audience: v })}
-                      />
-                      <LineField
-                        value={c.location ?? ""}
-                        placeholder="Market / city"
-                        icon={<MapPin className="h-3 w-3 text-muted-foreground" />}
-                        onCommit={(v) => handleField(c.id, { location: v })}
-                      />
-                      <LineField
-                        value={c.creative ?? ""}
-                        placeholder="Creative"
-                        onCommit={(v) => handleField(c.id, { creative: v })}
-                      />
-                      <LineField
-                        value={c.keywords ?? ""}
-                        placeholder="Keywords"
-                        onCommit={(v) => handleField(c.id, { keywords: v })}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleAddLine(c.id)}
-                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-[#1A7BB5] transition-colors hover:bg-[#EBF5FB]"
-                        title={`Duplicate this ${c.label} line for another market`}
-                      >
-                        <Plus className="h-3 w-3" /> Duplicate
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveLine(c.id)}
-                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-600"
-                        title="Remove this line"
-                      >
-                        <X className="h-3 w-3" /> Remove
-                      </button>
+      {/* Funnel board — three horizontal columns (Awareness · Consideration ·
+          Conversion). Each column stacks FLIGHTS (a channel group, numbered),
+          and each flight stacks numbered LINES. Scrolls horizontally so there's
+          always room to add more — an infinite-canvas feel. */}
+      <div className="-mx-1 overflow-x-auto px-1 pb-3">
+        <div className="flex items-start gap-5">
+          {STAGE_ORDER.map((stage) => {
+            const stageCampaigns = plan.campaigns.filter((c) => c.funnelStage === stage);
+            const meta = STAGE_META[stage];
+            const Icon = meta.icon;
+            const s = stageStat(stage);
+            // Group lines into flights by channel, preserving first-seen order.
+            const flightOrder: MediaChannelKey[] = [];
+            const byChannel: Record<string, MediaCampaign[]> = {};
+            for (const c of stageCampaigns) {
+              if (!byChannel[c.channel]) { byChannel[c.channel] = []; flightOrder.push(c.channel); }
+              byChannel[c.channel].push(c);
+            }
+            return (
+              <div key={stage} className="flex w-[340px] shrink-0 flex-col gap-4">
+                {/* Column header */}
+                <div className="rounded-xl border border-border bg-white p-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[14px] font-semibold tracking-tight text-foreground">{meta.label}</div>
+                      <div className="text-[11px] text-muted-foreground">{meta.tagline}</div>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <div className="flex flex-col items-end gap-0.5">
-                      <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} />
-                      <span className="text-[10px] text-muted-foreground">{c.enabled ? `${linePct(c.budget)}% of plan` : "off"}</span>
+                  <div className="mt-3 flex items-end justify-between">
+                    <div className="text-[19px] font-semibold tracking-tight text-foreground">{fmtMoney(s.budget)}</div>
+                    <div className="text-right text-[11px] text-muted-foreground">
+                      <div>{s.pct}% of plan</div>
+                      <div>{stage === "awareness" ? `${fmtImpr(s.impressions)} reach` : `${fmtNum(s.conversions)} conv · ${s.roas}× ROAS`}</div>
                     </div>
-                    <Toggle checked={c.enabled} onChange={() => handleToggle(c.id)} label={`Toggle ${c.label}`} />
                   </div>
                 </div>
-              ))}
-              {/* Flight-level: add a fresh line item to this stage (choose channel) */}
-              <div className="px-4 py-2.5">
-                <AddLinePicker onAdd={(channel) => handleAddBlankLine(stage, channel)} />
+
+                {/* Flights in this stage */}
+                {flightOrder.map((ch, fi) => {
+                  const lines = byChannel[ch];
+                  const flightBudget = lines.filter((l) => l.enabled).reduce((a, l) => a + l.budget, 0);
+                  const flightName = lines[0].label.replace(/\s*\(.+\)\s*$/, "");
+                  return (
+                    <div key={ch} className="rounded-xl border border-border bg-white shadow-sm">
+                      {/* Flight header */}
+                      <div className="flex items-center justify-between gap-2 rounded-t-xl border-b border-border bg-muted/40 px-4 py-2.5">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[#1A7BB5]">Flight {fi + 1}</div>
+                          <div className="truncate text-[13px] font-medium text-foreground">{flightName}</div>
+                        </div>
+                        <div className="shrink-0 text-right text-[12px] font-semibold text-foreground">{fmtMoney(flightBudget)}</div>
+                      </div>
+
+                      {/* Lines in this flight */}
+                      <div className="divide-y divide-border">
+                        {lines.map((c, li) => (
+                          <div key={c.id} className={cn("px-4 py-3.5", !c.enabled && "opacity-50")}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Line {li + 1}</span>
+                              <div className="flex items-center gap-2">
+                                {c.status === "closed_beta" && (
+                                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600">Beta</span>
+                                )}
+                                <Toggle checked={c.enabled} onChange={() => handleToggle(c.id)} label="Toggle line" />
+                              </div>
+                            </div>
+                            <div className="mt-1">
+                              <LineLabel value={c.label} onCommit={(v) => handleField(c.id, { label: v })} />
+                            </div>
+                            <RowMetrics c={c} />
+                            <div className="mt-3 space-y-2">
+                              <LineField label="Audience" value={c.audience ?? ""} placeholder="e.g. 18–34 skate fans" onCommit={(v) => handleField(c.id, { audience: v })} />
+                              <LineField label="Market / location" value={c.location ?? ""} placeholder="e.g. New York" icon={<MapPin className="h-3 w-3 text-muted-foreground" />} onCommit={(v) => handleField(c.id, { location: v })} />
+                              <LineField label="Creative" value={c.creative ?? ""} placeholder="e.g. 30s hero spot" onCommit={(v) => handleField(c.id, { creative: v })} />
+                              <LineField label="Keywords" value={c.keywords ?? ""} placeholder="e.g. skate, streetwear" onCommit={(v) => handleField(c.id, { keywords: v })} />
+                            </div>
+                            <div className="mt-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} />
+                                <span className="text-[10px] text-muted-foreground">{c.enabled ? `${linePct(c.budget)}%` : "off"}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button type="button" onClick={() => handleAddLine(c.id)} className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-[#EBF5FB] hover:text-[#1A7BB5]" title="Duplicate this line">
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                                <button type="button" onClick={() => handleRemoveLine(c.id)} className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-600" title="Remove this line">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {/* Add a line to this flight (same channel, new market) */}
+                        <div className="px-4 py-2.5">
+                          <button type="button" onClick={() => handleAddLine(lines[0].id)} className="inline-flex items-center gap-1 text-[12px] font-medium text-[#1A7BB5] transition-colors hover:underline">
+                            <Plus className="h-3 w-3" /> Add line
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Add a new flight (channel) to this stage */}
+                <AddLinePicker label="Add flight" block onAdd={(channel) => handleAddBlankLine(stage, channel)} />
               </div>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      </div>
 
       {/* Benchmark footer */}
       <p className="px-1 text-[11px] text-muted-foreground">
