@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 export function LeftRail() {
   const { leftRailCollapsed, toggleLeftRail } = useLayout();
   const pathname = usePathname();
-  const { getPendingForPersona, savedNarratives, setActiveStrategy, setActiveNarrative, setActiveAudience, hydrated } = useCampaign();
+  const { getPendingForPersona, savedNarratives, savedMediaPlans, setActiveMediaPlan, setActiveStrategy, setActiveNarrative, setActiveAudience, hydrated } = useCampaign();
   const { state, setState: setAIState, chatSessions, loadChatSession, openFullscreen } = useAICompanion();
   const { activePersona } = usePersona();
 
@@ -111,7 +111,14 @@ export function LeftRail() {
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => { loadChatSession(s.id); openFullscreen(); }}
+                  onClick={() => {
+                    loadChatSession(s.id);
+                    // If this chat built a media plan, reopen the plan beside the
+                    // conversation (split) — clicking a chat opens its real artifact.
+                    const plan = savedMediaPlans?.find((p) => p.chatSessionId === s.id);
+                    if (plan) { setActiveMediaPlan(plan); setAIState("split"); }
+                    else { openFullscreen(); }
+                  }}
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <MessageSquare className="h-3.5 w-3.5 shrink-0" />
