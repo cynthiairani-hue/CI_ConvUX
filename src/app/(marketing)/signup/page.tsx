@@ -292,12 +292,25 @@ function BrandDiscovery({
 type ScenarioId = "smb" | "abm" | "agency";
 type StartState = "net-new" | "returning";
 
-const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; persona: string; email: string; comingSoon?: boolean; tag?: string }[] = [
+const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; persona: string; email: string; comingSoon?: boolean; level: 1 | 2 | 3; maturityLabel: string }[] = [
   // Agency first — the most complete flow (media planning). In-house is WIP. Enterprise is coming soon.
-  { id: "agency", label: "Agency", role: "Manages a client roster", brand: "Brainlabs · performance agency", persona: "cynthia-agency", email: "cynthia@brainlabs.co.uk", tag: "Most complete" },
-  { id: "smb", label: "In-house", role: "Brand-side marketer", brand: "Ffern · luxury fragrance", persona: "cynthia-b2c", email: "cynthia@ffern.co", tag: "WIP" },
-  { id: "abm", label: "Enterprise", role: "Account-based (ABM)", brand: "Norwest Analytics · B2B SaaS", persona: "cynthia-b2b", email: "cynthia@norwest.io", comingSoon: true },
+  { id: "agency", label: "Agency", role: "Manages a client roster", brand: "Brainlabs · performance agency", persona: "cynthia-agency", email: "cynthia@brainlabs.co.uk", level: 3, maturityLabel: "Most complete" },
+  { id: "smb", label: "In-house", role: "Brand-side marketer", brand: "Ffern · luxury fragrance", persona: "cynthia-b2c", email: "cynthia@ffern.co", level: 2, maturityLabel: "Work in progress" },
+  { id: "abm", label: "Enterprise", role: "Account-based (ABM)", brand: "Norwest Analytics · B2B SaaS", persona: "cynthia-b2b", email: "cynthia@norwest.io", comingSoon: true, level: 1, maturityLabel: "Coming soon" },
 ];
+
+/** Signal-style maturity meter: 3 green = most complete, 2 amber = WIP, 1 red = coming soon. */
+function MaturityMeter({ level, label }: { level: 1 | 2 | 3; label: string }) {
+  const fill = level === 3 ? "bg-emerald-500" : level === 2 ? "bg-amber-500" : "bg-red-400";
+  const heights = ["h-1.5", "h-2.5", "h-3.5"];
+  return (
+    <span className="flex items-end gap-0.5" title={label} aria-label={label}>
+      {[1, 2, 3].map((i) => (
+        <span key={i} className={cn("w-1 rounded-sm", heights[i - 1], i <= level ? fill : "bg-muted")} />
+      ))}
+    </span>
+  );
+}
 
 const SEED_KEYS = [
   "fuseiq-strategies", "fuseiq-media-plans", "fuseiq-advertisers", "fuseiq-narratives", "fuseiq-audiences",
@@ -391,16 +404,9 @@ export default function SignupPage() {
                       : profile === s.id ? "border-[#2C9FDD] bg-[#EBF5FB] shadow-sm" : "border-border bg-background hover:border-foreground/20"
                   )}
                 >
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex w-full items-start justify-between gap-2">
                     <span className="text-[14px] font-semibold text-foreground">{s.label}</span>
-                    {s.tag && (
-                      <span className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
-                        s.tag === "WIP" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
-                      )}>
-                        {s.tag}
-                      </span>
-                    )}
+                    <MaturityMeter level={s.level} label={s.maturityLabel} />
                   </div>
                   <span className="mt-0.5 text-[12px] text-muted-foreground">{s.role}</span>
                   {s.comingSoon ? (
