@@ -337,7 +337,9 @@ export function buildMediaPlan(
   // The plan total is the flight budget; scale the $120k template proportionally.
   const total = monthlyBudget > 0 ? monthlyBudget : anchor ? anchor.monthlyBudget : TEMPLATE_TOTAL;
   const factor = total / TEMPLATE_TOTAL;
-  const pixelReady = getCapabilities().hasSitePixel;
+  // Anchored plans ARE personalized — we have the client's connected-platform
+  // history. Only the non-anchored (no-client) path falls back to the pixel check.
+  const pixelReady = anchor ? true : getCapabilities().hasSitePixel;
 
   const campaigns: MediaCampaign[] = CHANNEL_TEMPLATE.map((t) => {
     const baseBudget = Math.round(t.budget * factor);
