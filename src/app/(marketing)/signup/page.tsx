@@ -396,7 +396,7 @@ export default function SignupPage() {
                   key={s.id}
                   type="button"
                   disabled={s.comingSoon}
-                  onClick={() => { if (!s.comingSoon) setProfile(s.id); }}
+                  onClick={() => { if (!s.comingSoon) { setProfile(s.id); if (s.id === "agency") setStart("returning"); } }}
                   className={cn(
                     "flex flex-col items-start rounded-xl border p-4 text-left transition-all",
                     s.comingSoon
@@ -428,20 +428,30 @@ export default function SignupPage() {
               {([
                 { id: "net-new" as StartState, label: "Net-new", desc: "Empty workspace, onboarding flow" },
                 { id: "returning" as StartState, label: "Returning", desc: "Fully populated workspace" },
-              ]).map((o) => (
-                <button
-                  key={o.id}
-                  type="button"
-                  onClick={() => setStart(o.id)}
-                  className={cn(
-                    "flex flex-col items-start rounded-xl border p-4 text-left transition-all",
-                    start === o.id ? "border-[#2C9FDD] bg-[#EBF5FB] shadow-sm" : "border-border bg-background hover:border-foreground/20"
-                  )}
-                >
-                  <span className="text-[13px] font-semibold text-foreground">{o.label}</span>
-                  <span className="mt-0.5 text-[12px] text-muted-foreground">{o.desc}</span>
-                </button>
-              ))}
+              ]).map((o) => {
+                // Agency onboarding (net-new) needs work — disable it so Agency always
+                // loads the complete returning demo.
+                const disabled = o.id === "net-new" && profile === "agency";
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => { if (!disabled) setStart(o.id); }}
+                    className={cn(
+                      "flex flex-col items-start rounded-xl border p-4 text-left transition-all",
+                      disabled
+                        ? "cursor-not-allowed border-border bg-muted/40 opacity-60"
+                        : start === o.id ? "border-[#2C9FDD] bg-[#EBF5FB] shadow-sm" : "border-border bg-background hover:border-foreground/20"
+                    )}
+                  >
+                    <span className="text-[13px] font-semibold text-foreground">{o.label}</span>
+                    <span className="mt-0.5 text-[12px] text-muted-foreground">
+                      {disabled ? "Needs work — coming soon" : o.desc}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
