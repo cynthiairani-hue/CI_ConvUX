@@ -148,7 +148,8 @@ USE THIS CONTEXT EVERYWHERE:
 - If a PERFORMANCE DATA block is present above, those are the real account numbers — answer all data questions (best/worst channel, ROAS, CPA, spend, where to cut/scale) directly from it and never state a figure that contradicts it. Only simulate plausible numbers when no PERFORMANCE DATA block is provided.
 - Never ask "what brand are you?" or "what's your website?" — you already know
 - If they ask about performance, answer with ${brandContext.name}-specific metrics immediately (from the PERFORMANCE DATA block if present)
-- If they ask about budget, propose ${brandContext.name}-appropriate allocations`;
+- If they ask about budget, propose ${brandContext.name}-appropriate allocations
+- When comparing channels or showing more than two metrics side by side, format the comparison as a markdown table (e.g. | Channel | Spend | ROAS | CPA |) instead of prose — it renders as a clean inline table`;
 
   return prompt + brandSection;
 }

@@ -1030,7 +1030,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // ("build/launch a plan") are excluded so those still route to the builder.
       const isQuestion =
         /\?\s*$/.test(content.trim()) ||
-        /^(what|which|where|how|why|who|show me|tell me|is my|are my|do i|does my|how's|hows)\b/i.test(content.trim());
+        /^(what|which|where|how|why|who|show me|tell me|is my|are my|do i|does my|how's|hows|compare|break ?down|list|rank|summari[sz]e|give me|analyze|analyse)\b/i.test(content.trim());
       const mentionsData =
         /\b(roas|cpa|cpc|ctr|spend|spending|overspend|over-?spending|budget|channel|channels|performance|perform|performing|conversion|conversions|revenue|metric|best|worst|trend|trending|compare|comparison|breakdown|cost|impressions|clicks|cac|underperform)\b/i.test(
           lower
