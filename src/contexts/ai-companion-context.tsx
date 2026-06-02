@@ -50,7 +50,6 @@ import { ensureReturningSeed } from "@/data/seed-returning";
 import { buildCompetitiveBrief } from "@/data/competitive-flow";
 import { buildOperatorPlan } from "@/data/operator-flow";
 import { buildMediaPlan, editCampaignBudget, toggleCampaign, setTotalBudget, parseMediaPlanCommand, WHY_CHANNEL } from "@/data/media-plan-flow";
-import { getCapabilities } from "@/data/prerequisites";
 import { getActiveClient } from "@/data/seed-agency";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
@@ -666,6 +665,101 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // Ensure brand context is fresh — ref may not have been set if useEffect hasn't fired
       if (!brandRef.current) brandRef.current = getCurrentBrand();
 
+      // LLM-driven media-plan build from a brief: Claude READS the brief and
+      // extracts the interpretation (objective, budget, goal, assumptions, and
+      // whether anything's genuinely missing) — so it never asks a question the
+      // brief already answered. The plan MATH stays anchored to the client's real
+      // data (deterministic, demo-safe). Falls back to safe defaults if the LLM
+      // call fails, so the build never breaks.
+      const doBriefBuild = async (briefText: string) => {
+        const b = brandRef.current || getCurrentBrand();
+        const adv = b
+          ? {
+              id: `adv-${b.domain.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+              companyName: b.name,
+              websiteUrl: b.domain,
+              industry: mapBrandIndustryToIAB(b.industry),
+              restrictedCategories: [],
+            }
+          : { id: "adv-fallback", companyName: "Your client", websiteUrl: "your-site.com", industry: mapBrandIndustryToIAB("other"), restrictedCategories: [] };
+        const clientName = adv.companyName;
+
+        const thinkingMsg: ChatMessage = { id: nextId(), role: "assistant", content: "", thinkingSteps: [] };
+        const thinkingId = thinkingMsg.id;
+        setMessages((prev) => [...prev, thinkingMsg]);
+        setIsLoading(false);
+        const addStep = (s: string) =>
+          setMessages((prev) => prev.map((m) => (m.id === thinkingId ? { ...m, thinkingSteps: [...(m.thinkingSteps ?? []), s] } : m)));
+        const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+        addStep("Reading the brief");
+        let interp: {
+          objective?: string; totalBudget?: number; goalConversions?: number | null;
+          goalRoas?: number | null; summary?: string; assumptions?: string[]; missing?: string[];
+        } = {};
+        try {
+          const res = await fetch("/api/media-plan/interpret", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ brief: briefText, clientName }),
+          });
+          interp = await res.json();
+        } catch {
+          interp = {};
+        }
+
+        await delay(700); addStep(`Pulling ${clientName}'s last 90 days of performance`);
+        await delay(800); addStep("Computing blended ROAS and CPA by channel");
+        await delay(800); addStep("Modeling channel allocation across the funnel");
+        await delay(700);
+
+        const objective = interp.objective || "sales";
+        const total = typeof interp.totalBudget === "number" && interp.totalBudget > 0 ? interp.totalBudget : 0;
+        const goal = { conversions: interp.goalConversions ?? undefined, roas: interp.goalRoas ?? undefined };
+        const plan = buildMediaPlan(adv, objective, total, goal, getActiveClient()?.id);
+        setActiveMediaPlan(plan);
+        saveMediaPlan(plan);
+
+        const conv = plan.summary.estConversions;
+        const goalConv = plan.summary.targets.conversions;
+        let gapLine = "";
+        if (goal.conversions && conv < goalConv) {
+          const pct = Math.round((conv / goalConv) * 100);
+          gapLine = `\n\nHeads up: this forecasts **${conv.toLocaleString()} conversions — about ${pct}% of your ${goalConv.toLocaleString()} goal** at ${plan.summary.estRoas}× ROAS. To close it I can shift budget into retargeting or raise the total — just tell me.`;
+        }
+        const assumptionLine = interp.assumptions && interp.assumptions.length
+          ? `\n\n_Assumed: ${interp.assumptions.join("; ")} — change anything on the canvas._`
+          : "";
+        const headline = interp.summary ? `${interp.summary}\n\n` : "";
+        const narrationText = `${headline}Here's the plan for **${clientName}** — ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}, anchored to their real performance. **DOOH is in closed beta** — say the word and we'll activate it manually.${gapLine}${assumptionLine}`;
+
+        const refineCard: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: "",
+          toolCall: {
+            type: "choices",
+            field: "media-plan-refine",
+            question: "Want to refine it?",
+            step: 1,
+            totalSteps: 1,
+            multiSelect: false,
+            options: [
+              { id: "activate", label: "Looks great — send for approval" },
+              { id: "shift-dooh-social", label: "Shift $10k from DOOH to social" },
+              { id: "why-ctv", label: "Why CTV for a DTC brand?" },
+              { id: "change-budget", label: "Change the budget" },
+            ],
+          },
+        };
+        setMessages((prev) => {
+          const updated = prev.map((m) => (m.id === thinkingId ? { ...m, content: narrationText } : m));
+          return [...updated, refineCard];
+        });
+        setState("split");
+        collapseLeftRail();
+      };
+
       // Dismiss any pending setup-mode choice card — user chose to type instead
       // Fall back to the default mode (conversational/Guided)
       setMessages((prev) => {
@@ -787,35 +881,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       if (mediaPlanFlowRef.current.stage === "awaiting-brief") {
         mediaPlanFlowRef.current = { stage: "idle", brief: content };
         setMessages((prev) => [...prev, userMsg]);
-        const brand = brandRef.current || getCurrentBrand();
-        const brandName = brand?.name || "your brand";
-        const dataCallout = getCapabilities().hasSitePixel
-          ? `📊 **Found existing data for ${brandName}:** active pixel · I'll use the account's CPA history to personalise the forecast.`
-          : `⚠️ **No pixel detected for ${brand?.domain || "the site"} yet** — I'll base projections on ${brandName}'s vertical benchmarks instead.`;
-        const clarifyMsg: ChatMessage = {
-          id: nextId(),
-          role: "assistant",
-          content: `Got it — strong brief. One quick call before I build: how should I weight the plan? (I'll plan US-only unless you say otherwise.)\n\n${dataCallout}`,
-        };
-        const choiceMsg: ChatMessage = {
-          id: nextId(),
-          role: "assistant",
-          content: "",
-          toolCall: {
-            type: "choices",
-            field: "media-plan-clarify",
-            question: "How should I weight the plan?",
-            step: 1,
-            totalSteps: 1,
-            multiSelect: false,
-            options: [
-              { id: "conversions", label: "Conversions-first — maximize acquisitions" },
-              { id: "balanced", label: "Balanced — brand + conversion" },
-              { id: "awareness", label: "Awareness-first — build the brand" },
-            ],
-          },
-        };
-        setMessages((prev) => [...prev, clarifyMsg, choiceMsg]);
+        void doBriefBuild(content); // LLM reads the brief → builds (anchored numbers)
         return;
       }
 
@@ -974,33 +1040,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
         if (looksLikeBrief) {
           mediaPlanFlowRef.current = { stage: "idle", brief: content };
-          const dataCallout = getCapabilities().hasSitePixel
-            ? `📊 **Found existing data for ${brandName}:** active pixel · I'll use the account's CPA history to personalise the forecast.`
-            : `⚠️ **No pixel detected for ${brand?.domain || "the site"} yet** — I'll base projections on ${brandName}'s vertical benchmarks instead.`;
-          const clarifyMsg: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            content: `Got it — strong brief. One quick call before I build: how should I weight the plan? (I'll plan US-only unless you say otherwise.)\n\n${dataCallout}`,
-          };
-          const choiceMsg: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            content: "",
-            toolCall: {
-              type: "choices",
-              field: "media-plan-clarify",
-              question: "How should I weight the plan?",
-              step: 1,
-              totalSteps: 1,
-              multiSelect: false,
-              options: [
-                { id: "conversions", label: "Conversions-first — maximize acquisitions" },
-                { id: "balanced", label: "Balanced — brand + conversion" },
-                { id: "awareness", label: "Awareness-first — build the brand" },
-              ],
-            },
-          };
-          setMessages((prev) => [...prev, clarifyMsg, choiceMsg]);
+          void doBriefBuild(content); // LLM reads the brief → builds (anchored numbers)
           return;
         }
 
