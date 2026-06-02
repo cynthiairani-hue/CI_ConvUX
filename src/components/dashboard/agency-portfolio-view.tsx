@@ -34,6 +34,10 @@ const STATUS_STYLE: Record<AgencyClient["status"], string> = {
   paused: "bg-muted text-muted-foreground",
 };
 
+// Demo control: only fully-validated clients are enterable. The rest still show
+// (the portfolio looks real) but are disabled until their scope is ready.
+const LIVE_CLIENT_IDS = new Set(["client-vans"]);
+
 /** Client logo from favicon, with initials fallback if it fails to load. */
 function ClientLogo({ domain, name, size = "md" }: { domain: string; name: string; size?: "sm" | "md" | "lg" }) {
   const [failed, setFailed] = useState(false);
@@ -123,7 +127,7 @@ export function AgencyPortfolioView() {
   // Manager view = oversight + navigation. Show only the 3 most urgent items
   // across the book (triage), and a per-client COUNT — the items themselves
   // live inside each client's scoped home.
-  const topPriorities = signals.slice(0, 3);
+  const topPriorities = signals.filter((s) => LIVE_CLIENT_IDS.has(s.clientId)).slice(0, 3);
   const reviewCount = new Map<string, number>();
   for (const s of signals) reviewCount.set(s.clientId, (reviewCount.get(s.clientId) ?? 0) + 1);
 
@@ -258,20 +262,27 @@ export function AgencyPortfolioView() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {filtered.map((c) => {
                   const count = reviewCount.get(c.id) ?? 0;
+                  const live = LIVE_CLIENT_IDS.has(c.id);
                   return (
                     <button
                       key={c.id}
                       type="button"
-                      onClick={() => openClient(c)}
-                      className="group flex h-full flex-col rounded-xl border border-border bg-white p-4 text-left transition-all hover:border-foreground/20 hover:shadow-sm"
+                      disabled={!live}
+                      onClick={() => { if (live) openClient(c); }}
+                      className={cn(
+                        "group flex h-full flex-col rounded-xl border bg-white p-4 text-left transition-all",
+                        live ? "border-border hover:border-foreground/20 hover:shadow-sm" : "cursor-not-allowed border-border opacity-60"
+                      )}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <ClientLogo domain={c.domain} name={c.name} size="lg" />
-                        {count > 0 && (
+                        {!live ? (
+                          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Coming soon</span>
+                        ) : count > 0 ? (
                           <span title={`${count} to review`} className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
                             {count}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <div className="mt-3 truncate text-[13px] font-semibold text-foreground">{c.name}</div>
                       <div className="mt-1">
