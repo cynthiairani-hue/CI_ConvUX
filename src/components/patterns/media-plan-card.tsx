@@ -119,7 +119,7 @@ function RowMetrics({ c }: { c: MediaCampaign }) {
     if (f.audiencePool != null) chips.push({ label: "Pool", value: fmtImpr(f.audiencePool) });
   } else {
     chips.push({ label: "Conv.", value: fmtNum(f.conversions) });
-    if (f.roas != null) chips.push({ label: "ROAS", value: `${f.roas}×` });
+    if (f.roas != null) chips.push({ label: "ROAS", value: `${f.roas.toFixed(1)}×` });
     if (f.cpa != null) chips.push({ label: "CPA", value: `$${f.cpa}` });
   }
   return (
@@ -325,7 +325,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                 key={c.channel}
                 className={EV_COLORS[i % EV_COLORS.length]}
                 style={{ width: `${Math.round(c.spendShare * 100)}%` }}
-                title={`${c.channel} · ${Math.round(c.spendShare * 100)}% · ${c.roas}× ROAS`}
+                title={`${c.channel} · ${Math.round(c.spendShare * 100)}% · ${c.roas.toFixed(1)}× ROAS`}
               />
             ))}
           </div>
@@ -334,12 +334,12 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
               <span key={c.channel} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span className={cn("h-2 w-2 rounded-full", EV_COLORS[i % EV_COLORS.length])} />
                 {c.channel} <span className="font-medium text-foreground">{Math.round(c.spendShare * 100)}%</span>
-                <span>· {c.roas}× ROAS</span>
+                <span>· {c.roas.toFixed(1)}× ROAS</span>
               </span>
             ))}
           </div>
           <p className="mt-3 text-[12px] text-muted-foreground">
-            Blended ROAS <span className="font-medium text-foreground">{plan.evidence.blendedRoas}×</span> over the last 90 days — this plan is anchored to it, not generic benchmarks.
+            Blended ROAS <span className="font-medium text-foreground">{plan.evidence.blendedRoas.toFixed(1)}×</span> over the last 90 days — this plan is anchored to it, not generic benchmarks.
           </p>
         </div>
       )}

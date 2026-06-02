@@ -5,6 +5,7 @@ import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { usePersona } from "@/contexts/persona-context";
 import { useBrand } from "@/data/brand-profiles";
+import { getActiveClient } from "@/data/seed-agency";
 import { cn } from "@/lib/utils";
 import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2, Check, X } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
@@ -252,6 +253,14 @@ export default function CampaignsPage() {
 
   function handleNewCampaign() {
     if (isAgency) {
+      // A media plan is built INSIDE a client — it inherits that client's real
+      // spend/ROAS. Never build at portfolio scope (that produced the generic
+      // "Your client / $120k" plan). Route to the portfolio to pick a client.
+      if (!getActiveClient()) {
+        showToast("Pick a client first — media plans are built inside a client.");
+        window.location.href = "/home";
+        return;
+      }
       // Conversation-first: open chat with a build-mode choice — build it together,
       // or skip into the editable canvas (handled in startMediaPlanFlow).
       startMediaPlanFlow();

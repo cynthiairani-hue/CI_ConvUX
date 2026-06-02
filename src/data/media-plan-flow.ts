@@ -351,19 +351,26 @@ export function buildMediaPlan(
     };
   });
 
-  // Anchor the revenue-bearing channels so blended ROAS/CPA == the client's real
-  // numbers, while preserving the template's relative channel structure.
+  // Anchor to the client's real blended numbers, while preserving the template's
+  // relative channel structure. CRITICAL: the headline blended ROAS the card shows
+  // is total revenue ÷ TOTAL enabled budget (recalcMediaPlan) — which includes the
+  // $0-revenue awareness channels (CTV/DOOH). So we scale per-channel ROAS so that
+  // revenue ÷ full budget == anchor.blendedRoas, and conversions so that full budget
+  // ÷ conversions == anchor.blendedCpa. This makes the KPI tile, the evidence panel,
+  // and getClientAnchor agree (no self-contradiction).
   if (anchor) {
+    const enabledTotal = campaigns.filter((c) => c.enabled).reduce((s, c) => s + c.budget, 0);
     const rev = campaigns.filter((c) => c.enabled && c.baseForecast.roas != null);
-    const spend = rev.reduce((s, c) => s + c.budget, 0);
-    const curRoas = spend > 0 ? rev.reduce((s, c) => s + (c.baseForecast.roas as number) * c.budget, 0) / spend : 0;
-    const roasFactor = curRoas > 0 && anchor.blendedRoas > 0 ? anchor.blendedRoas / curRoas : 1;
+    const curRevenue = rev.reduce((s, c) => s + (c.baseForecast.roas as number) * c.budget, 0);
+    const roasFactor = curRevenue > 0 && anchor.blendedRoas > 0
+      ? (anchor.blendedRoas * enabledTotal) / curRevenue
+      : 1;
     const curConv = rev.reduce((s, c) => s + c.baseForecast.conversions, 0);
-    const desiredConv = anchor.blendedCpa > 0 ? spend / anchor.blendedCpa : curConv;
+    const desiredConv = anchor.blendedCpa > 0 ? enabledTotal / anchor.blendedCpa : curConv;
     const convFactor = curConv > 0 ? desiredConv / curConv : 1;
     for (const c of campaigns) {
       if (c.baseForecast.roas != null) {
-        const roas = Math.round(c.baseForecast.roas * roasFactor * 10) / 10;
+        const roas = Math.round(c.baseForecast.roas * roasFactor * 100) / 100;
         const conversions = Math.round(c.baseForecast.conversions * convFactor);
         c.baseForecast = { ...c.baseForecast, roas, conversions };
         c.forecast = c.baseForecast;
