@@ -559,7 +559,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
   // Media-plan flow: track when we're awaiting a pasted brief, and keep a live
   // ref to the active plan so refine actions (shift/why/activate) read fresh state.
-  const mediaPlanFlowRef = useRef<{ stage: "idle" | "awaiting-brief" | "awaiting-details"; brief: string }>({ stage: "idle", brief: "" });
+  const mediaPlanFlowRef = useRef<{ stage: "idle" | "awaiting-brief"; brief: string }>({ stage: "idle", brief: "" });
   const activeMediaPlanRef = useRef<MediaPlan | null>(null);
   // Last channel the user edited via chat — lets pronouns ("change it to…") resolve.
   const lastEditedChannelRef = useRef<MediaChannelKey | null>(null);
@@ -671,7 +671,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // brief already answered. The plan MATH stays anchored to the client's real
       // data (deterministic, demo-safe). Falls back to safe defaults if the LLM
       // call fails, so the build never breaks.
-      const doBriefBuild = async (briefText: string, allowAsk: boolean = true) => {
+      const doBriefBuild = async (briefText: string) => {
         const b = brandRef.current || getCurrentBrand();
         const adv = b
           ? {
@@ -709,21 +709,11 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         }
         await delay(500);
 
-        // If the brief is missing the load-bearing inputs, ASK — don't silently
-        // invent a budget/goal. (allowAsk=false on the follow-up turn prevents loops.)
+        // Never block. If budget/goal are missing, proceed with a RECOMMENDED
+        // default anchored to the client's data — and label it clearly in the
+        // narration so it reads as a starting point, not an invented fact.
         const hasBudget = typeof interp.totalBudget === "number" && interp.totalBudget > 0;
         const hasGoal = interp.goalConversions != null || interp.goalRoas != null;
-        if (allowAsk && (!hasBudget || !hasGoal)) {
-          const asks: string[] = [];
-          if (!hasBudget) asks.push("the **budget** for the flight");
-          if (!hasGoal) asks.push("the **goal** (target conversions and/or ROAS)");
-          const lead = interp.summary ? `Got the shape of it — ${interp.summary}` : `Got the shape of it for ${clientName}`;
-          const question = `${lead}\n\nBefore I build, I need ${asks.join(" and ")}. What should I use? (Or say "use your best estimate" and I'll model it from ${clientName}'s history.)`;
-          mediaPlanFlowRef.current = { stage: "awaiting-details", brief: briefText };
-          setMessages((prev) => prev.map((m) => (m.id === thinkingId ? { ...m, content: question } : m)));
-          setIsLoading(false);
-          return;
-        }
 
         await delay(700); addStep(`Pulling ${clientName}'s last 90 days of performance`);
         await delay(800); addStep("Computing blended ROAS and CPA by channel");
@@ -748,7 +738,13 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           ? `\n\n_Assumed: ${interp.assumptions.join("; ")} — change anything on the canvas._`
           : "";
         const headline = interp.summary ? `${interp.summary}\n\n` : "";
-        const narrationText = `${headline}Here's the plan for **${clientName}** — ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}, anchored to their real performance. **DOOH is in closed beta** — say the word and we'll activate it manually.${gapLine}${assumptionLine}`;
+        const budgetNote = !hasBudget
+          ? `\n\n**Budget:** you didn't set one, so I started you at **$${plan.summary.totalBudget.toLocaleString()}** — ${clientName}'s recent run-rate (a recommended starting point). Change it anytime.`
+          : "";
+        const goalNote = !hasGoal
+          ? `\n\n**Target:** none set — I'm forecasting against ${clientName}'s blended ROAS. Give me a goal and I'll measure against it.`
+          : "";
+        const narrationText = `${headline}Here's the plan for **${clientName}** — ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}, anchored to their real performance. **DOOH is in closed beta** — say the word and we'll activate it manually.${budgetNote}${goalNote}${gapLine}${assumptionLine}`;
 
         const refineCard: ChatMessage = {
           id: nextId(),
@@ -895,18 +891,6 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // "acquisition" in the brief don't misfire other flows). Then ask Kirby's
       // two clarifying questions + surface the advertiser's data, with quick-reply
       // chips. (Content mirrors the AdRoll Media Planner spec; rendered in our card.)
-      // The previous turn asked for missing budget/goal — fold the answer in and
-      // build (allowAsk=false so we never loop on a still-vague reply).
-      if (mediaPlanFlowRef.current.stage === "awaiting-details") {
-        const prevBrief = mediaPlanFlowRef.current.brief;
-        mediaPlanFlowRef.current = { stage: "idle", brief: prevBrief };
-        setMessages((prev) => [...prev, userMsg]);
-        const useEstimate = /best estimate|you (decide|choose|pick)|whatever|estimate|your call|up to you/i.test(content);
-        const combined = useEstimate ? prevBrief : `${prevBrief}\n\nAdditional detail: ${content}`;
-        void doBriefBuild(combined, false);
-        return;
-      }
-
       if (mediaPlanFlowRef.current.stage === "awaiting-brief") {
         mediaPlanFlowRef.current = { stage: "idle", brief: content };
         setMessages((prev) => [...prev, userMsg]);
