@@ -190,6 +190,34 @@ function nextId() {
   return `msg-${++messageId}`;
 }
 
+/** A ready-to-send sample brief so the demo never depends on typing a full brief. */
+function sampleBriefFor(clientName: string): string {
+  return `Build a 90-day media plan for ${clientName}'s Summer '26 launch. Budget is $90,000. Goal: drive 3,000 new customers at a 4× ROAS. Audience is 18–34 streetwear and skate fans in the US. Leaning into paid social and display, open to upper-funnel. Flight: June–August.`;
+}
+
+/** Choice card offering the one-click sample brief. */
+function sampleBriefCard(): ChatMessage {
+  return {
+    id: nextId(),
+    role: "assistant",
+    content: "",
+    toolCall: {
+      type: "choices",
+      field: "media-plan-sample",
+      question: "Or use a sample brief",
+      step: 1,
+      totalSteps: 1,
+      multiSelect: false,
+      options: [{ id: "sample", label: "Use a sample — Summer '26 launch · $90K · 3,000 customers · 4× ROAS" }],
+    },
+  };
+}
+
+/** A pasted/typed message is a usable brief if it has real detail (budget/goal/length). */
+function looksLikeBriefText(text: string): boolean {
+  return text.trim().length > 60 || /\$\s?\d|\bbudget\b|\broas\b|\bgoal\b|\d{3,}/i.test(text);
+}
+
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
   const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, saveMediaPlan, activeMediaPlan } = useCampaign();
@@ -900,6 +928,16 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // two clarifying questions + surface the advertiser's data, with quick-reply
       // chips. (Content mirrors the AdRoll Media Planner spec; rendered in our card.)
       if (mediaPlanFlowRef.current.stage === "awaiting-brief") {
+        // Don't build from a non-brief like "help me" — re-prompt with the sample.
+        if (!looksLikeBriefText(content)) {
+          setMessages((prev) => [
+            ...prev,
+            userMsg,
+            { id: nextId(), role: "assistant", content: "I need the brief to build a real plan — the goal, budget, audience, and timeline. Paste it, or use the sample below to see it in action." },
+            sampleBriefCard(),
+          ]);
+          return;
+        }
         mediaPlanFlowRef.current = { stage: "idle", brief: content };
         setMessages((prev) => [...prev, userMsg]);
         void doBriefBuild(content); // LLM reads the brief → builds (anchored numbers)
@@ -1974,6 +2012,15 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // One-click sample brief — send it as a normal message so the awaiting-brief
+      // handler builds it (reliable demo path, no typing required).
+      if (field === "media-plan-sample") {
+        setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, toolCall: undefined } : m)));
+        const brand = brandRef.current || getCurrentBrand();
+        sendMessage(sampleBriefFor(brand?.name || "this client"));
+        return;
+      }
+
       // Agency media-plan build mode: conversation vs set-it-up-yourself (GUI).
       if (field === "media-plan-mode") {
         const selectedId = selected[0];
@@ -2008,8 +2055,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           {
             id: nextId(),
             role: "assistant",
-            content: `Great — paste the client brief or describe the campaign (goal, budget, audience, timeline), and I'll pull in ${adv.companyName}'s account data, ask anything that's missing, then build it.`,
+            content: `Great — paste the client brief (goal, budget, audience, timeline) and I'll pull in ${adv.companyName}'s account data and build it. Or use a sample to see it in action:`,
           },
+          sampleBriefCard(),
         ]);
         return;
       }
