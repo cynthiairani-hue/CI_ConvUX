@@ -233,6 +233,7 @@ export function AgencyPortfolioView() {
 
           {/* Search + client directory (scan → search → jump in) */}
           <div className="space-y-2">
+            <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">All clients</h2>
             <form onSubmit={submitSearch} className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -283,20 +284,22 @@ export function AgencyPortfolioView() {
                     </button>
                   );
                 })}
+                {!q && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAdd(true)}
+                    className="group flex h-full min-h-[148px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-white p-4 text-[12px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  >
+                    <Plus className="h-5 w-5" />
+                    Add client
+                  </button>
+                )}
               </div>
             )}
           </div>
 
-          {/* Add client — collapsed behind a CTA (not a daily task) */}
-          {!showAdd ? (
-            <button
-              type="button"
-              onClick={() => setShowAdd(true)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-white px-4 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-            >
-              <Plus className="h-4 w-4" /> Add client
-            </button>
-          ) : (
+          {/* Add client form — revealed by the in-grid "Add client" square */}
+          {showAdd && (
             <div className="rounded-2xl border bg-white p-4">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
