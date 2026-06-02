@@ -347,6 +347,11 @@ export interface MediaCampaign {
   baseBudget: number; // reference point for linear recalc
   baseForecast: MediaForecast; // forecast at baseBudget
   forecast: MediaForecast; // recalculated from current budget
+  /** Optional line-item targeting — a single channel can run many lines, each
+   *  for a different market/city with its own creative (e.g. CTV New York vs
+   *  CTV Los Angeles). Empty on the default one-line-per-channel plan. */
+  location?: string;
+  creative?: string;
 }
 
 export interface MediaPlanSummary {

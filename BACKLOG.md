@@ -36,3 +36,20 @@ pass over the in-house returning flow to find + disable other rough edges (audit
 In the conversational build, have the AI visibly populate the canvas field-by-field
 as it narrates, with the in-chat artifact card showing a confirm ✓ — like Shopify
 Sidekick's "Help me add a product."
+
+## In-flight monitoring — fuller version (Hans, Jun 2 demo prep)
+The Live Status page now shows basic pacing (delivered vs. target, red/green) for
+active plans. Next: a per-plan Gantt/timeline of flights and line items over the
+flight window, drill-down per line, and pacing vs. *time-elapsed* (not just vs.
+final target). Pull real delivered numbers when wired to data.
+
+## AI dynamic budget re-allocation in flight (Hans, Jun 2 demo prep)
+After a plan runs ~2 weeks, the AI should notice underdelivery against goals and
+propose shifting budget dynamically (e.g. "not hitting conversions — move budget
+from line X to Y"), surfaced as a Change Summary card (Notice → Propose → Authorize).
+Tie to the Live Status pacing signals above.
+
+## Multi-line media plans — follow-ups
+Line items now support per-line market/creative + add/remove (CTV-NY, CTV-LA…).
+Next: per-line forecast weighting by market, creative thumbnails/upload per line,
+and a "duplicate across cities" bulk action for tour-style buys.

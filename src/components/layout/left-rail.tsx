@@ -40,9 +40,11 @@ export function LeftRail() {
       setActiveNarrative(null);
       setActiveAudience(null);
 
-      // Split mode converts to floating so chat follows the user
-      if (state === "split") {
-        setAIState("floating");
+      // Leaving a surface closes the chat overlay (split/fullscreen) — the user
+      // exited, so the chat exits with them (per stakeholder feedback). Floating
+      // is a deliberate "follow me" mode, so it persists.
+      if (state === "split" || state === "fullscreen") {
+        setAIState("resting");
       }
     }
     prevPathname.current = pathname;
@@ -92,7 +94,13 @@ export function LeftRail() {
           <LeftRailNavItem
             key={item.id}
             icon={item.icon}
-            label={item.id === "campaigns" && activePersona.vertical === "agency" ? "Media Plans" : item.label}
+            label={
+              activePersona.vertical === "agency" && item.id === "campaigns"
+                ? "Media Plans"
+                : activePersona.vertical === "agency" && item.id === "reports"
+                ? "Live Status"
+                : item.label
+            }
             href={item.href}
             badge={item.id === "approvals" ? pendingCount : item.id === "reports" ? narrativeCount : item.badge}
             isActive={pathname.startsWith(item.href)}

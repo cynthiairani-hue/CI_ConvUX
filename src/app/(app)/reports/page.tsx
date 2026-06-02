@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
+import { usePersona } from "@/contexts/persona-context";
+import type { MediaPlan } from "@/types/campaign";
 import { getCurrentBrand, useBrand } from "@/data/brand-profiles";
 import { FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES } from "@/data/seed-ffern";
 import { SEED_PERFORMANCE, SEED_ANOMALIES } from "@/data/seed-company";
@@ -519,6 +521,86 @@ function SavedReportsContent({
 
 type ReportsTab = "saved" | "templates";
 
+/* ──────────────────────────────────────────────
+   Live Status — in-flight pacing for active media plans.
+   Delivered vs. target, with on-pace status (red/green). Numbers are
+   deterministic per plan (stable hash) so the demo is consistent.
+   ────────────────────────────────────────────── */
+
+function pacingHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; }
+  return Math.abs(h);
+}
+
+function PacingBar({ label, delivered, target, fmt }: { label: string; delivered: number; target: number; fmt: (n: number) => string }) {
+  const pct = target > 0 ? Math.min(100, Math.round((delivered / target) * 100)) : 0;
+  // Expected pace ~70% through flight. On track if at/above; behind if a bit under; at risk if well under.
+  const tone = pct >= 66 ? "emerald" : pct >= 50 ? "amber" : "rose";
+  const barColor = tone === "emerald" ? "bg-emerald-500" : tone === "amber" ? "bg-amber-500" : "bg-rose-500";
+  const textColor = tone === "emerald" ? "text-emerald-600" : tone === "amber" ? "text-amber-600" : "text-rose-600";
+  return (
+    <div>
+      <div className="flex items-baseline justify-between text-[12px]">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="text-foreground"><span className="font-medium">{fmt(delivered)}</span> of {fmt(target)} <span className={cn("font-medium", textColor)}>· {pct}%</span></span>
+      </div>
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div className={cn("h-full rounded-full", barColor)} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function LivePacingSection({ plans, onOpen }: { plans: MediaPlan[]; onOpen: (p: MediaPlan) => void }) {
+  if (plans.length === 0) return null;
+  const fmtImpr = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${Math.round(n / 1_000)}K` : `${Math.round(n)}`);
+  const fmtNum = (n: number) => Math.round(n).toLocaleString();
+  return (
+    <div className="rounded-xl border border-border bg-white">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-foreground"><Zap className="h-3.5 w-3.5" /></span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-semibold text-foreground">In-flight pacing</div>
+          <div className="text-[11px] text-muted-foreground">How active plans are tracking against their stated goals</div>
+        </div>
+        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">{plans.length} live</span>
+      </div>
+      <div className="divide-y divide-border">
+        {plans.map((p) => {
+          const h = pacingHash(p.id);
+          // Stable delivered fraction in [0.42, 0.92] for demo variety.
+          const frac = 0.42 + (h % 51) / 100;
+          const imprTarget = p.summary.estImpressions || 0;
+          const convTarget = p.summary.targets?.conversions || p.summary.estConversions || 0;
+          const imprDelivered = Math.round(imprTarget * frac);
+          const convDelivered = Math.round(convTarget * Math.min(1, frac + 0.05));
+          const onPace = frac >= 0.66 ? "On track" : frac >= 0.5 ? "Slightly behind" : "Behind pace";
+          const paceTone = frac >= 0.66 ? "bg-emerald-50 text-emerald-600" : frac >= 0.5 ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600";
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onOpen(p)}
+              className="block w-full px-4 py-3.5 text-left transition-colors hover:bg-accent"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[13px] font-medium text-foreground">{p.name}</span>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", paceTone)}>{onPace}</span>
+              </div>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">{p.flight} · {p.campaigns.filter((c) => c.enabled).length} lines live</div>
+              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                <PacingBar label="Impressions delivered" delivered={imprDelivered} target={imprTarget} fmt={fmtImpr} />
+                <PacingBar label="Conversions" delivered={convDelivered} target={convTarget} fmt={fmtNum} />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const {
     savedNarratives,
@@ -530,8 +612,18 @@ export default function ReportsPage() {
     renameNarrative,
     showToast,
     hydrated,
+    savedMediaPlans,
+    setActiveMediaPlan,
   } = useCampaign();
-  const { openFullscreen } = useAICompanion();
+  const { openFullscreen, setState: setChatState } = useAICompanion();
+  const { activePersona } = usePersona();
+  const isAgency = activePersona.vertical === "agency";
+  const activePlans = (savedMediaPlans ?? []).filter((p) => p.reviewState === "active");
+
+  function handleOpenPlanPacing(p: MediaPlan) {
+    setActiveMediaPlan(p);
+    setChatState("resting");
+  }
 
   const [activeTab, setActiveTab] = useState<ReportsTab>("saved");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -627,10 +719,19 @@ export default function ReportsPage() {
       <div className="flex flex-1 flex-col overflow-y-auto">
         <div className="mx-auto my-auto w-full max-w-3xl px-4 sm:px-8 py-10">
           {/* Page header */}
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Reports</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">{isAgency ? "Live Status" : "Reports"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Performance dashboards, automated reports, and saved narratives.
+            {isAgency
+              ? "Track active media plans in flight against their stated goals — adjust as you go."
+              : "Performance dashboards, automated reports, and saved narratives."}
           </p>
+
+          {/* In-flight pacing — agency, active plans only (live status) */}
+          {isAgency && activePlans.length > 0 && (
+            <div className="mt-8">
+              <LivePacingSection plans={activePlans} onOpen={handleOpenPlanPacing} />
+            </div>
+          )}
 
           {/* Performance — always visible at top */}
           <div className="mt-8">

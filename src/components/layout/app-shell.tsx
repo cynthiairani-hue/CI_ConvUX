@@ -491,7 +491,7 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           <div className="mx-0.5 h-5 w-px bg-border" />
           <button
             type="button"
-            onClick={() => { setActiveMediaPlan(null); setState("fullscreen"); }}
+            onClick={() => { setActiveMediaPlan(null); setState("resting"); }}
             className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             Close
@@ -542,7 +542,7 @@ function SplitOperatorCanvas({ operator }: { operator: NonNullable<ReturnType<ty
         <h1 className="truncate text-[14px] font-semibold text-foreground">Run with AI — {operator.strategyName}</h1>
         <button
           type="button"
-          onClick={() => { setActiveOperator(null); setState("fullscreen"); }}
+          onClick={() => { setActiveOperator(null); setState("resting"); }}
           className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           Close
@@ -572,7 +572,7 @@ function SplitBriefCanvas({ brief }: { brief: NonNullable<ReturnType<typeof useC
 
   function handleDiscard() {
     setActiveBrief(null);
-    setState("fullscreen");
+    setState("resting");
   }
 
   function handleConnectPixel() {

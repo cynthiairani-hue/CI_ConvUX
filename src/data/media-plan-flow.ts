@@ -189,6 +189,61 @@ export function toggleCampaign(plan: MediaPlan, campaignId: string): MediaPlan {
   return recalcMediaPlan({ ...plan, campaigns });
 }
 
+/**
+ * Add a line item by cloning an existing line in the same channel/stage — for
+ * a media buy that runs the same channel in multiple markets, each with its own
+ * creative (CTV New York, CTV Los Angeles…). Splits the source line's budget in
+ * half so the plan total is unchanged, then recalcs. Inserts right after the
+ * source line. Returns { plan, newId } so the UI can focus the new row.
+ */
+export function addCampaignLine(plan: MediaPlan, sourceId: string): { plan: MediaPlan; newId: string } {
+  const src = plan.campaigns.find((c) => c.id === sourceId);
+  if (!src) return { plan, newId: "" };
+  const newId = `${src.channel}-${Math.abs(hashStr(sourceId + plan.campaigns.length + src.budget))}`;
+  const half = Math.round(src.budget / 2);
+  const clone: MediaCampaign = {
+    ...src,
+    id: newId,
+    budget: src.budget - half, // remainder goes to the new line
+    baseBudget: src.budget - half,
+    location: "",
+    creative: "",
+    enabled: true,
+  };
+  const reduced = { ...src, budget: half, baseBudget: half };
+  const campaigns: MediaCampaign[] = [];
+  for (const c of plan.campaigns) {
+    if (c.id === sourceId) { campaigns.push(reduced, clone); }
+    else campaigns.push(c);
+  }
+  return { plan: recalcMediaPlan({ ...plan, campaigns, aiTouched: undefined }), newId };
+}
+
+/** Remove a line item → recalc. */
+export function removeCampaign(plan: MediaPlan, campaignId: string): MediaPlan {
+  const campaigns = plan.campaigns.filter((c) => c.id !== campaignId);
+  return recalcMediaPlan({ ...plan, campaigns, aiTouched: undefined });
+}
+
+/** Edit a line's location/creative text fields (no recalc — not a budget change). */
+export function editCampaignFields(
+  plan: MediaPlan,
+  campaignId: string,
+  fields: { location?: string; creative?: string }
+): MediaPlan {
+  const campaigns = plan.campaigns.map((c) =>
+    c.id === campaignId ? { ...c, ...fields } : c
+  );
+  return { ...plan, campaigns };
+}
+
+/** Small stable string hash for generating line ids deterministically. */
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; }
+  return h;
+}
+
 /* ── Natural-language plan editing ─────────────────────────────────────────
    Makes typed/spoken commands work the same as the refine chips: "change CTV
    budget to 11,458", "shift $10k from DOOH to social", "turn off DOOH",
