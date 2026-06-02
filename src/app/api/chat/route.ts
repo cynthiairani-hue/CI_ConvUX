@@ -145,9 +145,9 @@ ${brandContext.additionalContext || ""}
 USE THIS CONTEXT EVERYWHERE:
 - Reference "${brandContext.name}" by name in every response
 - Tailor channel recommendations to their industry and business model
-- When simulating data, use numbers that are plausible for a brand of this type and scale
+- If a PERFORMANCE DATA block is present above, those are the real account numbers — answer all data questions (best/worst channel, ROAS, CPA, spend, where to cut/scale) directly from it and never state a figure that contradicts it. Only simulate plausible numbers when no PERFORMANCE DATA block is provided.
 - Never ask "what brand are you?" or "what's your website?" — you already know
-- If they ask about performance, simulate ${brandContext.name}-specific metrics immediately
+- If they ask about performance, answer with ${brandContext.name}-specific metrics immediately (from the PERFORMANCE DATA block if present)
 - If they ask about budget, propose ${brandContext.name}-appropriate allocations`;
 
   return prompt + brandSection;

@@ -51,6 +51,7 @@ import { buildCompetitiveBrief } from "@/data/competitive-flow";
 import { buildOperatorPlan } from "@/data/operator-flow";
 import { buildMediaPlan, editCampaignBudget, toggleCampaign, setTotalBudget, parseMediaPlanCommand, WHY_CHANNEL } from "@/data/media-plan-flow";
 import { getActiveClient } from "@/data/seed-agency";
+import { getClientDataSummary } from "@/data/client-data";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
@@ -647,12 +648,15 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         });
 
       const brand = brandRef.current;
+      const activeClientId = getActiveClient()?.id;
+      const dataSummary = activeClientId ? getClientDataSummary(activeClientId) : null;
       const brandContext = brand
         ? {
             name: brand.name,
             domain: brand.domain,
             industry: brand.industry,
             tagline: brand.tagline,
+            additionalContext: dataSummary || undefined,
           }
         : undefined;
 
@@ -1018,6 +1022,34 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
       // Check for campaign intent — route to strategy flow instead of API
       const lower = content.toLowerCase();
+
+      // ANALYTICAL-QUESTION guard — a question ABOUT the account's data ("what's
+      // my best channel?", "where am I overspending?", "which has the worst CPA?")
+      // must be ANSWERED by the LLM (grounded in the PERFORMANCE DATA context),
+      // not hijacked into the budget/media-plan build flow. Build commands
+      // ("build/launch a plan") are excluded so those still route to the builder.
+      const isQuestion =
+        /\?\s*$/.test(content.trim()) ||
+        /^(what|which|where|how|why|who|show me|tell me|is my|are my|do i|does my|how's|hows)\b/i.test(content.trim());
+      const mentionsData =
+        /\b(roas|cpa|cpc|ctr|spend|spending|overspend|over-?spending|budget|channel|channels|performance|perform|performing|conversion|conversions|revenue|metric|best|worst|trend|trending|compare|comparison|breakdown|cost|impressions|clicks|cac|underperform)\b/i.test(
+          lower
+        );
+      const isBuildVerb =
+        /\b(build|create|launch|set up|set-up|make me|draft|plan a|plan me|put together|spin up|generate a)\b/i.test(lower);
+      if (isQuestion && mentionsData && !isBuildVerb) {
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+        const updatedMessages = [...messagesRef.current, userMsg];
+        callAPI(updatedMessages).then(
+          (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
+            setIsLoading(false);
+            const aiMsg: ChatMessage = { id: nextId(), role: "assistant", content: response.text };
+            setMessages((prev) => [...prev, aiMsg]);
+          }
+        );
+        return;
+      }
 
       // Competitive intelligence intent — opens the brief artifact (no pixel needed)
       const isCompetitiveIntent =
