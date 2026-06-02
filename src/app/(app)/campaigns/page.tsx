@@ -4,9 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { usePersona } from "@/contexts/persona-context";
-import { useBrand, getCurrentBrand, mapBrandIndustryToIAB } from "@/data/brand-profiles";
-import { buildMediaPlan } from "@/data/media-plan-flow";
-import { getActiveClient } from "@/data/seed-agency";
+import { useBrand } from "@/data/brand-profiles";
 import { cn } from "@/lib/utils";
 import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2, Check, X } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
@@ -211,10 +209,10 @@ export default function CampaignsPage() {
     savedStrategies, savedAdvertisers, setActiveStrategy,
     activeNarrative, setActiveNarrative, showToast,
     duplicateStrategy, renameStrategy, archiveStrategy, removeStrategy,
-    setActiveMediaPlan, savedMediaPlans, saveMediaPlan, duplicateMediaPlan, renameMediaPlan, archiveMediaPlan, removeMediaPlan,
+    setActiveMediaPlan, savedMediaPlans, duplicateMediaPlan, renameMediaPlan, archiveMediaPlan, removeMediaPlan,
     hydrated,
   } = useCampaign();
-  const { openFullscreen, setState: setChatState } = useAICompanion();
+  const { openFullscreen, startMediaPlanFlow, setState: setChatState } = useAICompanion();
   const { activePersona } = usePersona();
   // Agencies speak "media plan", not "campaign" — the plan is the unit of work.
   const isAgency = activePersona.vertical === "agency";
@@ -254,24 +252,9 @@ export default function CampaignsPage() {
 
   function handleNewCampaign() {
     if (isAgency) {
-      // Manual-GUI-first (Notion-style): open the editable plan on the canvas
-      // directly — no chat. The AI stays reachable via the bottom-right bubble.
-      const brand = getCurrentBrand();
-      const adv = brand
-        ? {
-            id: `adv-${brand.domain.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
-            companyName: brand.name,
-            websiteUrl: brand.domain,
-            industry: mapBrandIndustryToIAB(brand.industry),
-            restrictedCategories: [],
-          }
-        : { id: "adv-fallback", companyName: "Your client", websiteUrl: "your-site.com", industry: mapBrandIndustryToIAB("other"), restrictedCategories: [] };
-      try { sessionStorage.setItem("fuseiq-suppress-autochat", "1"); } catch { /* ignore */ }
-      setChatState("resting");
-      // Anchor to the active client's real-shaped data (budget=0 ⇒ use their real monthly spend).
-      const plan = buildMediaPlan(adv, "plan", 0, undefined, getActiveClient()?.id);
-      saveMediaPlan(plan); // persist so it appears in the Media Plans list
-      setActiveMediaPlan(plan);
+      // Conversation-first: open chat with a build-mode choice — build it together,
+      // or skip into the editable canvas (handled in startMediaPlanFlow).
+      startMediaPlanFlow();
       return;
     }
     openFullscreen("Build me a campaign");

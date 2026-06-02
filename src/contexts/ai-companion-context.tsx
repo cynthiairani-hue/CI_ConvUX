@@ -156,6 +156,7 @@ interface AICompanionContextValue {
   isLoading: boolean;
   openFullscreen: (initialMessage?: string) => void;
   startCampaignFlow: () => void;
+  startMediaPlanFlow: () => void;
   minimize: () => void;
   close: () => void;
   expand: () => void;
@@ -1871,6 +1872,43 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Agency media-plan build mode: conversation vs set-it-up-yourself (GUI).
+      if (field === "media-plan-mode") {
+        const selectedId = selected[0];
+        setMessages((prev) => [...prev, userMsg]);
+        const brand = brandRef.current || getCurrentBrand();
+        const adv = brand
+          ? {
+              id: `adv-${brand.domain.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`,
+              companyName: brand.name,
+              websiteUrl: brand.domain,
+              industry: mapBrandIndustryToIAB(brand.industry),
+              restrictedCategories: [],
+            }
+          : { id: "adv-fallback", companyName: "Your client", websiteUrl: "your-site.com", industry: mapBrandIndustryToIAB("other"), restrictedCategories: [] };
+
+        if (selectedId === "myself") {
+          // Skip conversation — drop the editable plan on the canvas (GUI).
+          const plan = buildMediaPlan(adv, "plan", 0, undefined, getActiveClient()?.id);
+          saveMediaPlan(plan);
+          setActiveMediaPlan(plan);
+          setState("resting"); // collapse chat to bubble; canvas shows the plan
+          return;
+        }
+
+        // Build it with me — start the conversational brief flow.
+        mediaPlanFlowRef.current = { stage: "awaiting-brief", brief: "" };
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId(),
+            role: "assistant",
+            content: `Great — paste the client brief or describe the campaign (goal, budget, audience, timeline), and I'll pull in ${adv.companyName}'s account data, ask anything that's missing, then build it.`,
+          },
+        ]);
+        return;
+      }
+
       // The post-plan refine chips (Kirby's content, our pattern).
       const makeRefineCard = (): ChatMessage => ({
         id: nextId(),
@@ -2391,8 +2429,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       if (!brandRef.current) brandRef.current = getCurrentBrand();
       const brand = brandRef.current;
       const brandIntro = brand
-        ? `I'm ready to build a campaign for ${brand.name}. Before we start — how would you like to set this up?`
-        : "I'm ready to help you build a campaign. Before we start — how would you like to set this up?";
+        ? `I can build a campaign for ${brand.name}. Want to do it together, or set it up yourself?`
+        : "I can help you build a campaign. Want to do it together, or set it up yourself?";
 
       const introMsg: ChatMessage = {
         id: nextId(),
@@ -2406,14 +2444,14 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         content: "",
         toolCall: {
           type: "choices" as const,
-          question: "Choose your setup experience",
-          subtitle: "You can change this anytime from the mode selector.",
+          question: "How do you want to build it?",
+          subtitle: "You can switch anytime from the mode selector.",
           field: "setup-mode",
           step: 1,
           totalSteps: 1,
           options: [
-            { id: "guided", label: "Walk me through it", detail: "I'll ask a few questions to get the targeting, budget, and creative right." },
-            { id: "express", label: "Build it fast", detail: "I'll use smart defaults and you can review and edit on the canvas." },
+            { id: "guided", label: "Build it with me", detail: "I'll ask a few quick questions to get targeting, budget, and creative right." },
+            { id: "express", label: "I'll set it up myself", detail: "I'll drop an editable plan on the canvas with smart defaults — change anything you want." },
           ],
           multiSelect: false,
         },
@@ -2426,6 +2464,39 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     // Mode is already known — proceed directly
     continueCampaignFlow(savedMode);
   }, [continueCampaignFlow]);
+
+  // Agency media-plan build: conversation-first, with an initial card to either
+  // build it together or skip into the editable canvas (set it up yourself).
+  const startMediaPlanFlow = useCallback(() => {
+    setState(readEntryLayout());
+    setMessages([]);
+    if (!brandRef.current) brandRef.current = getCurrentBrand();
+    const name = brandRef.current?.name || "this client";
+    const intro: ChatMessage = {
+      id: nextId(),
+      role: "assistant",
+      content: `Let's build a media plan for ${name}. Want to do it together, or set it up yourself?`,
+    };
+    const card: ChatMessage = {
+      id: nextId(),
+      role: "assistant",
+      content: "",
+      toolCall: {
+        type: "choices" as const,
+        question: "How do you want to build it?",
+        subtitle: "You can switch anytime.",
+        field: "media-plan-mode",
+        step: 1,
+        totalSteps: 1,
+        multiSelect: false,
+        options: [
+          { id: "withme", label: "Build it with me", detail: `I'll pull ${name}'s account data, ask what's missing, then build the plan.` },
+          { id: "myself", label: "I'll set it up myself", detail: "I'll drop an editable plan on the canvas with smart defaults — change anything." },
+        ],
+      },
+    };
+    setMessages([intro, card]);
+  }, [setState]);
 
   const openFullscreen = useCallback(
     (initialMessage?: string) => {
@@ -2545,6 +2616,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         isLoading,
         openFullscreen,
         startCampaignFlow,
+        startMediaPlanFlow,
         minimize,
         close,
         expand,
