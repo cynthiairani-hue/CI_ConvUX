@@ -1929,7 +1929,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           : { id: "adv-fallback", companyName: "Your client", websiteUrl: "your-site.com", industry: mapBrandIndustryToIAB("other"), restrictedCategories: [] };
 
         if (selectedId === "myself") {
-          // Skip conversation — drop the editable plan on the canvas (GUI).
+          // "I know what I want" === Express mode: keep the visible ChatMode in
+          // sync, then drop the prefilled plan on the canvas (you tweak / accept).
+          setChatMode("express");
           const plan = buildMediaPlan(adv, "plan", 0, undefined, getActiveClient()?.id);
           saveMediaPlan(plan);
           setActiveMediaPlan(plan);
@@ -1937,7 +1939,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Build it with me — start the conversational brief flow.
+        // "Help me think it through" === Plan mode: walk the brief → clarify → build.
+        setChatMode("plan");
         mediaPlanFlowRef.current = { stage: "awaiting-brief", brief: "" };
         setMessages((prev) => [
           ...prev,
