@@ -85,6 +85,7 @@ export function AgencyPortfolioView() {
     setClients(next);
     persistAgencyClients(next);
     setSelected(new Set());
+    setShowAdd(false);
     showToast(`Added ${picks.length} client${picks.length > 1 ? "s" : ""} to your roster`);
   }
 
@@ -128,6 +129,11 @@ export function AgencyPortfolioView() {
 
   const q = query.trim().toLowerCase();
   const filtered = q ? clients.filter((c) => c.name.toLowerCase().includes(q)) : clients;
+
+  // "From your book" = clients the agency manages (discovered) but not yet set up here.
+  const undiscovered = BRAINLABS_DISCOVERED.filter(
+    (d) => !clients.some((c) => c.domain === d.domain)
+  );
 
   function submitSearch(e: FormEvent) {
     e.preventDefault();
@@ -298,14 +304,11 @@ export function AgencyPortfolioView() {
             )}
           </div>
 
-          {/* Add client form — revealed by the in-grid "Add client" square */}
+          {/* Add client — two clear paths: from the agency's book, or net-new. */}
           {showAdd && (
-            <div className="rounded-2xl border bg-white p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
-                  <Sparkles className="h-3.5 w-3.5 text-[#2C9FDD]" />
-                  Onboard another client
-                </div>
+            <div className="space-y-5 rounded-2xl border bg-white p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-[13px] font-semibold text-foreground">Add a client</div>
                 <button
                   type="button"
                   onClick={() => setShowAdd(false)}
@@ -314,25 +317,74 @@ export function AgencyPortfolioView() {
                   Cancel
                 </button>
               </div>
-              <form onSubmit={addClient} className="flex items-center gap-2">
-                <input
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  placeholder="Paste a client's website (e.g. represent.com)"
-                  autoFocus
-                  className="flex-1 rounded-lg border border-border px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-ring"
-                />
-                <button
-                  type="submit"
-                  disabled={!domain.trim()}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Add client
-                </button>
-              </form>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                We&apos;ll pull their brand, industry, assets, and competitors from the site — no manual setup.
-              </p>
+
+              {/* Path 1 — from your book (clients you manage, not yet set up here) */}
+              {undiscovered.length > 0 && (
+                <div>
+                  <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">From your book</div>
+                  <p className="mb-2 text-[11px] text-muted-foreground">
+                    Clients we found on {AGENCY.domain} that aren&apos;t set up yet — select the ones to add.
+                  </p>
+                  <div className="space-y-1.5">
+                    {undiscovered.map((d) => {
+                      const on = selected.has(d.domain);
+                      return (
+                        <button
+                          key={d.domain}
+                          type="button"
+                          onClick={() => toggleDiscovered(d.domain)}
+                          className={cn(
+                            "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                            on ? "border-[#2C9FDD] bg-[#EBF5FB]" : "border-border hover:bg-accent"
+                          )}
+                        >
+                          <ClientLogo domain={d.domain} name={d.name} size="sm" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] font-medium text-foreground">{d.name}</div>
+                            <div className="text-[11px] text-muted-foreground">{d.industry} · {d.domain}</div>
+                          </div>
+                          <span className={cn("flex h-5 w-5 items-center justify-center rounded border", on ? "border-[#2C9FDD] bg-[#2C9FDD] text-white" : "border-border")}>
+                            {on && <Check className="h-3 w-3" />}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addSelected}
+                    disabled={selected.size === 0}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add {selected.size > 0 ? `${selected.size} ` : ""}selected
+                  </button>
+                </div>
+              )}
+
+              {/* Path 2 — net-new client (paste a site, AI sets it up) */}
+              <div className={cn(undiscovered.length > 0 && "border-t border-border pt-4")}>
+                <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <Sparkles className="h-3 w-3 text-[#2C9FDD]" /> New client
+                </div>
+                <form onSubmit={addClient} className="flex items-center gap-2">
+                  <input
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    placeholder="Paste a client's website (e.g. represent.com)"
+                    className="flex-1 rounded-lg border border-border px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-ring"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!domain.trim()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add client
+                  </button>
+                </form>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  We&apos;ll pull their brand, industry, assets, and competitors from the site — no manual setup.
+                </p>
+              </div>
             </div>
           )}
         </>
