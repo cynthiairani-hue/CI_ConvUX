@@ -213,7 +213,7 @@ export default function CampaignsPage() {
     setActiveMediaPlan, savedMediaPlans, duplicateMediaPlan, renameMediaPlan, archiveMediaPlan, removeMediaPlan,
     hydrated,
   } = useCampaign();
-  const { openFullscreen, startMediaPlanFlow, setState: setChatState } = useAICompanion();
+  const { openFullscreen, startMediaPlanFlow, loadChatSession, setState: setChatState } = useAICompanion();
   const { activePersona } = usePersona();
   // Agencies speak "media plan", not "campaign" — the plan is the unit of work.
   const isAgency = activePersona.vertical === "agency";
@@ -312,6 +312,15 @@ export default function CampaignsPage() {
     Math.max(...a[1].map((p) => new Date(p.lastModifiedAt).getTime()))
   );
   function handleOpenMediaPlan(plan: MediaPlan) {
+    // If the plan was built in a chat, restore that conversation and show it
+    // beside the plan (history left, canvas right) so the user can keep asking.
+    if (plan.chatSessionId) {
+      loadChatSession(plan.chatSessionId);
+      setActiveMediaPlan(plan);
+      setChatState("split");
+      return;
+    }
+    // No linked chat — just open the editable plan on the canvas.
     try { sessionStorage.setItem("fuseiq-suppress-autochat", "1"); } catch { /* ignore */ }
     setChatState("resting");
     setActiveMediaPlan(plan);

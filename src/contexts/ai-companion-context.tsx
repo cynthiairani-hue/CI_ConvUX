@@ -557,6 +557,13 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     chatModeRef.current = chatMode;
   }, [chatMode]);
 
+  // Track the live session id so async builds can stamp the plan with the chat
+  // that created it (used to restore the conversation when the plan is reopened).
+  const currentSessionIdRef = useRef<string | null>(currentSessionId);
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
   // Media-plan flow: track when we're awaiting a pasted brief, and keep a live
   // ref to the active plan so refine actions (shift/why/activate) read fresh state.
   const mediaPlanFlowRef = useRef<{ stage: "idle" | "awaiting-brief"; brief: string }>({ stage: "idle", brief: "" });
@@ -723,7 +730,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const objective = interp.objective || "sales";
         const total = typeof interp.totalBudget === "number" && interp.totalBudget > 0 ? interp.totalBudget : 0;
         const goal = { conversions: interp.goalConversions ?? undefined, roas: interp.goalRoas ?? undefined };
-        const plan = buildMediaPlan(adv, objective, total, goal, getActiveClient()?.id);
+        // Stamp the chat session so reopening the plan restores this conversation.
+        const plan = { ...buildMediaPlan(adv, objective, total, goal, getActiveClient()?.id), chatSessionId: currentSessionIdRef.current ?? undefined };
         setActiveMediaPlan(plan);
         saveMediaPlan(plan);
 
@@ -1985,7 +1993,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           // "I know what I want" === Express mode: keep the visible ChatMode in
           // sync, then drop the prefilled plan on the canvas (you tweak / accept).
           setChatMode("express");
-          const plan = buildMediaPlan(adv, "plan", 0, undefined, getActiveClient()?.id);
+          const plan = { ...buildMediaPlan(adv, "plan", 0, undefined, getActiveClient()?.id), chatSessionId: currentSessionIdRef.current ?? undefined };
           saveMediaPlan(plan);
           setActiveMediaPlan(plan);
           setState("resting"); // collapse chat to bubble; canvas shows the plan

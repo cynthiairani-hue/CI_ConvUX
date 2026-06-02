@@ -384,6 +384,9 @@ export interface MediaPlan {
   checkInDays: 30 | 45 | 60 | null; // set at activation
   /** Present when anchored to a client's real-shaped performance (the demo's "feels real"). */
   evidence?: MediaPlanEvidence;
+  /** The chat session that built this plan — reopening the plan restores that
+   *  conversation so the user can read the history and keep asking. */
+  chatSessionId?: string;
   /** Field ids the AI just changed (campaign id, or "total") — highlighted in
    *  the card until the user clicks into the field. Cleared on manual edits. */
   aiTouched?: string[];
