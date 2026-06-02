@@ -1,11 +1,10 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, Bot, CheckCircle2, Zap } from "lucide-react";
+import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, CheckCircle2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { approvers } from "@/data/approvers";
 import { usePersona } from "@/contexts/persona-context";
-import { buildOperatorPlan } from "@/data/operator-flow";
 import { LeftRail } from "./left-rail";
 import { MainCanvas } from "./main-canvas";
 import { AIFullscreen } from "@/components/ai-companion/ai-fullscreen";
@@ -189,7 +188,7 @@ function ReturnVisitBanner({ strategy, onDismiss }: { strategy: StrategyPlan; on
 }
 
 function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof useCampaign>["activeStrategy"]> }) {
-  const { saveStrategy, setActiveStrategy, showToast, sendForApproval, setActiveOperator } = useCampaign();
+  const { saveStrategy, setActiveStrategy, showToast, sendForApproval } = useCampaign();
   const { setState } = useAICompanion();
   const { activePersona } = usePersona();
   const [showReturnBanner, setShowReturnBanner] = useState(true);
@@ -199,11 +198,6 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
     const saved = { ...strategy, lastModifiedAt: new Date().toISOString() };
     saveStrategy(saved);
     sendForApproval(saved.id, approverId, activePersona.id);
-  }
-
-  function handleRunWithAI() {
-    saveStrategy({ ...strategy, lastModifiedAt: new Date().toISOString() });
-    setActiveOperator(buildOperatorPlan(strategy));
   }
 
   function handleSave() {
@@ -246,14 +240,7 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
           {strategy.status === "draft" && (
             <SendForApprovalButton onSend={handleSendForApproval} />
           )}
-          <button
-            type="button"
-            onClick={handleRunWithAI}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            <Bot className="h-3.5 w-3.5" />
-            Run with AI
-          </button>
+          {/* "Run with AI" (Operator) hidden — half-baked flow, see BACKLOG. */}
           <button
             type="button"
             onClick={handleShare}

@@ -20,6 +20,18 @@ switch (it's in `WORKSPACE_KEYS`). Namespace per scope
 persist and reappear when you return. Pair with left-rail "Recent" showing that
 client's history.
 
+## In-house: Operator ("Run with AI") flow is confusing / half-baked
+Clicking "Run with AI" on a strategy drops the user out of chat into the Operator
+authorization canvas with no clear framing ("Launch it with AI"? what?). The entry
+button + "Let the AI run my top campaign" suggested prompt are **hidden/disabled**
+for now (app-shell.tsx, suggested-prompts.ts). When we return: clarify what the
+Operator does, frame the entry, and keep the user oriented (don't silently swap canvas).
+
+## Demo-safety: hide/disable half-baked entry points
+Anything not fully baked should be hidden or disabled so a presenter never clicks a
+dead-end mid-demo. In-house and Enterprise are labeled WIP / Coming soon. Do a focused
+pass over the in-house returning flow to find + disable other rough edges (audit-style).
+
 ## Shopify-style live canvas fill ("Build it with me")
 In the conversational build, have the AI visibly populate the canvas field-by-field
 as it narrates, with the in-chat artifact card showing a confirm ✓ — like Shopify

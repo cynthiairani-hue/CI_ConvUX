@@ -292,9 +292,10 @@ function BrandDiscovery({
 type ScenarioId = "smb" | "abm" | "agency";
 type StartState = "net-new" | "returning";
 
-const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; persona: string; email: string; comingSoon?: boolean }[] = [
-  { id: "smb", label: "In-house", role: "Brand-side marketer", brand: "Ffern · luxury fragrance", persona: "cynthia-b2c", email: "cynthia@ffern.co" },
-  { id: "agency", label: "Agency", role: "Manages a client roster", brand: "Brainlabs · performance agency", persona: "cynthia-agency", email: "cynthia@brainlabs.co.uk" },
+const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; persona: string; email: string; comingSoon?: boolean; tag?: string }[] = [
+  // Agency first — the most complete flow (media planning). In-house is WIP. Enterprise is coming soon.
+  { id: "agency", label: "Agency", role: "Manages a client roster", brand: "Brainlabs · performance agency", persona: "cynthia-agency", email: "cynthia@brainlabs.co.uk", tag: "Most complete" },
+  { id: "smb", label: "In-house", role: "Brand-side marketer", brand: "Ffern · luxury fragrance", persona: "cynthia-b2c", email: "cynthia@ffern.co", tag: "WIP" },
   { id: "abm", label: "Enterprise", role: "Account-based (ABM)", brand: "Norwest Analytics · B2B SaaS", persona: "cynthia-b2b", email: "cynthia@norwest.io", comingSoon: true },
 ];
 
@@ -369,7 +370,7 @@ export default function SignupPage() {
               Choose a demo scenario
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Internal demo selector — pick a profile and starting state, and FuseIQ loads that experience fully set up.
+              Internal, work-in-progress demos — <span className="font-medium text-foreground">Agency</span> is the most complete (media planning). Pick a profile and starting state to load it.
             </p>
           </div>
 
@@ -390,7 +391,17 @@ export default function SignupPage() {
                       : profile === s.id ? "border-[#2C9FDD] bg-[#EBF5FB] shadow-sm" : "border-border bg-background hover:border-foreground/20"
                   )}
                 >
-                  <span className="text-[14px] font-semibold text-foreground">{s.label}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[14px] font-semibold text-foreground">{s.label}</span>
+                    {s.tag && (
+                      <span className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                        s.tag === "WIP" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
+                      )}>
+                        {s.tag}
+                      </span>
+                    )}
+                  </div>
                   <span className="mt-0.5 text-[12px] text-muted-foreground">{s.role}</span>
                   {s.comingSoon ? (
                     <span className="mt-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">

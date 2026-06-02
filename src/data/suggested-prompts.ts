@@ -80,8 +80,7 @@ export function getPersonalizedPrompts(
       { id: "optimize-top", label: `Top optimization moves for ${name}`, category: "campaign", priority: 9 },
       { id: "cfo-narrative", label: "Draft my CFO narrative", category: "narrative", priority: 8 },
       { id: "competitive", label: "How am I positioned against competitors?", category: "performance", priority: 7 },
-      { id: "operator", label: "Let the AI run my top campaign", category: "campaign", priority: 6 },
-      { id: "reallocate", label: "Where should I shift budget?", category: "budget", priority: 5 },
+      { id: "reallocate", label: "Where should I shift budget?", category: "budget", priority: 6 },
     ];
   }
 
