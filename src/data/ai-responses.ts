@@ -51,9 +51,19 @@ export function getAIResponse(
 }
 
 export function getWelcomeMessage(personaId: PersonaId, brandName?: string): string {
-  void personaId;
-  if (brandName) {
-    return `Welcome to FuseIQ. I already know ${brandName} — your brand profile, industry context, and competitive landscape are loaded. Build a campaign, check performance, or ask me anything.`;
+  const isAgency = personaId === "cynthia-agency";
+
+  if (isAgency) {
+    // Agency: inside a client (brandName set) vs the portfolio.
+    if (brandName) {
+      return `You're working in ${brandName}. I can build a media plan, audience, or report for them — or you can set it up yourself in the canvas. What's the goal?`;
+    }
+    return "You're in your client portfolio. Tell me which client to dive into, or ask about any of them — I can pull performance, flag what needs attention, or start a plan.";
   }
-  return "Welcome to FuseIQ. I can help you build campaigns, connect data sources, create audiences, and optimize performance. What would you like to start with?";
+
+  // In-house / brand-side.
+  if (brandName) {
+    return `I already know ${brandName} — your brand profile, industry, and competitive landscape are loaded. Want me to build a campaign with you, or would you rather set it up yourself? Either way, I'm here.`;
+  }
+  return "Welcome to FuseIQ. I can build campaigns, audiences, and reports with you — or you can set them up yourself in the canvas. What would you like to start with?";
 }
