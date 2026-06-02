@@ -292,16 +292,16 @@ function BrandDiscovery({
 type ScenarioId = "smb" | "abm" | "agency";
 type StartState = "net-new" | "returning";
 
-const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; persona: string; email: string }[] = [
-  { id: "smb", label: "SMB", role: "B2C marketer", brand: "Ffern · luxury fragrance", persona: "cynthia-b2c", email: "cynthia@ffern.co" },
-  { id: "abm", label: "ABM", role: "B2B marketer", brand: "Norwest Analytics · B2B SaaS", persona: "cynthia-b2b", email: "cynthia@norwest.io" },
+const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; persona: string; email: string; comingSoon?: boolean }[] = [
+  { id: "smb", label: "In-house", role: "Brand-side marketer", brand: "Ffern · luxury fragrance", persona: "cynthia-b2c", email: "cynthia@ffern.co" },
   { id: "agency", label: "Agency", role: "Manages a client roster", brand: "Brainlabs · performance agency", persona: "cynthia-agency", email: "cynthia@brainlabs.co.uk" },
+  { id: "abm", label: "Enterprise", role: "Account-based (ABM)", brand: "Norwest Analytics · B2B SaaS", persona: "cynthia-b2b", email: "cynthia@norwest.io", comingSoon: true },
 ];
 
 const SEED_KEYS = [
   "fuseiq-strategies", "fuseiq-media-plans", "fuseiq-advertisers", "fuseiq-narratives", "fuseiq-audiences",
   "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions", "fuseiq-agency-clients",
-  "fuseiq-active-client",
+  "fuseiq-agency-clients-v2", "fuseiq-active-client",
   "fuseiq-chat-mode", "fuseiq-detail-level", "fuseiq-layout-state", "fuseiq-entry-layout",
   "fuseiq-floating-panel", "fuseiq-dock-side",
 ];
@@ -378,15 +378,24 @@ export default function SignupPage() {
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setProfile(s.id)}
+                  disabled={s.comingSoon}
+                  onClick={() => { if (!s.comingSoon) setProfile(s.id); }}
                   className={cn(
                     "flex flex-col items-start rounded-xl border p-4 text-left transition-all",
-                    profile === s.id ? "border-[#2C9FDD] bg-[#EBF5FB] shadow-sm" : "border-border bg-background hover:border-foreground/20"
+                    s.comingSoon
+                      ? "cursor-not-allowed border-border bg-muted/40 opacity-60"
+                      : profile === s.id ? "border-[#2C9FDD] bg-[#EBF5FB] shadow-sm" : "border-border bg-background hover:border-foreground/20"
                   )}
                 >
                   <span className="text-[14px] font-semibold text-foreground">{s.label}</span>
                   <span className="mt-0.5 text-[12px] text-muted-foreground">{s.role}</span>
-                  <span className="mt-2 text-[11px] text-muted-foreground/70">{s.brand}</span>
+                  {s.comingSoon ? (
+                    <span className="mt-2 inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      Coming soon
+                    </span>
+                  ) : (
+                    <span className="mt-2 text-[11px] text-muted-foreground/70">{s.brand}</span>
+                  )}
                 </button>
               ))}
             </div>

@@ -16,6 +16,7 @@ import {
   enterClient,
   getPortfolioSignals,
   type SignalKind,
+  type ClientSignal,
 } from "@/data/seed-agency";
 import type { AgencyClient } from "@/types/campaign";
 
@@ -59,6 +60,7 @@ export function AgencyPortfolioView() {
   const [clients, setClients] = useState<AgencyClient[]>([]);
   const [domain, setDomain] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
     setClients(ensureAgencySeed());
@@ -92,6 +94,7 @@ export function AgencyPortfolioView() {
     setClients(next);
     persistAgencyClients(next);
     setDomain("");
+    setShowAdd(false);
     showToast(`Pulled ${client.name}'s profile from ${client.domain} — added to your roster`);
   }
 
@@ -113,6 +116,22 @@ export function AgencyPortfolioView() {
   const signals = getPortfolioSignals(clients);
   const totalSpend = clients.reduce((s, c) => s + c.monthlyBudget, 0);
 
+  // Group each client's signals under that client, and order clients by their
+  // most urgent signal (getPortfolioSignals is already urgency-sorted), so the
+  // home reads as ONE prioritized list per client — never a duplicated feed.
+  const signalsByClient = new Map<string, ClientSignal[]>();
+  for (const s of signals) {
+    const arr = signalsByClient.get(s.clientId) ?? [];
+    arr.push(s);
+    signalsByClient.set(s.clientId, arr);
+  }
+  const urgentOrder: string[] = [];
+  for (const s of signals) if (!urgentOrder.includes(s.clientId)) urgentOrder.push(s.clientId);
+  const orderedClients: AgencyClient[] = [
+    ...urgentOrder.map((id) => clients.find((c) => c.id === id)).filter((c): c is AgencyClient => Boolean(c)),
+    ...clients.filter((c) => !urgentOrder.includes(c.id)),
+  ];
+
   return (
     <div className="mx-auto my-auto w-full max-w-3xl space-y-6 px-4 sm:px-8 py-10">
       {/* Header */}
@@ -130,160 +149,166 @@ export function AgencyPortfolioView() {
         </div>
       </div>
 
-      {/* Needs your attention — cross-client triage feed (the agency hot path) */}
-      {signals.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-sm font-medium text-muted-foreground">
-            Needs your attention
-          </h2>
-          <div className="space-y-2">
-            {signals.map((s) => {
-              const client = clients.find((c) => c.id === s.clientId);
-              if (!client) return null;
-              const { icon: Icon, chip, tint } = SIGNAL_STYLE[s.kind];
+      {clients.length === 0 ? (
+        /* Net-new agency: discovery empty-state */
+        <div className="rounded-xl border border-border bg-white p-4">
+          <div className="mb-1 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+            <Sparkles className="h-3.5 w-3.5 text-[#2C9FDD]" />
+            We found these clients on {AGENCY.domain}
+          </div>
+          <p className="mb-3 text-[12px] text-muted-foreground">
+            Add the ones you manage — nothing is added until you confirm.
+          </p>
+          <div className="space-y-1.5">
+            {BRAINLABS_DISCOVERED.map((d) => {
+              const on = selected.has(d.domain);
               return (
                 <button
-                  key={s.id}
+                  key={d.domain}
                   type="button"
-                  onClick={() => actOnSignal(s.clientId, s.target)}
-                  className="group flex w-full items-start gap-3 rounded-xl border border-border bg-white px-4 py-3 text-left transition-all hover:shadow-sm"
+                  onClick={() => toggleDiscovered(d.domain)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+                    on ? "border-[#2C9FDD] bg-[#EBF5FB]" : "border-border hover:bg-accent"
+                  )}
                 >
-                  <ClientLogo domain={client.domain} name={client.name} />
+                  <ClientLogo domain={d.domain} name={d.name} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {client.name}
-                      </span>
-                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", tint)}>
-                        <Icon className="h-3 w-3" />
-                        {chip}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-[13px] font-medium text-foreground">
-                      {s.title}
-                    </div>
-                    <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">
-                      {s.detail}
-                    </div>
+                    <div className="text-[13px] font-medium text-foreground">{d.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{d.industry} · {d.domain}</div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2 pt-0.5">
-                    <span className="hidden text-[11px] text-muted-foreground sm:inline">{s.meta}</span>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
-                  </div>
+                  <span className={cn("flex h-5 w-5 items-center justify-center rounded border", on ? "border-[#2C9FDD] bg-[#2C9FDD] text-white" : "border-border")}>
+                    {on && <Check className="h-3 w-3" />}
+                  </span>
                 </button>
               );
             })}
           </div>
+          <button
+            type="button"
+            onClick={addSelected}
+            disabled={selected.size === 0}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add {selected.size > 0 ? `${selected.size} ` : ""}selected
+          </button>
         </div>
-      )}
-
-      {/* Client roster */}
-      <div>
-        <h2 className="mb-2 text-sm font-medium text-muted-foreground">Clients</h2>
-        {clients.length === 0 ? (
-          <div className="rounded-xl border border-border bg-white p-4">
-            <div className="mb-1 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-[#2C9FDD]" />
-              We found these clients on {AGENCY.domain}
-            </div>
-            <p className="mb-3 text-[12px] text-muted-foreground">
-              Add the ones you manage — nothing is added until you confirm.
-            </p>
-            <div className="space-y-1.5">
-              {BRAINLABS_DISCOVERED.map((d) => {
-                const on = selected.has(d.domain);
-                return (
+      ) : (
+        <>
+          {/* One card per client: client header + its nested action items, urgency-ordered. */}
+          <div className="space-y-3">
+            {orderedClients.map((c) => {
+              const clientSignals = signalsByClient.get(c.id) ?? [];
+              return (
+                <div key={c.id} className="overflow-hidden rounded-xl border border-border bg-white">
+                  {/* Client header — what the marketer cares about: who, spend, campaigns */}
                   <button
-                    key={d.domain}
                     type="button"
-                    onClick={() => toggleDiscovered(d.domain)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
-                      on ? "border-[#2C9FDD] bg-[#EBF5FB]" : "border-border hover:bg-accent"
-                    )}
+                    onClick={() => openClient(c)}
+                    className="group flex w-full items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-accent/40"
                   >
-                    <ClientLogo domain={d.domain} name={d.name} />
+                    <ClientLogo domain={c.domain} name={c.name} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium text-foreground">{d.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{d.industry} · {d.domain}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[14px] font-semibold text-foreground">{c.name}</span>
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", STATUS_STYLE[c.status])}>
+                          {c.status}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[12px] text-muted-foreground">{c.industry}</div>
                     </div>
-                    <span className={cn("flex h-5 w-5 items-center justify-center rounded border", on ? "border-[#2C9FDD] bg-[#2C9FDD] text-white" : "border-border")}>
-                      {on && <Check className="h-3 w-3" />}
-                    </span>
+                    <div className="hidden shrink-0 text-right sm:block">
+                      <div className="text-[13px] font-medium text-foreground">
+                        {c.monthlyBudget > 0 ? `$${c.monthlyBudget.toLocaleString()}/mo` : "—"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {c.campaigns} {c.campaigns === 1 ? "campaign" : "campaigns"}
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
                   </button>
-                );
-              })}
-            </div>
+
+                  {/* This client's prioritized action items, grouped under the card */}
+                  {clientSignals.length > 0 && (
+                    <div className="border-t border-border bg-muted/20">
+                      {clientSignals.map((s) => {
+                        const { icon: Icon, chip, tint } = SIGNAL_STYLE[s.kind];
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => actOnSignal(s.clientId, s.target)}
+                            className="group flex w-full items-start gap-2.5 border-t border-border/60 px-4 py-2.5 text-left transition-colors first:border-t-0 hover:bg-accent/50"
+                          >
+                            <span className={cn("mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", tint)}>
+                              <Icon className="h-3 w-3" />
+                              {chip}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[12.5px] font-medium text-foreground">{s.title}</div>
+                              <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{s.detail}</div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2 pt-0.5">
+                              <span className="hidden text-[11px] text-muted-foreground sm:inline">{s.meta}</span>
+                              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Add client — collapsed behind a CTA (not a daily task, so it's not exposed) */}
+          {!showAdd ? (
             <button
               type="button"
-              onClick={addSelected}
-              disabled={selected.size === 0}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
+              onClick={() => setShowAdd(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-white px-4 py-3 text-[13px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
             >
-              <Plus className="h-3.5 w-3.5" /> Add {selected.size > 0 ? `${selected.size} ` : ""}selected
+              <Plus className="h-4 w-4" /> Add client
             </button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {clients.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => openClient(c)}
-                className="group flex w-full items-center gap-4 rounded-xl border border-border bg-white px-4 py-3.5 text-left transition-all hover:shadow-sm"
-              >
-                <ClientLogo domain={c.domain} name={c.name} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-medium text-foreground">{c.name}</span>
-                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", STATUS_STYLE[c.status])}>
-                      {c.status}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 text-[12px] text-muted-foreground">
-                    {c.industry} · {c.domain}
-                  </div>
+          ) : (
+            <div className="rounded-2xl border bg-white p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-[#2C9FDD]" />
+                  Onboard another client
                 </div>
-                <div className="hidden shrink-0 text-right sm:block">
-                  <div className="text-[13px] font-medium text-foreground">
-                    {c.monthlyBudget > 0 ? `$${c.monthlyBudget.toLocaleString()}/mo` : "—"}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {c.campaigns} {c.campaigns === 1 ? "campaign" : "campaigns"} · {c.lead}
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Onboard a new client — below the roster: agencies arrive with clients first */}
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
-          <Sparkles className="h-3.5 w-3.5 text-[#2C9FDD]" />
-          Onboard another client
-        </div>
-        <form onSubmit={addClient} className="flex items-center gap-2">
-          <input
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            placeholder="Paste a client's website (e.g. represent.com)"
-            className="flex-1 rounded-lg border border-border px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-ring"
-          />
-          <button
-            type="submit"
-            disabled={!domain.trim()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add client
-          </button>
-        </form>
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
-          We&apos;ll pull their brand, industry, assets, and competitors from the site — no manual setup.
-        </p>
-      </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdd(false)}
+                  className="text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+              <form onSubmit={addClient} className="flex items-center gap-2">
+                <input
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  placeholder="Paste a client's website (e.g. represent.com)"
+                  autoFocus
+                  className="flex-1 rounded-lg border border-border px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-ring"
+                />
+                <button
+                  type="submit"
+                  disabled={!domain.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add client
+                </button>
+              </form>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                We&apos;ll pull their brand, industry, assets, and competitors from the site — no manual setup.
+              </p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
