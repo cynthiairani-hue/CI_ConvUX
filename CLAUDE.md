@@ -54,6 +54,14 @@ client workspaces and builds **media plans**; the SMB persona builds
   (status/readiness/accent/data-viz), not decoration.
 - Reuse existing components/patterns (StrategyCard, MediaPlanCard, ConfirmDialog,
   CardOverflowMenu) rather than reinventing.
+- **Asking the user to decide or act = the `ChatChoices` card. Never invent
+  chips/buttons.** Any time the AI offers next steps, asks the user to pick, or
+  proposes an action to authorize (Notice → Propose → Authorize), render it as a
+  `choices` tool call (single-select radio, or `multiSelect` checkboxes for
+  several-at-once) — the same card used for budget/objective steps. It comes with
+  "Something else" free text and Skip for free. Wire the choice to a real flow via
+  a `field` handler in `submitChoice`; **never offer an option the system can't
+  actually perform.**
 - TypeScript strict, no exceptions.
 - Artifacts are first-class objects (one source of truth in context + localStorage),
   not trapped in chat. Editing in either modality updates the same artifact.
