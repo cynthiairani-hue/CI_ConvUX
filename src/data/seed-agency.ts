@@ -12,7 +12,8 @@ export const AGENCY = {
   tagline: "Independent performance agency",
 };
 
-const CLIENTS_KEY = "fuseiq-agency-clients";
+// v2: bumped so the real-shaped monthly budgets reseed over any cached v1 roster.
+const CLIENTS_KEY = "fuseiq-agency-clients-v2";
 
 /** Public favicon for a domain — real logos, public + reliable, no asset hotlinking. */
 export function faviconUrl(domain: string): string {
