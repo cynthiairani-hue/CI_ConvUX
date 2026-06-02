@@ -1956,12 +1956,39 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           conversions: convMatch ? Number(convMatch[1].replace(/,/g, "")) : undefined,
           roas: roasMatch ? Number(roasMatch[1]) : undefined,
         };
-        setTimeout(() => {
+        // Make it FEEL like the AI is working: stream realistic "gathering" steps
+        // into a thinking block over ~4s, then reveal the plan. (No instant dump.)
+        const thinkingMsg: ChatMessage = { id: nextId(), role: "assistant", content: "", thinkingSteps: [] };
+        const thinkingId = thinkingMsg.id;
+        setMessages((prev) => [...prev, thinkingMsg]);
+        setIsLoading(false); // the thinking block's spinner is the activity indicator now
+
+        const roasGoalLabel = goal.roas ? `${goal.roas}×` : "your target";
+        const gatherSteps = [
+          `Connecting to ${adv.companyName}'s ad accounts — Google, Meta, web pixel`,
+          `Pulling the last 90 days of performance`,
+          `Computing blended ROAS and CPA by channel`,
+          `Benchmarking against the ${total > 0 ? `$${total.toLocaleString()}` : "monthly"} budget and ${roasGoalLabel} goal`,
+          `Modeling channel allocation across the funnel`,
+        ];
+
+        let stepIdx = 0;
+        const runStep = () => {
+          if (stepIdx < gatherSteps.length) {
+            const step = gatherSteps[stepIdx];
+            stepIdx++;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === thinkingId ? { ...m, thinkingSteps: [...(m.thinkingSteps ?? []), step] } : m
+              )
+            );
+            setTimeout(runStep, 850);
+            return;
+          }
+          // Steps done — build and reveal.
           const plan = buildMediaPlan(adv, objective, total, goal, getActiveClient()?.id);
           setActiveMediaPlan(plan);
           saveMediaPlan(plan); // persist so it appears in the Media Plans list
-          const building: ChatMessage = { id: nextId(), role: "assistant", content: "Perfect. Building your plan now…" };
-          // Honest gap: if the forecast is short of the brief's conversion goal, say so + offer to close it.
           const conv = plan.summary.estConversions;
           const goalConv = plan.summary.targets.conversions;
           let gapLine = "";
@@ -1970,16 +1997,16 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             const raiseTo = Math.round((plan.summary.totalBudget * goalConv) / conv / 1000) * 1000;
             gapLine = `\n\nHeads up: this forecasts **${conv.toLocaleString()} conversions — about ${pct}% of your ${goalConv.toLocaleString()} goal**, at ${plan.summary.estRoas}× ROAS (ahead of your ${plan.summary.targets.roas}× target). To close the gap, I can shift budget from awareness into retargeting, or raise the total to ~$${raiseTo.toLocaleString()}. Just tell me which.`;
           }
-          const narration: ChatMessage = {
-            id: nextId(),
-            role: "assistant",
-            content: `Here's your media plan for **${adv.companyName}**. I've recommended ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}. Your brief mentioned display and social — I've added lookalike prospecting and DOOH based on the acquisition goal and seasonal context.\n\nOne thing to flag: **DOOH is currently in closed beta.** If you'd like to include it, we can help activate it manually for you — just let us know and we'll loop in the team.${gapLine}`,
-          };
-          setMessages((prev) => [...prev, building, narration, makeRefineCard()]);
-          setIsLoading(false);
+          const narrationText = `Here's your media plan for **${adv.companyName}**, anchored to their real performance. I've recommended ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}. Your brief leaned into display and social — I've added lookalike prospecting and DOOH for the acquisition goal.\n\nOne thing to flag: **DOOH is currently in closed beta.** If you'd like to include it, we can help activate it manually — just say the word.${gapLine}`;
+          // Mark the thinking block complete (set its content) and append the refine card.
+          setMessages((prev) => {
+            const updated = prev.map((m) => (m.id === thinkingId ? { ...m, content: narrationText } : m));
+            return [...updated, makeRefineCard()];
+          });
           setState("split");
           collapseLeftRail();
-        }, 700);
+        };
+        setTimeout(runStep, 600);
         return;
       }
 
