@@ -180,7 +180,7 @@ function FocusCard({
 
 const GROUP_META: Record<ChatSessionGroup, { label: string; icon: React.ReactNode; color: string }> = {
   campaigns: {
-    label: "Campaigns",
+    label: "Media Plans",
     icon: <Megaphone className="h-5 w-5 text-foreground" />,
     color: "bg-muted",
   },
@@ -600,7 +600,7 @@ export function FocusChatsTabs({
               </div>
             ) : (
               focusItems.map((item) => (
-                <FocusCard key={item.id} item={item} onAct={openFullscreen} />
+                <FocusCard key={item.id} item={item} onAct={(p) => openFullscreen(p, { skipIntentRouting: true })} />
               ))
             )}
           </div>

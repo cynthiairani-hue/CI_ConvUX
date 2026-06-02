@@ -60,7 +60,7 @@ const CLIENT_SIGNAL_STYLE: Record<SignalKind, { icon: LucideIcon; chip: string; 
   opportunity: { icon: Sparkles, chip: "Opportunity", tint: "bg-[#EBF5FB] text-[#2C9FDD]" },
 };
 
-function ClientAttention({ signals }: { signals: ClientSignal[] }) {
+function ClientAttention({ signals, onAct }: { signals: ClientSignal[]; onAct: (s: ClientSignal) => void }) {
   if (signals.length === 0) return null;
   return (
     <div>
@@ -74,7 +74,7 @@ function ClientAttention({ signals }: { signals: ClientSignal[] }) {
             <button
               key={s.id}
               type="button"
-              onClick={() => { window.location.href = `/${s.target}`; }}
+              onClick={() => onAct(s)}
               className="group flex w-full items-start gap-3 rounded-xl border border-border bg-background px-4 py-3 text-left transition-colors hover:bg-accent/40"
             >
               <span className={cn("mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", tint)}>
@@ -579,7 +579,12 @@ export function DashboardView() {
         </div>
       </div>
 
-      {clientSignals.length > 0 && <ClientAttention signals={clientSignals} />}
+      {clientSignals.length > 0 && (
+        <ClientAttention
+          signals={clientSignals}
+          onAct={(s) => openFullscreen(`Regarding "${s.title}" for ${activeClient?.name ?? "this client"} — ${s.detail} What do you recommend, and can you action it?`, { skipIntentRouting: true })}
+        />
+      )}
 
       {isReturningUser && (
         <FocusChatsTabs strategies={savedStrategies} />

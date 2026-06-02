@@ -154,7 +154,7 @@ interface AICompanionContextValue {
   setDetailLevel: (level: DetailLevel) => void;
   messages: ChatMessage[];
   isLoading: boolean;
-  openFullscreen: (initialMessage?: string) => void;
+  openFullscreen: (initialMessage?: string, opts?: { skipIntentRouting?: boolean }) => void;
   startCampaignFlow: () => void;
   startMediaPlanFlow: () => void;
   minimize: () => void;
@@ -2551,18 +2551,18 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   }, [setState]);
 
   const openFullscreen = useCallback(
-    (initialMessage?: string) => {
+    (initialMessage?: string, opts?: { skipIntentRouting?: boolean }) => {
       if (initialMessage) {
         if (state !== "resting") {
           // Chat is already open — continue in the current conversation and layout
-          setTimeout(() => sendMessage(initialMessage), 0);
+          setTimeout(() => sendMessage(initialMessage, undefined, opts), 0);
         } else {
           // Chat is closed — open a new session in the user's explicit entry layout
           setState(readEntryLayout());
           initNewSession(true);
-          // Let intent routing run — user-typed messages and programmatic
-          // messages like "Build me a campaign" should all be routed correctly.
-          setTimeout(() => sendMessage(initialMessage), 0);
+          // "Act on this" / nudges pass skipIntentRouting so the prompt goes
+          // straight to the conversational AI instead of misfiring a build flow.
+          setTimeout(() => sendMessage(initialMessage, undefined, opts), 0);
         }
       } else {
         // No message — just open the chat in the user's explicit entry layout
