@@ -110,36 +110,41 @@ export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
             <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Demo mode
             </p>
-            {USER_STATES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => handleUserStateChange(s.id)}
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                  userState === s.id
-                    ? "bg-accent"
-                    : "hover:bg-accent/50"
-                )}
-              >
-                <div className={cn(
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
-                  s.id === "first-time" ? "bg-[#F3F0FF]" : "bg-[#EBF5FB]"
-                )}>
-                  {s.id === "first-time" ? (
-                    <User className="h-3.5 w-3.5 text-[#7C5CFC]" />
-                  ) : (
-                    <RotateCcw className="h-3.5 w-3.5 text-[#2C9FDD]" />
+            {USER_STATES.map((s) => {
+              // Agency onboarding (first-time) needs work — disable it for the agency persona.
+              const disabled = s.id === "first-time" && activePersona.vertical === "agency";
+              return (
+                <button
+                  key={s.id}
+                  disabled={disabled}
+                  onClick={() => { if (!disabled) handleUserStateChange(s.id); }}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
+                    disabled ? "cursor-not-allowed opacity-50" : userState === s.id ? "bg-accent" : "hover:bg-accent/50"
                   )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-foreground">{s.label}</p>
-                  <p className="text-[11px] text-muted-foreground">{s.description}</p>
-                </div>
-                {userState === s.id && (
-                  <span className="text-[11px] text-[#2C9FDD]">✓</span>
-                )}
-              </button>
-            ))}
+                >
+                  <div className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
+                    s.id === "first-time" ? "bg-[#F3F0FF]" : "bg-[#EBF5FB]"
+                  )}>
+                    {s.id === "first-time" ? (
+                      <User className="h-3.5 w-3.5 text-[#7C5CFC]" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5 text-[#2C9FDD]" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium text-foreground">{s.label}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {disabled ? "Agency onboarding — coming soon" : s.description}
+                    </p>
+                  </div>
+                  {!disabled && userState === s.id && (
+                    <span className="text-[11px] text-[#2C9FDD]">✓</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <div className="border-t" />
@@ -149,39 +154,45 @@ export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
             <p className="px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Personas
             </p>
-            {personas.map((persona) => (
-              <button
-                key={persona.id}
-                onClick={() => {
-                  // Leaving any persona drops the agency "in-client" scope so a
-                  // stale client brand can't leak into another persona.
-                  localStorage.removeItem("fuseiq-active-client");
-                  setActivePersona(persona.id);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                  persona.id === activePersona.id
-                    ? "bg-accent"
-                    : "hover:bg-accent/50"
-                )}
-              >
-                <Avatar className="h-7 w-7">
-                  <AvatarFallback className="text-[10px] font-medium">
-                    {persona.initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="text-[13px] font-medium">{persona.name}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {persona.verticalLabel}
-                  </p>
-                </div>
-                {persona.id === activePersona.id && (
-                  <span className="ml-auto text-[11px] text-[#2C9FDD]">✓</span>
-                )}
-              </button>
-            ))}
+            {personas.map((persona) => {
+              // ABM/Enterprise persona is coming soon — disable it (matches the picker).
+              const disabled = persona.vertical === "b2b";
+              return (
+                <button
+                  key={persona.id}
+                  disabled={disabled}
+                  onClick={() => {
+                    if (disabled) return;
+                    // Leaving any persona drops the agency "in-client" scope so a
+                    // stale client brand can't leak into another persona.
+                    localStorage.removeItem("fuseiq-active-client");
+                    setActivePersona(persona.id);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
+                    disabled ? "cursor-not-allowed opacity-50" : persona.id === activePersona.id ? "bg-accent" : "hover:bg-accent/50"
+                  )}
+                >
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback className="text-[10px] font-medium">
+                      {persona.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium">{persona.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {persona.verticalLabel}
+                    </p>
+                  </div>
+                  {disabled ? (
+                    <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">Coming soon</span>
+                  ) : persona.id === activePersona.id ? (
+                    <span className="ml-auto text-[11px] text-[#2C9FDD]">✓</span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
