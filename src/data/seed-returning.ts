@@ -4,9 +4,11 @@ import type {
   CFONarrative,
   ApprovalRequest,
   Advertiser,
+  MediaPlan,
 } from "@/types/campaign";
 import type { PersonaId } from "@/types/persona";
 import { buildStrategyFromIntent } from "./campaign-flow";
+import { buildMediaPlan } from "./media-plan-flow";
 import { buildCompetitiveBrief } from "./competitive-flow";
 import { mapBrandIndustryToIAB, getCurrentBrand } from "./brand-profiles";
 import { buildNarrativeFromSeed } from "./narrative-flow";
@@ -90,6 +92,30 @@ function buildSeedStrategies(adv: Advertiser): StrategyPlan[] {
       createdAt: daysAgo(40),
       lastModifiedAt: daysAgo(12),
       lastModifiedBy: "Cynthia Irani",
+    }),
+  ];
+}
+
+function buildSeedMediaPlans(adv: Advertiser): MediaPlan[] {
+  const n = adv.companyName;
+  const mk = (
+    objective: string,
+    budget: number,
+    goal: { conversions?: number; roas?: number },
+    overrides: Partial<MediaPlan>
+  ): MediaPlan => ({ ...buildMediaPlan(adv, objective, budget, goal), ...overrides });
+  return [
+    mk("awareness", 120_000, { conversions: 5_000, roas: 3 }, {
+      id: "seed-mp-launch", name: `${n} — Spring Launch`, reviewState: "active",
+      createdAt: daysAgo(20), lastModifiedAt: daysAgo(3), lastModifiedBy: "Cynthia Irani",
+    }),
+    mk("sales", 80_000, { conversions: 3_500, roas: 3.5 }, {
+      id: "seed-mp-aon", name: `${n} — Always-On Retargeting`, reviewState: "pending-approval",
+      createdAt: daysAgo(6), lastModifiedAt: daysAgo(1), lastModifiedBy: "Cynthia Irani",
+    }),
+    mk("awareness", 45_000, { conversions: 1_800, roas: 3 }, {
+      id: "seed-mp-q3", name: `${n} — Q3 Prospecting`, reviewState: "draft",
+      createdAt: daysAgo(2), lastModifiedAt: daysAgo(2), lastModifiedBy: "Cynthia Irani",
     }),
   ];
 }
@@ -193,6 +219,7 @@ function buildSeedApprovals(strategies: StrategyPlan[]): ApprovalRequest[] {
 /** localStorage keys the returning-user seed populates. */
 export const SEEDED_KEYS = [
   "fuseiq-strategies",
+  "fuseiq-media-plans",
   "fuseiq-advertisers",
   "fuseiq-audiences",
   "fuseiq-narratives",
@@ -258,4 +285,7 @@ export function ensureReturningSeed(): void {
   }
   if (isEmptyKey("fuseiq-briefs")) set("fuseiq-briefs", [buildCompetitiveBrief(adv)]);
   if (isEmptyKey("fuseiq-chat-sessions")) set("fuseiq-chat-sessions", SEED_CHAT_SESSIONS);
+  // Media plans — the agency's unit of work. Seeded so the Media Plans page has
+  // real plans that open the media-plan card (not campaigns).
+  if (isEmptyKey("fuseiq-media-plans")) set("fuseiq-media-plans", buildSeedMediaPlans(adv));
 }

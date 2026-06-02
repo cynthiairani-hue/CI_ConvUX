@@ -1,6 +1,7 @@
-import type { StrategyPlan, Advertiser, CFONarrative, AudienceSegment, ApprovalRequest, CompetitiveBrief } from "@/types/campaign";
+import type { StrategyPlan, Advertiser, CFONarrative, AudienceSegment, ApprovalRequest, CompetitiveBrief, MediaPlan } from "@/types/campaign";
 
 const STRATEGIES_KEY = "fuseiq-strategies";
+const MEDIA_PLANS_KEY = "fuseiq-media-plans";
 const ADVERTISERS_KEY = "fuseiq-advertisers";
 const NARRATIVES_KEY = "fuseiq-narratives";
 const AUDIENCES_KEY = "fuseiq-audiences";
@@ -100,6 +101,14 @@ export function loadStrategies(): StrategyPlan[] {
 
 export function persistStrategies(strategies: StrategyPlan[]): void {
   safeSet(STRATEGIES_KEY, strategies);
+}
+
+export function loadMediaPlans(): MediaPlan[] {
+  return safeGet<MediaPlan[]>(MEDIA_PLANS_KEY, []);
+}
+
+export function persistMediaPlans(plans: MediaPlan[]): void {
+  safeSet(MEDIA_PLANS_KEY, plans);
 }
 
 export function loadAdvertisers(): Advertiser[] {

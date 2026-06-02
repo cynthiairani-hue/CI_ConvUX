@@ -357,7 +357,7 @@ export interface MediaPlanSummary {
   targets: { conversions: number; roas: number };
 }
 
-export type MediaPlanReviewState = "draft" | "pending-approval" | "approved" | "active";
+export type MediaPlanReviewState = "draft" | "pending-approval" | "approved" | "active" | "paused" | "archived";
 
 export interface MediaPlan {
   id: string;

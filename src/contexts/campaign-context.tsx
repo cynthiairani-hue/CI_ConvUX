@@ -26,6 +26,8 @@ import type { PersonaId } from "@/types/persona";
 import {
   loadStrategies,
   persistStrategies,
+  loadMediaPlans,
+  persistMediaPlans,
   loadAdvertisers,
   persistAdvertisers,
   loadNarratives,
@@ -69,6 +71,12 @@ interface CampaignContextValue {
   setActiveOperator: (operator: OperatorPlan | null) => void;
   activeMediaPlan: MediaPlan | null;
   setActiveMediaPlan: (plan: MediaPlan | null) => void;
+  savedMediaPlans: MediaPlan[];
+  saveMediaPlan: (plan: MediaPlan) => void;
+  duplicateMediaPlan: (id: string) => void;
+  renameMediaPlan: (id: string, name: string) => void;
+  archiveMediaPlan: (id: string) => void;
+  removeMediaPlan: (id: string) => void;
   removeNarrative: (id: string) => void;
   duplicateNarrative: (id: string) => void;
   renameNarrative: (id: string, name: string) => void;
@@ -115,6 +123,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [activeBrief, setActiveBrief] = useState<CompetitiveBrief | null>(null);
   const [activeOperator, setActiveOperator] = useState<OperatorPlan | null>(null);
   const [activeMediaPlan, setActiveMediaPlan] = useState<MediaPlan | null>(null);
+  const [savedMediaPlans, setSavedMediaPlans] = useState<MediaPlan[]>([]);
   const [activeAudience, setActiveAudience] = useState<AudienceSegment | null>(null);
   const [savedAudiences, setSavedAudiences] = useState<AudienceSegment[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>(
@@ -130,6 +139,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     // Ensure the returning-user workspace is populated before hydrating (idempotent).
     ensureReturningSeed();
     setSavedStrategies(loadStrategies());
+    setSavedMediaPlans(loadMediaPlans());
     setSavedAdvertisers(loadAdvertisers());
     setSavedNarratives(loadNarratives());
     setSavedAudiences(loadAudiences());
@@ -142,6 +152,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (hydrated) persistStrategies(savedStrategies);
   }, [savedStrategies, hydrated]);
+
+  useEffect(() => {
+    if (hydrated) persistMediaPlans(savedMediaPlans);
+  }, [savedMediaPlans, hydrated]);
 
   // Persist advertisers to localStorage on change
   useEffect(() => {
@@ -256,6 +270,60 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     });
     if (activeStrategy?.id === id) setActiveStrategy(null);
   }, [activeStrategy]);
+
+  // ── Media plans (agency artifact) — mirror the strategy persistence pattern ──
+  const saveMediaPlan = useCallback((plan: MediaPlan) => {
+    setSavedMediaPlans((prev) => {
+      const idx = prev.findIndex((p) => p.id === plan.id);
+      const next = idx >= 0 ? prev.map((p, i) => (i === idx ? plan : p)) : [plan, ...prev];
+      persistMediaPlans(next);
+      return next;
+    });
+  }, []);
+
+  const duplicateMediaPlan = useCallback((id: string) => {
+    setSavedMediaPlans((prev) => {
+      const found = prev.find((p) => p.id === id);
+      if (!found) return prev;
+      const copy: MediaPlan = {
+        ...found,
+        id: `mediaplan-${Date.now()}`,
+        name: `${found.name} (copy)`,
+        reviewState: "draft",
+        lastModifiedAt: new Date().toISOString(),
+        lastModifiedBy: "you",
+      };
+      const next = [copy, ...prev];
+      persistMediaPlans(next);
+      return next;
+    });
+  }, []);
+
+  const renameMediaPlan = useCallback((id: string, name: string) => {
+    setSavedMediaPlans((prev) => {
+      const next = prev.map((p) => (p.id === id ? { ...p, name, lastModifiedAt: new Date().toISOString() } : p));
+      persistMediaPlans(next);
+      return next;
+    });
+  }, []);
+
+  const archiveMediaPlan = useCallback((id: string) => {
+    setSavedMediaPlans((prev) => {
+      const next = prev.map((p) =>
+        p.id === id ? { ...p, reviewState: "archived" as const, lastModifiedAt: new Date().toISOString() } : p
+      );
+      persistMediaPlans(next);
+      return next;
+    });
+  }, []);
+
+  const removeMediaPlan = useCallback((id: string) => {
+    setSavedMediaPlans((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      persistMediaPlans(next);
+      return next;
+    });
+  }, []);
 
   const saveNarrative = useCallback((narrative: CFONarrative) => {
     setSavedNarratives((prev) => {
@@ -623,6 +691,12 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setActiveOperator,
         activeMediaPlan,
         setActiveMediaPlan,
+        savedMediaPlans,
+        saveMediaPlan,
+        duplicateMediaPlan,
+        renameMediaPlan,
+        archiveMediaPlan,
+        removeMediaPlan,
         removeNarrative,
         duplicateNarrative,
         renameNarrative,

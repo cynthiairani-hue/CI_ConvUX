@@ -11,7 +11,7 @@ import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2, Check, X
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { PageChatInput } from "@/components/ai-companion/page-chat-input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import type { StrategyPlan, StrategyPlanStatus } from "@/types/campaign";
+import type { StrategyPlan, StrategyPlanStatus, MediaPlan } from "@/types/campaign";
 
 const STATUS_CONFIG: Record<StrategyPlanStatus, { label: string; dot: string; bg: string; text: string }> = {
   draft: { label: "Draft", dot: "bg-muted-foreground/40", bg: "bg-muted", text: "text-muted-foreground" },
@@ -122,6 +122,78 @@ function StrategyRow({
   );
 }
 
+/** Media-plan row for the agency Media Plans list — opens the media-plan card. */
+function MediaPlanRow({
+  plan, onOpen, onAction, isRenaming, renameValue, onRenameChange, onRenameSubmit, onRenameCancel,
+}: {
+  plan: MediaPlan;
+  onOpen: () => void;
+  onAction: (actionId: string) => void;
+  isRenaming: boolean;
+  renameValue: string;
+  onRenameChange: (v: string) => void;
+  onRenameSubmit: () => void;
+  onRenameCancel: () => void;
+}) {
+  const config = STATUS_CONFIG[plan.reviewState];
+  const enabled = plan.campaigns.filter((c) => c.enabled).length;
+  const renameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (isRenaming && renameRef.current) renameRef.current.focus(); }, [isRenaming]);
+
+  const actions: OverflowAction[] = [
+    { id: "duplicate", label: "Duplicate", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => onAction("duplicate") },
+    { id: "rename", label: "Rename", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => onAction("rename") },
+    { id: "share", label: "Share", icon: <Share2 className="h-3.5 w-3.5" />, onClick: () => onAction("share") },
+    { id: "archive", label: "Archive", icon: <Archive className="h-3.5 w-3.5" />, onClick: () => onAction("archive") },
+    { id: "delete", label: "Delete", icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: () => onAction("delete") },
+  ];
+
+  return (
+    <div
+      onClick={isRenaming ? undefined : onOpen}
+      className={cn(
+        "group flex w-full items-center gap-4 rounded-xl border border-border bg-white px-4 py-3.5 text-left transition-all hover:shadow-sm",
+        isRenaming ? "ring-1 ring-[#2C9FDD]" : "cursor-pointer"
+      )}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EBF5FB]">
+        <Megaphone className="h-4 w-4 text-[#2C9FDD]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          {isRenaming ? (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={renameRef}
+                type="text"
+                value={renameValue}
+                onChange={(e) => onRenameChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") onRenameSubmit(); if (e.key === "Escape") onRenameCancel(); }}
+                className="min-w-0 flex-1 rounded-md border border-border px-2 py-0.5 text-[13px] font-semibold text-foreground outline-none focus:border-ring"
+              />
+              <button onClick={onRenameSubmit} className="flex h-6 w-6 items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-50"><Check className="h-3.5 w-3.5" /></button>
+              <button onClick={onRenameCancel} className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          ) : (
+            <>
+              <span className="truncate text-[13px] font-semibold text-foreground">{plan.name}</span>
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.text)}>{config.label}</span>
+            </>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
+          <span>${plan.summary.totalBudget.toLocaleString()} · {enabled} channels</span>
+          <span>·</span>
+          <span>{plan.flight}</span>
+          <span>·</span>
+          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{timeAgo(plan.lastModifiedAt)}</span>
+        </div>
+      </div>
+      {!isRenaming && <CardOverflowMenu actions={actions} />}
+    </div>
+  );
+}
+
 const FILTER_OPTIONS: (StrategyPlanStatus | "all")[] = ["all", "draft", "pending-approval", "approved", "active", "paused", "archived"];
 const FILTER_LABELS: Record<string, string> = {
   all: "All",
@@ -138,7 +210,7 @@ export default function CampaignsPage() {
     savedStrategies, savedAdvertisers, setActiveStrategy,
     activeNarrative, setActiveNarrative, showToast,
     duplicateStrategy, renameStrategy, archiveStrategy, removeStrategy,
-    setActiveMediaPlan,
+    setActiveMediaPlan, savedMediaPlans, saveMediaPlan, duplicateMediaPlan, renameMediaPlan, archiveMediaPlan, removeMediaPlan,
     hydrated,
   } = useCampaign();
   const { openFullscreen, setState: setChatState } = useAICompanion();
@@ -195,7 +267,9 @@ export default function CampaignsPage() {
         : { id: "adv-fallback", companyName: "Your client", websiteUrl: "your-site.com", industry: mapBrandIndustryToIAB("other"), restrictedCategories: [] };
       try { sessionStorage.setItem("fuseiq-suppress-autochat", "1"); } catch { /* ignore */ }
       setChatState("resting");
-      setActiveMediaPlan(buildMediaPlan(adv, "plan", 120_000));
+      const plan = buildMediaPlan(adv, "plan", 120_000);
+      saveMediaPlan(plan); // persist so it appears in the Media Plans list
+      setActiveMediaPlan(plan);
       return;
     }
     openFullscreen("Build me a campaign");
@@ -228,8 +302,48 @@ export default function CampaignsPage() {
     setRenamingId(null);
   }
 
-  const isEmpty = savedStrategies.length === 0;
+  const isEmpty = (isAgency ? savedMediaPlans : savedStrategies).length === 0;
   const brand = useBrand();
+
+  // Agency: filter + group the saved MEDIA PLANS (not strategies).
+  const mpFiltered = statusFilter === "all" ? savedMediaPlans : savedMediaPlans.filter((p) => p.reviewState === statusFilter);
+  const mpGrouped = mpFiltered.reduce<Record<string, MediaPlan[]>>((acc, p) => {
+    const raw = advNames.get(p.advertiserId) || p.advertiserId || "Unassigned";
+    const key = raw.toUpperCase();
+    (acc[key] ||= []).push(p);
+    return acc;
+  }, {});
+  const mpGroupEntries = Object.entries(mpGrouped).sort((a, b) =>
+    Math.max(...b[1].map((p) => new Date(p.lastModifiedAt).getTime())) -
+    Math.max(...a[1].map((p) => new Date(p.lastModifiedAt).getTime()))
+  );
+  function handleOpenMediaPlan(plan: MediaPlan) {
+    try { sessionStorage.setItem("fuseiq-suppress-autochat", "1"); } catch { /* ignore */ }
+    setChatState("resting");
+    setActiveMediaPlan(plan);
+  }
+  function handleMediaPlanAction(plan: MediaPlan, actionId: string) {
+    if (actionId === "share") {
+      navigator.clipboard?.writeText(`${window.location.origin}/campaigns?id=${plan.id}`);
+      showToast("Share link copied to clipboard");
+    } else if (actionId === "duplicate") {
+      duplicateMediaPlan(plan.id);
+      showToast("Media plan duplicated");
+    } else if (actionId === "rename") {
+      setRenamingId(plan.id);
+      setRenameValue(plan.name);
+    } else if (actionId === "archive") {
+      archiveMediaPlan(plan.id);
+      showToast("Media plan archived");
+    } else if (actionId === "delete") {
+      setDeletingId(plan.id);
+    }
+  }
+  function handleMpRenameSubmit(id: string) {
+    const trimmed = renameValue.trim();
+    if (trimmed) { renameMediaPlan(id, trimmed); showToast("Media plan renamed"); }
+    setRenamingId(null);
+  }
 
   // Prevent hydration mismatch: server renders with [] strategies, client
   // loads from localStorage. Render only the stable header until hydrated.
@@ -254,9 +368,11 @@ export default function CampaignsPage() {
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-foreground">{isAgency ? "Media Plans" : "Campaigns"}</h1>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
-                {isEmpty
-                  ? isAgency ? "Your media plans will live here" : "Your campaigns will live here"
-                  : `${savedStrategies.length} ${isAgency ? "media plan" : "campaign"}${savedStrategies.length === 1 ? "" : "s"}`}
+                {(() => {
+                  const count = isAgency ? savedMediaPlans.length : savedStrategies.length;
+                  if (isEmpty) return isAgency ? "Your media plans will live here" : "Your campaigns will live here";
+                  return `${count} ${isAgency ? "media plan" : "campaign"}${count === 1 ? "" : "s"}`;
+                })()}
               </p>
             </div>
             {!isEmpty && (
@@ -321,7 +437,34 @@ export default function CampaignsPage() {
             </div>
           ) : (
             <div className="mt-4 space-y-6">
-              {groupEntries.length === 0 ? (
+              {isAgency ? (
+                mpGroupEntries.length === 0 ? (
+                  <p className="py-8 text-center text-[13px] text-muted-foreground">No media plans match this filter.</p>
+                ) : (
+                  mpGroupEntries.map(([advertiser, plans]) => (
+                    <div key={advertiser}>
+                      <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">{advertiser}</h3>
+                      <div className="space-y-2">
+                        {plans
+                          .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
+                          .map((p) => (
+                            <MediaPlanRow
+                              key={p.id}
+                              plan={p}
+                              onOpen={() => handleOpenMediaPlan(p)}
+                              onAction={(actionId) => handleMediaPlanAction(p, actionId)}
+                              isRenaming={renamingId === p.id}
+                              renameValue={renameValue}
+                              onRenameChange={setRenameValue}
+                              onRenameSubmit={() => handleMpRenameSubmit(p.id)}
+                              onRenameCancel={() => setRenamingId(null)}
+                            />
+                          ))}
+                      </div>
+                    </div>
+                  ))
+                )
+              ) : groupEntries.length === 0 ? (
                 <p className="py-8 text-center text-[13px] text-muted-foreground">No campaigns match this filter.</p>
               ) : (
                 groupEntries.map(([advertiser, strategies]) => (
@@ -360,14 +503,14 @@ export default function CampaignsPage() {
 
       <ConfirmDialog
         open={deletingId !== null}
-        title="Delete campaign"
-        description="Are you sure you want to delete this campaign? This action cannot be undone."
+        title={isAgency ? "Delete media plan" : "Delete campaign"}
+        description={`Are you sure you want to delete this ${isAgency ? "media plan" : "campaign"}? This action cannot be undone.`}
         confirmLabel="Delete"
         destructive
         onConfirm={() => {
           if (deletingId) {
-            removeStrategy(deletingId);
-            showToast("Campaign deleted");
+            if (isAgency) { removeMediaPlan(deletingId); showToast("Media plan deleted"); }
+            else { removeStrategy(deletingId); showToast("Campaign deleted"); }
           }
           setDeletingId(null);
         }}

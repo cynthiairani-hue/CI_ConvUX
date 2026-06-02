@@ -299,7 +299,7 @@ const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; p
 ];
 
 const SEED_KEYS = [
-  "fuseiq-strategies", "fuseiq-advertisers", "fuseiq-narratives", "fuseiq-audiences",
+  "fuseiq-strategies", "fuseiq-media-plans", "fuseiq-advertisers", "fuseiq-narratives", "fuseiq-audiences",
   "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions", "fuseiq-agency-clients",
   "fuseiq-active-client",
   "fuseiq-chat-mode", "fuseiq-detail-level", "fuseiq-layout-state", "fuseiq-entry-layout",

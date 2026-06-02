@@ -437,20 +437,23 @@ const MP_REVIEW_STYLE: Record<string, { label: string; tint: string }> = {
 };
 
 function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof useCampaign>["activeMediaPlan"]> }) {
-  const { setActiveMediaPlan, showToast } = useCampaign();
+  const { setActiveMediaPlan, saveMediaPlan, showToast } = useCampaign();
   const { setState } = useAICompanion();
+
+  // Keep the active plan and the persisted list in sync on every change.
+  const commit = (updated: typeof plan) => { setActiveMediaPlan(updated); saveMediaPlan(updated); };
 
   // Build → Approve → Activate, explicit and visible (review scales with impact).
   function sendForApproval() {
-    setActiveMediaPlan({ ...plan, reviewState: "pending-approval", lastModifiedAt: new Date().toISOString() });
+    commit({ ...plan, reviewState: "pending-approval", lastModifiedAt: new Date().toISOString() });
     showToast("Sent to Marcus Patel for approval — Slack notification fired");
   }
   function approve() {
-    setActiveMediaPlan({ ...plan, reviewState: "approved", lastModifiedAt: new Date().toISOString() });
+    commit({ ...plan, reviewState: "approved", lastModifiedAt: new Date().toISOString() });
     showToast("Media plan approved — ready to activate");
   }
   function activate() {
-    setActiveMediaPlan({ ...plan, reviewState: "active", checkInDays: 45, lastModifiedAt: new Date().toISOString() });
+    commit({ ...plan, reviewState: "active", checkInDays: 45, lastModifiedAt: new Date().toISOString() });
     showToast(`${plan.campaigns.filter((c) => c.enabled).length} campaigns created in AdRoll · check-in set for +45 days`);
   }
 
@@ -518,7 +521,7 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
               </span>
             </div>
           )}
-          <MediaPlanCard plan={plan} onChange={(updated) => setActiveMediaPlan(updated)} />
+          <MediaPlanCard plan={plan} onChange={(updated) => commit(updated)} />
         </div>
       </div>
     </main>

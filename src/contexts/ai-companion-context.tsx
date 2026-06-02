@@ -190,7 +190,7 @@ function nextId() {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
-  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, activeMediaPlan } = useCampaign();
+  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, saveMediaPlan, activeMediaPlan } = useCampaign();
   const { collapseLeftRail } = useLayout();
   // Defer localStorage reads to useEffect to prevent hydration mismatches
   const [state, setStateRaw] = useState<AICompanionState>("resting");
@@ -756,7 +756,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             // why — explanation only, no mutation
             reply = WHY_CHANNEL[cmd.channelKey];
           }
-          if (cmd.kind !== "why") setActiveMediaPlan({ ...p, aiTouched: touched });
+          if (cmd.kind !== "why") { const np = { ...p, aiTouched: touched }; setActiveMediaPlan(np); saveMediaPlan(np); }
           const replyMsg: ChatMessage = { id: nextId(), role: "assistant", content: reply };
           setMessages((prev) => [...prev, replyMsg]);
           return;
@@ -1919,6 +1919,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setTimeout(() => {
           const plan = buildMediaPlan(adv, objective, total, goal);
           setActiveMediaPlan(plan);
+          saveMediaPlan(plan); // persist so it appears in the Media Plans list
           const building: ChatMessage = { id: nextId(), role: "assistant", content: "Perfect. Building your plan now…" };
           // Honest gap: if the forecast is short of the brief's conversion goal, say so + offer to close it.
           const conv = plan.summary.estConversions;
@@ -1949,7 +1950,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         let reply = "";
         let repostChips = true;
         if (sel === "activate") {
-          if (plan) setActiveMediaPlan({ ...plan, reviewState: "pending-approval", lastModifiedAt: new Date().toISOString() });
+          if (plan) { const np = { ...plan, reviewState: "pending-approval" as const, lastModifiedAt: new Date().toISOString() }; setActiveMediaPlan(np); saveMediaPlan(np); }
           reply = "Sent to Marcus Patel for approval — you'll get the nod before anything goes live. Track it in Approvals.";
           repostChips = false;
         } else if (sel === "shift-dooh-social" && plan) {
@@ -1961,7 +1962,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             move = Math.min(10_000, dooh.budget);
             p = editCampaignBudget(p, social.id, social.budget + move);
             p = editCampaignBudget(p, dooh.id, dooh.budget - move);
-            setActiveMediaPlan({ ...p, aiTouched: [dooh.id, social.id] });
+            const np = { ...p, aiTouched: [dooh.id, social.id] }; setActiveMediaPlan(np); saveMediaPlan(np);
           }
           const moveLabel = `$${(move / 1000).toLocaleString()}k`;
           reply = `Done — moved ${moveLabel} from DOOH to Social. Plan now forecasts **${p.summary.estConversions.toLocaleString()} conversions** at **${p.summary.estRoas}× ROAS**. Heads up: you lose DOOH's geo-fenced reach, and re-adding it (closed beta) is a manual step.`;

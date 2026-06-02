@@ -347,7 +347,7 @@ export function buildMediaPlan(
   const title = OBJ_TITLE[objective] ?? "Media Plan";
 
   const plan: MediaPlan = {
-    id: "mediaplan-active",
+    id: `mediaplan-${Date.now()}`,
     name: `${advertiser.companyName} — ${title}`,
     advertiserId: advertiser.id,
     title,
