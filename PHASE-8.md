@@ -4,9 +4,8 @@
 plan with Phase 8 items that strengthen both prototype audiences — Cynthia's
 portfolio and the FuseIQ vision demo — using a single codebase.
 
-**Strategic context:** the prototype primarily serves Cynthia's portfolio
-(cynthiairani.design) and secondarily serves as the working demo of the FuseIQ
-strategy articulated in Hans Fischmann's May 2026 ELT deck. The same artifacts,
+**Strategic context:** the prototype serves as the working demo of the FuseIQ
+strategy. The same artifacts,
 viewed through different demo paths, serve both audiences.
 
 **Seed company:** Norwest Analytics. See `src/data/seed-company.ts`. This is
@@ -173,8 +172,7 @@ Makes the dual purpose legible to any visitor.
 **New route:** `src/app/(marketing)/about/page.tsx`
 - One-page explanation: what the prototype is, who built it, what design
   framework it implements
-- Links: cynthiairani.design, FuseIQ Design Principles (Drive link or
-  inline summary), the 2025 Pattern Framework Loom
+- Links: FuseIQ Design Principles (inline summary)
 - Linked from the marketing landing page footer and the (app) left-rail
   footer
 

@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { PanelLeftClose, PanelLeft } from "lucide-react";
+import { PanelLeftClose, PanelLeft, MessageSquare } from "lucide-react";
 import { useLayout } from "@/contexts/layout-context";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
@@ -18,8 +18,15 @@ export function LeftRail() {
   const { leftRailCollapsed, toggleLeftRail } = useLayout();
   const pathname = usePathname();
   const { getPendingForPersona, savedNarratives, setActiveStrategy, setActiveNarrative, setActiveAudience, hydrated } = useCampaign();
-  const { state, setState: setAIState } = useAICompanion();
+  const { state, setState: setAIState, chatSessions, loadChatSession, openFullscreen } = useAICompanion();
   const { activePersona } = usePersona();
+
+  const recentChats = hydrated
+    ? [...chatSessions]
+        .filter((s) => s.status === "active")
+        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+        .slice(0, 4)
+    : [];
   const prevPathname = useRef(pathname);
 
   // When navigating to a new page:
@@ -93,6 +100,28 @@ export function LeftRail() {
           />
         ))}
       </nav>
+
+      {!leftRailCollapsed && recentChats.length > 0 && (
+        <>
+          <Separator />
+          <div className="p-2">
+            <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Recent</div>
+            <div className="space-y-0.5">
+              {recentChats.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => { loadChatSession(s.id); openFullscreen(); }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 truncate">{s.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       <Separator />
       <div className="p-2">

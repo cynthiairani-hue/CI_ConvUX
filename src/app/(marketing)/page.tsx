@@ -40,7 +40,7 @@ export default function LandingPage() {
 
       <footer className="flex h-14 items-center justify-center border-t px-6">
         <p className="text-xs text-muted-foreground">
-          FuseIQ Vision — Portfolio prototype by Cynthia Irani
+          FuseIQ — an AI-native marketing platform prototype
         </p>
       </footer>
     </div>
