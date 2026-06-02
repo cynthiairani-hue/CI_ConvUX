@@ -141,9 +141,6 @@ export interface ChatMessage {
   thinkingSteps?: string[];
   /** Estimated token count for this message */
   tokenCount?: number;
-  /** Tappable next-step suggestions rendered under the answer. Each string is
-   * sent as the next message when tapped — so each MUST map to a real flow. */
-  followUps?: string[];
 }
 
 interface AICompanionContextValue {
@@ -707,27 +704,38 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // Ensure brand context is fresh — ref may not have been set if useEffect hasn't fired
       if (!brandRef.current) brandRef.current = getCurrentBrand();
 
-      // Next-step chips shown under a conversational answer. Every option here
-      // MUST route to a flow that actually works (verified: analytical questions
-      // → grounded LLM answer; competitor ask → brief artifact; build → builder).
-      // Never offer an action the system can't perform.
-      const buildFollowUps = (userContent: string): string[] => {
-        if (!brandRef.current && !getActiveClient()) return [];
-        const hasPlan = !!activeMediaPlanRef.current;
-        const pool = hasPlan
-          ? [
-              "Where should I shift budget to improve ROAS?",
-              "Break down my monthly performance trend",
-              "See where competitors are winning",
-            ]
-          : [
-              "Where should I shift budget to improve ROAS?",
-              "Break down my monthly performance trend",
-              "See where competitors are winning",
-              "Build a media plan from these numbers",
-            ];
+      // Next-step prompt after a conversational answer — rendered with the
+      // EXISTING ChatChoices card (radio single-select), not a bespoke chip.
+      // Every option MUST route to a flow that actually works (verified:
+      // analytical questions → grounded LLM answer; competitor ask → brief
+      // artifact). Never offer an action the system can't perform. Returns the
+      // answer message plus an optional choices card to append after it.
+      const answerWithNextSteps = (text: string, userContent: string): ChatMessage[] => {
+        const aiMsg: ChatMessage = { id: nextId(), role: "assistant", content: text };
+        if (!brandRef.current && !getActiveClient()) return [aiMsg];
+        const pool: ChoiceOption[] = [
+          { id: "shift-budget", label: "Where should I shift budget to improve ROAS?" },
+          { id: "trend", label: "Break down my monthly performance trend" },
+          { id: "competitors", label: "See where competitors are winning" },
+        ];
         const u = userContent.trim().toLowerCase();
-        return pool.filter((c) => c.toLowerCase() !== u).slice(0, 3);
+        const options = pool.filter((o) => o.label.toLowerCase() !== u).slice(0, 3);
+        if (options.length === 0) return [aiMsg];
+        const card: ChatMessage = {
+          id: nextId(),
+          role: "assistant",
+          content: "",
+          toolCall: {
+            type: "choices",
+            field: "next-step",
+            question: "What would you like to do next?",
+            step: 1,
+            totalSteps: 1,
+            multiSelect: false,
+            options,
+          },
+        };
+        return [aiMsg, card];
       };
 
       // LLM-driven media-plan build from a brief: Claude READS the brief and
@@ -1014,13 +1022,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         callAPI(updatedMessages).then(
           (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
             setIsLoading(false);
-            const aiMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: response.text,
-              followUps: buildFollowUps(content),
-            };
-            setMessages((prev) => [...prev, aiMsg]);
+            setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
           }
         );
         return;
@@ -1036,13 +1038,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         callAPI(updatedMessages).then(
           (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
             setIsLoading(false);
-            const aiMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: response.text,
-              followUps: buildFollowUps(content),
-            };
-            setMessages((prev) => [...prev, aiMsg]);
+            setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
           }
         );
         return;
@@ -1072,8 +1068,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         callAPI(updatedMessages).then(
           (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
             setIsLoading(false);
-            const aiMsg: ChatMessage = { id: nextId(), role: "assistant", content: response.text, followUps: buildFollowUps(content) };
-            setMessages((prev) => [...prev, aiMsg]);
+            setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
           }
         );
         return;
@@ -2099,6 +2094,15 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setMessages((prev) => [...prev, userMsg]);
         // Continue the campaign flow with the chosen mode
         continueCampaignFlow(chosenMode);
+        return;
+      }
+
+      // Next-step menu after an answer — send the chosen option as a normal
+      // message so it routes through the same flows (analytical guard,
+      // competitive intent, etc.). sendMessage appends the user message itself.
+      if (field === "next-step") {
+        setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, toolCall: undefined } : m)));
+        sendMessage(label);
         return;
       }
 

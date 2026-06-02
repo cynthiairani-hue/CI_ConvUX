@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import { StrategyCard } from "@/components/patterns/strategy-card";
 import { PerformanceSnapshotCard } from "./performance-snapshot-card";
 import { useCampaign } from "@/contexts/campaign-context";
-import { useAICompanion } from "@/contexts/ai-companion-context";
 import type { ChatMessage } from "@/contexts/ai-companion-context";
 import type { StrategyPlan } from "@/types/campaign";
 
@@ -338,7 +337,6 @@ function renderInline(text: string): ReactNode {
 export function AIMessage({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   const { activeStrategy } = useCampaign();
-  const { sendMessage } = useAICompanion();
 
   if (message.toolCall) return null;
   if (!message.content && !message.artifact && !message.performanceSnapshot && !message.thinkingSteps?.length) return null;
@@ -387,20 +385,6 @@ export function AIMessage({ message }: { message: ChatMessage }) {
           <ThinkingBlock steps={message.thinkingSteps} isComplete={!!message.content} />
         )}
         {message.content && (isUser ? message.content : renderMarkdown(message.content))}
-        {!isUser && message.followUps && message.followUps.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {message.followUps.map((chip, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => sendMessage(chip)}
-                className="rounded-full border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-        )}
         {!isUser && message.content && <MessageActions content={message.content} tokenCount={estimateTokens(message)} />}
         {strategyPlan && (
           <div className="mt-3">
