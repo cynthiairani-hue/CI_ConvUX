@@ -8,6 +8,8 @@ import { useVoiceInput } from "@/hooks/use-voice-input";
 import { cn } from "@/lib/utils";
 import { GradientBorder } from "@/components/ui/gradient-border";
 import { getPagePrompts, filterPagePrompts, type PageContext, type PagePrompt } from "@/data/suggested-prompts";
+import { usePersona } from "@/contexts/persona-context";
+import { useBrand } from "@/data/brand-profiles";
 import type { ChatMode } from "@/types/campaign";
 
 const MODE_OPTIONS: { id: ChatMode; label: string; description: string; icon: React.ReactNode }[] = [
@@ -211,14 +213,17 @@ export function PageChatInput({ placeholder }: { placeholder?: string }) {
   const { isListening, hasSpeechAPI, toggleVoice } = useVoiceInput(value, setValue);
   const pathname = usePathname();
   const pageContext = getPageContext(pathname);
+  const { activePersona } = usePersona();
+  const brand = useBrand();
+  const promptOpts = { isAgency: activePersona.vertical === "agency", clientName: brand?.name };
 
-  // Compute prompts: all on focus (empty), filtered on typing
+  // Compute prompts: all on focus (empty), filtered on typing — persona/client aware
   const trimmed = value.trim();
   const showDropdown = isFocused && pageContext !== null;
   const filteredPrompts = pageContext
     ? trimmed
-      ? filterPagePrompts(pageContext, trimmed)
-      : getPagePrompts(pageContext)
+      ? filterPagePrompts(pageContext, trimmed, promptOpts)
+      : getPagePrompts(pageContext, promptOpts)
     : [];
   const isFiltered = trimmed.length > 0;
 

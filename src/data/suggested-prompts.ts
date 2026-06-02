@@ -170,7 +170,48 @@ const PAGE_PROMPTS: Record<PageContext, PagePrompt[]> = {
  * Get contextual prompts for a given page.
  * Returns all prompts for the page (for the focus dropdown).
  */
-export function getPagePrompts(page: PageContext): PagePrompt[] {
+/** Agency variants — media-plan + client-scoped language (vs in-house "campaigns"). */
+function agencyPagePrompts(page: PageContext, clientName: string): PagePrompt[] | null {
+  const c = clientName || "this client";
+  switch (page) {
+    case "campaigns":
+      return [
+        { id: "new-plan", label: `Build a media plan for ${c}`, keywords: ["build", "new", "media plan", "plan", "create"] },
+        { id: "retarget-plan", label: "Build a retargeting plan", keywords: ["retarget", "retargeting"] },
+        { id: "duplicate-plan", label: "Duplicate a media plan", keywords: ["duplicate", "copy", "clone"] },
+        { id: "compare-channels", label: `Compare ${c}'s channels`, keywords: ["compare", "channel", "versus"] },
+        { id: "needs-review", label: "Which plans need review?", keywords: ["review", "pending", "approval"] },
+        { id: "budget-shift", label: `Where should I shift ${c}'s budget?`, keywords: ["budget", "shift", "reallocate", "spend"] },
+      ];
+    case "reports":
+      return [
+        { id: "perf", label: `How is ${c} performing?`, keywords: ["performance", "how", "perform"] },
+        { id: "report", label: `Draft ${c}'s monthly report`, keywords: ["report", "draft", "monthly", "narrative"] },
+        { id: "channel-breakdown", label: "Break down performance by channel", keywords: ["channel", "breakdown"] },
+        { id: "trend", label: "What's trending up or down?", keywords: ["trend", "trending"] },
+      ];
+    case "audiences":
+      return [
+        { id: "build-audience", label: `Build an audience for ${c}`, keywords: ["build", "audience", "segment"] },
+        { id: "lookalike", label: "Build a lookalike audience", keywords: ["lookalike", "similar"] },
+        { id: "overlap", label: "Check audience overlap", keywords: ["overlap", "intersection"] },
+      ];
+    case "approvals":
+      return [
+        { id: "pending", label: "Show plans awaiting approval", keywords: ["pending", "approval", "review"] },
+        { id: "send", label: "Send a media plan for approval", keywords: ["send", "submit", "approval"] },
+        { id: "remind", label: "Remind approvers about pending items", keywords: ["remind", "nudge", "follow up"] },
+      ];
+    default:
+      return null;
+  }
+}
+
+export function getPagePrompts(page: PageContext, opts?: { isAgency?: boolean; clientName?: string }): PagePrompt[] {
+  if (opts?.isAgency) {
+    const agency = agencyPagePrompts(page, opts.clientName || "this client");
+    if (agency) return agency;
+  }
   return PAGE_PROMPTS[page] || [];
 }
 
@@ -178,8 +219,8 @@ export function getPagePrompts(page: PageContext): PagePrompt[] {
  * Filter prompts by user input for autocomplete.
  * Matches against label text and keywords.
  */
-export function filterPagePrompts(page: PageContext, query: string): PagePrompt[] {
-  const prompts = PAGE_PROMPTS[page] || [];
+export function filterPagePrompts(page: PageContext, query: string, opts?: { isAgency?: boolean; clientName?: string }): PagePrompt[] {
+  const prompts = getPagePrompts(page, opts);
   if (!query.trim()) return prompts;
   const lower = query.toLowerCase();
   return prompts.filter(
