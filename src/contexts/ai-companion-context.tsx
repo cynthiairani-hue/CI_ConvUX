@@ -65,9 +65,10 @@ export type DockSide = "right" | "left";
  */
 const ENTRY_LAYOUT_KEY = "fuseiq-entry-layout";
 function readEntryLayout(): AICompanionState {
-  if (typeof window === "undefined") return "fullscreen";
-  const pref = localStorage.getItem(ENTRY_LAYOUT_KEY);
-  return pref === "split" || pref === "floating" ? pref : "fullscreen";
+  // APP-WIDE RULE: every conversational launch (any CTA, any profile, any demo
+  // mode) opens in FULLSCREEN. The user can re-dock afterward via the
+  // ChatLayoutPicker, but launches are always fullscreen.
+  return "fullscreen";
 }
 
 export interface ToolCallChoices {
@@ -962,9 +963,49 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
       if (isMediaPlanIntent) {
         setMessages((prev) => [...prev, userMsg]);
-        mediaPlanFlowRef.current = { stage: "awaiting-brief", brief: "" };
         const brand = brandRef.current || getCurrentBrand();
         const brandName = brand?.name || "your brand";
+
+        // If the message ALREADY is a substantive brief (budget / goal / detail),
+        // don't re-ask for it — treat it as the brief and go straight to clarify.
+        const looksLikeBrief =
+          content.trim().length > 80 ||
+          /\$\s?\d|\bbudget\b|\broas\b|\bgoal\b|\d{3,}\s*(?:new\s+)?(?:customer|conversion|acquisition)/i.test(content);
+
+        if (looksLikeBrief) {
+          mediaPlanFlowRef.current = { stage: "idle", brief: content };
+          const dataCallout = getCapabilities().hasSitePixel
+            ? `📊 **Found existing data for ${brandName}:** active pixel · I'll use the account's CPA history to personalise the forecast.`
+            : `⚠️ **No pixel detected for ${brand?.domain || "the site"} yet** — I'll base projections on ${brandName}'s vertical benchmarks instead.`;
+          const clarifyMsg: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: `Got it — strong brief. One quick call before I build: should I weight the plan toward conversions, or split more evenly between brand-building and direct response?\n\n${dataCallout}`,
+          };
+          const choiceMsg: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: "",
+            toolCall: {
+              type: "choices",
+              field: "media-plan-clarify",
+              question: "How should I weight the plan?",
+              step: 1,
+              totalSteps: 1,
+              multiSelect: false,
+              options: [
+                { id: "conversions-us", label: "Conversions first, awareness secondary — US only" },
+                { id: "even-split", label: "Even split between brand and conversion" },
+                { id: "include-canada", label: "Include Canada too" },
+              ],
+            },
+          };
+          setMessages((prev) => [...prev, clarifyMsg, choiceMsg]);
+          return;
+        }
+
+        // Bare request ("build a media plan") — ask for the brief.
+        mediaPlanFlowRef.current = { stage: "awaiting-brief", brief: "" };
         const ackMsg: ChatMessage = {
           id: nextId(),
           role: "assistant",
@@ -2456,8 +2497,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       if (!brandRef.current) brandRef.current = getCurrentBrand();
       const brand = brandRef.current;
       const brandIntro = brand
-        ? `I can build a campaign for ${brand.name}. Want to do it together, or set it up yourself?`
-        : "I can help you build a campaign. Want to do it together, or set it up yourself?";
+        ? `I can build a campaign for ${brand.name}. Do you already know what you want, or should we think it through together?`
+        : "I can help you build a campaign. Do you already know what you want, or should we think it through together?";
 
       const introMsg: ChatMessage = {
         id: nextId(),
@@ -2471,14 +2512,14 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         content: "",
         toolCall: {
           type: "choices" as const,
-          question: "How do you want to build it?",
-          subtitle: "You can switch anytime from the mode selector.",
+          question: "How do you want to start?",
+          subtitle: "You're always in charge — make the final tweaks either way.",
           field: "setup-mode",
           step: 1,
           totalSteps: 1,
           options: [
-            { id: "guided", label: "Build it with me", detail: "I'll ask a few quick questions to get targeting, budget, and creative right." },
-            { id: "express", label: "I'll set it up myself", detail: "I'll drop an editable plan on the canvas with smart defaults — change anything you want." },
+            { id: "express", label: "I know what I want", detail: "Fastest — I'll prefill the campaign with smart defaults on the canvas, and you tweak or accept." },
+            { id: "guided", label: "Help me think it through", detail: "I'll ask a few quick questions to shape it, then prefill the plan for you to tweak." },
           ],
           multiSelect: false,
         },
@@ -2502,7 +2543,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     const intro: ChatMessage = {
       id: nextId(),
       role: "assistant",
-      content: `Let's build a media plan for ${name}. Want to do it together, or set it up yourself?`,
+      content: `Let's build a media plan for ${name}. Do you already know what you want, or should we think it through together?`,
     };
     const card: ChatMessage = {
       id: nextId(),
@@ -2510,15 +2551,15 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       content: "",
       toolCall: {
         type: "choices" as const,
-        question: "How do you want to build it?",
-        subtitle: "You can switch anytime.",
+        question: "How do you want to start?",
+        subtitle: "You're always in charge — make the final tweaks either way.",
         field: "media-plan-mode",
         step: 1,
         totalSteps: 1,
         multiSelect: false,
         options: [
-          { id: "withme", label: "Build it with me", detail: `I'll pull ${name}'s account data, ask what's missing, then build the plan.` },
-          { id: "myself", label: "I'll set it up myself", detail: "I'll drop an editable plan on the canvas with smart defaults — change anything." },
+          { id: "myself", label: "I know what I want", detail: `Fastest — I'll prefill the plan from ${name}'s data right on the canvas, and you tweak or accept.` },
+          { id: "withme", label: "Help me think it through", detail: `We'll shape the outcome together with ${name}'s data and signals, then I prefill the plan for you to tweak.` },
         ],
       },
     };
