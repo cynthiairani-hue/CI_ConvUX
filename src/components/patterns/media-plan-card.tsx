@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle,
+  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3,
 } from "lucide-react";
 import type {
   FunnelStage, MediaCampaign, MediaPlan,
@@ -15,6 +15,9 @@ interface MediaPlanCardProps {
   /** Single source of truth: every edit returns a recalculated plan to the host. */
   onChange: (plan: MediaPlan) => void;
 }
+
+/** Data-viz palette for the client-evidence channel mix (meaningful, not decorative). */
+const EV_COLORS = ["bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500"];
 
 const STAGE_META: Record<FunnelStage, { label: string; tagline: string; icon: typeof Megaphone }> = {
   awareness: { label: "Awareness", tagline: "Reach new audiences & build brand recognition", icon: Megaphone },
@@ -305,6 +308,41 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
           )}
         </div>
       </div>
+
+      {/* Client evidence — where they spend today (evidence before persuasion). */}
+      {plan.evidence && (
+        <div className="rounded-xl border border-border bg-white p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <BarChart3 className="h-3.5 w-3.5" />
+              {plan.evidence.label}
+            </div>
+            <span className="text-[11px] text-muted-foreground">{plan.evidence.basis}</span>
+          </div>
+          <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-muted">
+            {plan.evidence.channels.map((c, i) => (
+              <div
+                key={c.channel}
+                className={EV_COLORS[i % EV_COLORS.length]}
+                style={{ width: `${Math.round(c.spendShare * 100)}%` }}
+                title={`${c.channel} · ${Math.round(c.spendShare * 100)}% · ${c.roas}× ROAS`}
+              />
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            {plan.evidence.channels.map((c, i) => (
+              <span key={c.channel} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className={cn("h-2 w-2 rounded-full", EV_COLORS[i % EV_COLORS.length])} />
+                {c.channel} <span className="font-medium text-foreground">{Math.round(c.spendShare * 100)}%</span>
+                <span>· {c.roas}× ROAS</span>
+              </span>
+            ))}
+          </div>
+          <p className="mt-3 text-[12px] text-muted-foreground">
+            Blended ROAS <span className="font-medium text-foreground">{plan.evidence.blendedRoas}×</span> over the last 90 days — this plan is anchored to it, not generic benchmarks.
+          </p>
+        </div>
+      )}
 
       {/* Summary KPIs vs target */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

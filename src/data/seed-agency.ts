@@ -24,12 +24,14 @@ export function faviconUrl(domain: string): string {
  * public case studies / client list (esteelauder.com, vans.com, harrods.com…).
  * Public marketing info, presented as the agency's confirmed roster.
  */
+// monthlyBudget mirrors each client's real-shaped monthly spend in client-data.json
+// (≈ 90-day cost ÷ 3) so the roster card and the anchored media plan agree.
 export const BRAINLABS_CLIENTS: AgencyClient[] = [
-  { id: "client-estee", name: "Estée Lauder", domain: "esteelauder.com", industry: "Beauty & cosmetics", status: "active", monthlyBudget: 180000, lead: "Priya Shah", campaigns: 12 },
-  { id: "client-vans", name: "Vans", domain: "vans.com", industry: "Footwear & apparel", status: "active", monthlyBudget: 95000, lead: "Marcus Patel", campaigns: 7 },
-  { id: "client-harrods", name: "Harrods", domain: "harrods.com", industry: "Luxury retail", status: "active", monthlyBudget: 120000, lead: "Cynthia Irani", campaigns: 9 },
-  { id: "client-simplybusiness", name: "Simply Business", domain: "simplybusiness.co.uk", industry: "SME insurance", status: "active", monthlyBudget: 40000, lead: "Priya Shah", campaigns: 5 },
-  { id: "client-expedia", name: "Expedia", domain: "expedia.com", industry: "Travel", status: "onboarding", monthlyBudget: 60000, lead: "Jordan Reyes", campaigns: 3 },
+  { id: "client-estee", name: "Estée Lauder", domain: "esteelauder.com", industry: "Beauty & cosmetics", status: "active", monthlyBudget: 360000, lead: "Priya Shah", campaigns: 12 },
+  { id: "client-vans", name: "Vans", domain: "vans.com", industry: "Footwear & apparel", status: "active", monthlyBudget: 197000, lead: "Marcus Patel", campaigns: 7 },
+  { id: "client-harrods", name: "Harrods", domain: "harrods.com", industry: "Luxury retail", status: "active", monthlyBudget: 242000, lead: "Cynthia Irani", campaigns: 9 },
+  { id: "client-simplybusiness", name: "Simply Business", domain: "simplybusiness.co.uk", industry: "SME insurance", status: "active", monthlyBudget: 81000, lead: "Priya Shah", campaigns: 5 },
+  { id: "client-expedia", name: "Expedia", domain: "expedia.com", industry: "Travel", status: "onboarding", monthlyBudget: 114000, lead: "Jordan Reyes", campaigns: 3 },
 ];
 
 /**

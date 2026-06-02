@@ -359,6 +359,15 @@ export interface MediaPlanSummary {
 
 export type MediaPlanReviewState = "draft" | "pending-approval" | "approved" | "active" | "paused" | "archived";
 
+/** Real-shaped client performance the plan was anchored to (evidence-before-persuasion). */
+export interface MediaPlanEvidence {
+  label: string; // e.g. "Where Vans spends today"
+  basis: string; // e.g. "Last 90 days · connected platforms"
+  blendedRoas: number;
+  /** Top platform channels (Google, Social, Display, LinkedIn…) by spend share. */
+  channels: { channel: string; spendShare: number; roas: number }[];
+}
+
 export interface MediaPlan {
   id: string;
   name: string;
@@ -373,6 +382,8 @@ export interface MediaPlan {
   summary: MediaPlanSummary;
   reviewState: MediaPlanReviewState;
   checkInDays: 30 | 45 | 60 | null; // set at activation
+  /** Present when anchored to a client's real-shaped performance (the demo's "feels real"). */
+  evidence?: MediaPlanEvidence;
   /** Field ids the AI just changed (campaign id, or "total") — highlighted in
    *  the card until the user clicks into the field. Cleared on manual edits. */
   aiTouched?: string[];

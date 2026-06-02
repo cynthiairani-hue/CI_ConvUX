@@ -71,3 +71,27 @@ export function clientMonthlySpend(clientId: string): number | null {
   const months = FILE.windowDays / 30;
   return Math.round(d.totals.cost / Math.max(1, months));
 }
+
+/** Everything the media-plan builder needs to anchor a plan to real performance. */
+export interface ClientAnchor {
+  monthlyBudget: number;
+  blendedRoas: number;
+  blendedCpa: number;
+  /** Top platform channels by spend share (0–1), with their ROAS. */
+  channels: { channel: string; spendShare: number; roas: number }[];
+}
+
+export function getClientAnchor(clientId: string): ClientAnchor | null {
+  const d = getClientData(clientId);
+  if (!d || d.totals.cost <= 0) return null;
+  const months = Math.max(1, FILE.windowDays / 30);
+  const channels = d.channels
+    .map((c) => ({ channel: c.channel, spendShare: c.cost / d.totals.cost, roas: c.roas }))
+    .sort((a, b) => b.spendShare - a.spendShare);
+  return {
+    monthlyBudget: Math.round(d.totals.cost / months),
+    blendedRoas: d.totals.roas,
+    blendedCpa: d.totals.cpa,
+    channels,
+  };
+}

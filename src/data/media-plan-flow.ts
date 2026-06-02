@@ -7,6 +7,7 @@ import type {
   MediaPlan,
 } from "@/types/campaign";
 import { getCapabilities } from "./prerequisites";
+import { getClientAnchor } from "./client-data";
 
 /**
  * Media Plan builder + single-source recalc engine.
@@ -320,13 +321,21 @@ export function buildMediaPlan(
   objective: string,
   monthlyBudget: number,
   /** The brief's stated goal, when present — drives the honest target vs forecast. */
-  goal?: { conversions?: number; roas?: number }
+  goal?: { conversions?: number; roas?: number },
+  /** Active agency client id — anchors the plan to that client's real-shaped data. */
+  clientId?: string
 ): MediaPlan {
   const now = new Date();
   const nowIso = now.toISOString();
   const durationDays = 90;
+
+  // When we know the client, anchor the plan to their real-shaped performance:
+  // budget defaults to their actual monthly spend, and the per-channel ROAS/CPA
+  // vector is scaled so the plan's blended numbers match what they really get.
+  const anchor = clientId ? getClientAnchor(clientId) : null;
+
   // The plan total is the flight budget; scale the $120k template proportionally.
-  const total = monthlyBudget > 0 ? monthlyBudget : TEMPLATE_TOTAL;
+  const total = monthlyBudget > 0 ? monthlyBudget : anchor ? anchor.monthlyBudget : TEMPLATE_TOTAL;
   const factor = total / TEMPLATE_TOTAL;
   const pixelReady = getCapabilities().hasSitePixel;
 
@@ -342,9 +351,42 @@ export function buildMediaPlan(
     };
   });
 
+  // Anchor the revenue-bearing channels so blended ROAS/CPA == the client's real
+  // numbers, while preserving the template's relative channel structure.
+  if (anchor) {
+    const rev = campaigns.filter((c) => c.enabled && c.baseForecast.roas != null);
+    const spend = rev.reduce((s, c) => s + c.budget, 0);
+    const curRoas = spend > 0 ? rev.reduce((s, c) => s + (c.baseForecast.roas as number) * c.budget, 0) / spend : 0;
+    const roasFactor = curRoas > 0 && anchor.blendedRoas > 0 ? anchor.blendedRoas / curRoas : 1;
+    const curConv = rev.reduce((s, c) => s + c.baseForecast.conversions, 0);
+    const desiredConv = anchor.blendedCpa > 0 ? spend / anchor.blendedCpa : curConv;
+    const convFactor = curConv > 0 ? desiredConv / curConv : 1;
+    for (const c of campaigns) {
+      if (c.baseForecast.roas != null) {
+        const roas = Math.round(c.baseForecast.roas * roasFactor * 10) / 10;
+        const conversions = Math.round(c.baseForecast.conversions * convFactor);
+        c.baseForecast = { ...c.baseForecast, roas, conversions };
+        c.forecast = c.baseForecast;
+      }
+    }
+  }
+
   const vw = VERTICAL_WORD[advertiser.industry];
-  const benchmarkBasis = vw ? `${vw} vertical · benchmarks` : "vertical benchmarks";
+  const benchmarkBasis = anchor
+    ? `${advertiser.companyName} · last 90 days, connected platforms`
+    : vw
+    ? `${vw} vertical · benchmarks`
+    : "vertical benchmarks";
   const title = OBJ_TITLE[objective] ?? "Media Plan";
+
+  const evidence = anchor
+    ? {
+        label: `Where ${advertiser.companyName} spends today`,
+        basis: "Last 90 days · connected platforms",
+        blendedRoas: anchor.blendedRoas,
+        channels: anchor.channels.slice(0, 5),
+      }
+    : undefined;
 
   const plan: MediaPlan = {
     id: `mediaplan-${Date.now()}`,
@@ -357,6 +399,7 @@ export function buildMediaPlan(
     benchmarkBasis,
     pixelReady,
     campaigns,
+    evidence,
     summary: {
       totalBudget: total,
       estConversions: 0,

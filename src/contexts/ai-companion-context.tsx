@@ -51,6 +51,7 @@ import { buildCompetitiveBrief } from "@/data/competitive-flow";
 import { buildOperatorPlan } from "@/data/operator-flow";
 import { buildMediaPlan, editCampaignBudget, toggleCampaign, setTotalBudget, parseMediaPlanCommand, WHY_CHANNEL } from "@/data/media-plan-flow";
 import { getCapabilities } from "@/data/prerequisites";
+import { getActiveClient } from "@/data/seed-agency";
 
 export type AICompanionState = "resting" | "fullscreen" | "split" | "floating";
 export type DockSide = "right" | "left";
@@ -1909,7 +1910,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         // client actually asked for (honest target vs forecast).
         const brief = mediaPlanFlowRef.current.brief || "";
         const budgetMatch = brief.match(/\$\s?([\d][\d,]{3,})/);
-        const total = budgetMatch ? Number(budgetMatch[1].replace(/,/g, "")) : 120_000;
+        // No explicit brief budget ⇒ 0, so the active client's real monthly spend anchors it.
+        const total = budgetMatch ? Number(budgetMatch[1].replace(/,/g, "")) : 0;
         const convMatch = brief.match(/([\d][\d,]{2,})\s*(?:new\s+)?(?:customer|acquisition|conversion)/i);
         const roasMatch = brief.match(/(\d+(?:\.\d+)?)\s*x\b/i) || brief.match(/roas[^\d]*(\d+(?:\.\d+)?)/i);
         const goal = {
@@ -1917,7 +1919,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           roas: roasMatch ? Number(roasMatch[1]) : undefined,
         };
         setTimeout(() => {
-          const plan = buildMediaPlan(adv, objective, total, goal);
+          const plan = buildMediaPlan(adv, objective, total, goal, getActiveClient()?.id);
           setActiveMediaPlan(plan);
           saveMediaPlan(plan); // persist so it appears in the Media Plans list
           const building: ChatMessage = { id: nextId(), role: "assistant", content: "Perfect. Building your plan now…" };

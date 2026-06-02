@@ -6,6 +6,7 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { usePersona } from "@/contexts/persona-context";
 import { useBrand, getCurrentBrand, mapBrandIndustryToIAB } from "@/data/brand-profiles";
 import { buildMediaPlan } from "@/data/media-plan-flow";
+import { getActiveClient } from "@/data/seed-agency";
 import { cn } from "@/lib/utils";
 import { Megaphone, Plus, Clock, Copy, Pencil, Share2, Archive, Trash2, Check, X } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
@@ -267,7 +268,8 @@ export default function CampaignsPage() {
         : { id: "adv-fallback", companyName: "Your client", websiteUrl: "your-site.com", industry: mapBrandIndustryToIAB("other"), restrictedCategories: [] };
       try { sessionStorage.setItem("fuseiq-suppress-autochat", "1"); } catch { /* ignore */ }
       setChatState("resting");
-      const plan = buildMediaPlan(adv, "plan", 120_000);
+      // Anchor to the active client's real-shaped data (budget=0 ⇒ use their real monthly spend).
+      const plan = buildMediaPlan(adv, "plan", 0, undefined, getActiveClient()?.id);
       saveMediaPlan(plan); // persist so it appears in the Media Plans list
       setActiveMediaPlan(plan);
       return;
