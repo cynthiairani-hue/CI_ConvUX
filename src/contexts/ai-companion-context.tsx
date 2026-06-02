@@ -795,7 +795,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const clarifyMsg: ChatMessage = {
           id: nextId(),
           role: "assistant",
-          content: `Got it — nice brief. Before I build the plan, two quick questions:\n\n1. Your brief mentions both acquisition and awareness. Should I weight the plan primarily toward conversions, or split more evenly between brand-building and direct response?\n2. The brief doesn't specify geography beyond "US" — are you open to testing Canada, or strictly US only?\n\n${dataCallout}`,
+          content: `Got it — strong brief. One quick call before I build: how should I weight the plan? (I'll plan US-only unless you say otherwise.)\n\n${dataCallout}`,
         };
         const choiceMsg: ChatMessage = {
           id: nextId(),
@@ -809,9 +809,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             totalSteps: 1,
             multiSelect: false,
             options: [
-              { id: "conversions-us", label: "Conversions first, awareness secondary — US only" },
-              { id: "even-split", label: "Even split between brand and conversion" },
-              { id: "include-canada", label: "Include Canada too" },
+              { id: "conversions", label: "Conversions-first — maximize acquisitions" },
+              { id: "balanced", label: "Balanced — brand + conversion" },
+              { id: "awareness", label: "Awareness-first — build the brand" },
             ],
           },
         };
@@ -980,7 +980,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           const clarifyMsg: ChatMessage = {
             id: nextId(),
             role: "assistant",
-            content: `Got it — strong brief. One quick call before I build: should I weight the plan toward conversions, or split more evenly between brand-building and direct response?\n\n${dataCallout}`,
+            content: `Got it — strong brief. One quick call before I build: how should I weight the plan? (I'll plan US-only unless you say otherwise.)\n\n${dataCallout}`,
           };
           const choiceMsg: ChatMessage = {
             id: nextId(),
@@ -994,9 +994,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
               totalSteps: 1,
               multiSelect: false,
               options: [
-                { id: "conversions-us", label: "Conversions first, awareness secondary — US only" },
-                { id: "even-split", label: "Even split between brand and conversion" },
-                { id: "include-canada", label: "Include Canada too" },
+                { id: "conversions", label: "Conversions-first — maximize acquisitions" },
+                { id: "balanced", label: "Balanced — brand + conversion" },
+                { id: "awareness", label: "Awareness-first — build the brand" },
               ],
             },
           };
@@ -1976,8 +1976,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
       if (field === "media-plan-clarify") {
         // Map the clarify answer to an objective; geography answer keeps conversions-led.
-        const sel = selected[0] || "even-split";
-        const objective = sel === "even-split" ? "awareness" : "sales";
+        const sel = selected[0] || "conversions";
+        const objective = sel === "awareness" ? "awareness" : sel === "balanced" ? "traffic" : "sales";
         setMessages((prev) => [...prev, userMsg]);
         setIsLoading(true);
         const brand = brandRef.current || getCurrentBrand();
@@ -2515,14 +2515,14 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         content: "",
         toolCall: {
           type: "choices" as const,
-          question: "How do you want to start?",
-          subtitle: "You're always in charge — make the final tweaks either way.",
+          question: "How do you want to build it?",
+          subtitle: "You're always in charge — tweak or accept either way.",
           field: "setup-mode",
           step: 1,
           totalSteps: 1,
           options: [
-            { id: "express", label: "I know what I want", detail: "Fastest — I'll prefill the campaign with smart defaults on the canvas, and you tweak or accept." },
-            { id: "guided", label: "Help me think it through", detail: "I'll ask a few quick questions to shape it, then prefill the plan for you to tweak." },
+            { id: "guided", label: "Build it with me", detail: "I'll ask a few quick questions to get targeting, budget, and creative right." },
+            { id: "express", label: "I'll set it up myself", detail: "I'll prefill the campaign on the canvas with smart defaults — change anything." },
           ],
           multiSelect: false,
         },
@@ -2546,7 +2546,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     const intro: ChatMessage = {
       id: nextId(),
       role: "assistant",
-      content: `Let's build a media plan for ${name}. Do you already know what you want, or should we think it through together?`,
+      content: `Let's build a media plan for ${name}. Want to do it together, or set it up yourself?`,
     };
     const card: ChatMessage = {
       id: nextId(),
@@ -2554,15 +2554,15 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       content: "",
       toolCall: {
         type: "choices" as const,
-        question: "How do you want to start?",
-        subtitle: "You're always in charge — make the final tweaks either way.",
+        question: "How do you want to build it?",
+        subtitle: "You're always in charge — tweak or accept either way.",
         field: "media-plan-mode",
         step: 1,
         totalSteps: 1,
         multiSelect: false,
         options: [
-          { id: "myself", label: "I know what I want", detail: `Fastest — I'll prefill the plan from ${name}'s data right on the canvas, and you tweak or accept.` },
-          { id: "withme", label: "Help me think it through", detail: `We'll shape the outcome together with ${name}'s data and signals, then I prefill the plan for you to tweak.` },
+          { id: "withme", label: "Build it with me", detail: `We'll shape it together using ${name}'s data and signals, then I prefill the plan.` },
+          { id: "myself", label: "I'll set it up myself", detail: `I'll prefill a plan on the canvas from ${name}'s data — you take it from there.` },
         ],
       },
     };
