@@ -141,6 +141,9 @@ export interface ChatMessage {
   thinkingSteps?: string[];
   /** Estimated token count for this message */
   tokenCount?: number;
+  /** Tappable next-step suggestions rendered under the answer. Each string is
+   * sent as the next message when tapped — so each MUST map to a real flow. */
+  followUps?: string[];
 }
 
 interface AICompanionContextValue {
@@ -704,6 +707,29 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // Ensure brand context is fresh — ref may not have been set if useEffect hasn't fired
       if (!brandRef.current) brandRef.current = getCurrentBrand();
 
+      // Next-step chips shown under a conversational answer. Every option here
+      // MUST route to a flow that actually works (verified: analytical questions
+      // → grounded LLM answer; competitor ask → brief artifact; build → builder).
+      // Never offer an action the system can't perform.
+      const buildFollowUps = (userContent: string): string[] => {
+        if (!brandRef.current && !getActiveClient()) return [];
+        const hasPlan = !!activeMediaPlanRef.current;
+        const pool = hasPlan
+          ? [
+              "Where should I shift budget to improve ROAS?",
+              "Break down my monthly performance trend",
+              "See where competitors are winning",
+            ]
+          : [
+              "Where should I shift budget to improve ROAS?",
+              "Break down my monthly performance trend",
+              "See where competitors are winning",
+              "Build a media plan from these numbers",
+            ];
+        const u = userContent.trim().toLowerCase();
+        return pool.filter((c) => c.toLowerCase() !== u).slice(0, 3);
+      };
+
       // LLM-driven media-plan build from a brief: Claude READS the brief and
       // extracts the interpretation (objective, budget, goal, assumptions, and
       // whether anything's genuinely missing) — so it never asks a question the
@@ -992,6 +1018,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
               id: nextId(),
               role: "assistant",
               content: response.text,
+              followUps: buildFollowUps(content),
             };
             setMessages((prev) => [...prev, aiMsg]);
           }
@@ -1013,6 +1040,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
               id: nextId(),
               role: "assistant",
               content: response.text,
+              followUps: buildFollowUps(content),
             };
             setMessages((prev) => [...prev, aiMsg]);
           }
@@ -1044,7 +1072,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         callAPI(updatedMessages).then(
           (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
             setIsLoading(false);
-            const aiMsg: ChatMessage = { id: nextId(), role: "assistant", content: response.text };
+            const aiMsg: ChatMessage = { id: nextId(), role: "assistant", content: response.text, followUps: buildFollowUps(content) };
             setMessages((prev) => [...prev, aiMsg]);
           }
         );

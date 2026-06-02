@@ -83,7 +83,7 @@ function genericBrief(name: string): BriefData {
       { name: "Challenger C", trafficShare: "12%", trend: "+1 pt", primaryChannel: "Paid + retargeting" },
     ],
     marketPosition: "a challenger position — room to grow paid reach against the category leaders",
-    marketPositionWhy: `${name}'s organic presence outpaces its paid footprint, leaving headroom in paid awareness`,
+    marketPositionWhy: `organic presence outpaces its paid footprint, leaving headroom in paid awareness`,
     messaging: "Competitors compete on table-stakes claims; clear white space on differentiated positioning.",
     messagingWhy: "Most rivals echo the same value props — a sharper, ownable angle is available.",
     whereToWin: "Lead with an underused premium channel and defend branded search.",
