@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, type FormEvent } from "react";
-import { Plus, ArrowRight, Sparkles, Building2, Check, Clock, TrendingUp, PencilLine, Plug } from "lucide-react";
+import { Plus, ArrowRight, Sparkles, Building2, Check, Clock, TrendingUp, PencilLine, Plug, Search } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCampaign } from "@/contexts/campaign-context";
@@ -16,7 +16,6 @@ import {
   enterClient,
   getPortfolioSignals,
   type SignalKind,
-  type ClientSignal,
 } from "@/data/seed-agency";
 import type { AgencyClient } from "@/types/campaign";
 
@@ -36,11 +35,12 @@ const STATUS_STYLE: Record<AgencyClient["status"], string> = {
 };
 
 /** Client logo from favicon, with initials fallback if it fails to load. */
-function ClientLogo({ domain, name }: { domain: string; name: string }) {
+function ClientLogo({ domain, name, size = "md" }: { domain: string; name: string; size?: "sm" | "md" }) {
   const [failed, setFailed] = useState(false);
+  const dim = size === "sm" ? "h-7 w-7 p-1" : "h-9 w-9 p-1.5";
   if (failed) {
     return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-[12px] font-semibold text-foreground">
+      <div className={cn("flex shrink-0 items-center justify-center rounded-lg bg-muted text-[11px] font-semibold text-foreground", size === "sm" ? "h-7 w-7" : "h-9 w-9")}>
         {name.slice(0, 2).toUpperCase()}
       </div>
     );
@@ -50,7 +50,7 @@ function ClientLogo({ domain, name }: { domain: string; name: string }) {
       src={faviconUrl(domain)}
       alt=""
       onError={() => setFailed(true)}
-      className="h-9 w-9 shrink-0 rounded-lg border border-border bg-white object-contain p-1.5"
+      className={cn("shrink-0 rounded-lg border border-border bg-white object-contain", dim)}
     />
   );
 }
@@ -61,6 +61,7 @@ export function AgencyPortfolioView() {
   const [domain, setDomain] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showAdd, setShowAdd] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     setClients(ensureAgencySeed());
@@ -116,24 +117,23 @@ export function AgencyPortfolioView() {
   const signals = getPortfolioSignals(clients);
   const totalSpend = clients.reduce((s, c) => s + c.monthlyBudget, 0);
 
-  // Group each client's signals under that client, and order clients by their
-  // most urgent signal (getPortfolioSignals is already urgency-sorted), so the
-  // home reads as ONE prioritized list per client — never a duplicated feed.
-  const signalsByClient = new Map<string, ClientSignal[]>();
-  for (const s of signals) {
-    const arr = signalsByClient.get(s.clientId) ?? [];
-    arr.push(s);
-    signalsByClient.set(s.clientId, arr);
+  // Manager view = oversight + navigation. Show only the 3 most urgent items
+  // across the book (triage), and a per-client COUNT — the items themselves
+  // live inside each client's scoped home.
+  const topPriorities = signals.slice(0, 3);
+  const reviewCount = new Map<string, number>();
+  for (const s of signals) reviewCount.set(s.clientId, (reviewCount.get(s.clientId) ?? 0) + 1);
+
+  const q = query.trim().toLowerCase();
+  const filtered = q ? clients.filter((c) => c.name.toLowerCase().includes(q)) : clients;
+
+  function submitSearch(e: FormEvent) {
+    e.preventDefault();
+    if (filtered.length > 0) openClient(filtered[0]); // Enter → jump into the top match
   }
-  const urgentOrder: string[] = [];
-  for (const s of signals) if (!urgentOrder.includes(s.clientId)) urgentOrder.push(s.clientId);
-  const orderedClients: AgencyClient[] = [
-    ...urgentOrder.map((id) => clients.find((c) => c.id === id)).filter((c): c is AgencyClient => Boolean(c)),
-    ...clients.filter((c) => !urgentOrder.includes(c.id)),
-  ];
 
   return (
-    <div className="mx-auto my-auto w-full max-w-3xl space-y-6 px-4 sm:px-8 py-10">
+    <div className="mx-auto my-auto w-full max-w-3xl space-y-5 px-4 sm:px-8 py-10">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground text-background">
@@ -195,79 +195,105 @@ export function AgencyPortfolioView() {
         </div>
       ) : (
         <>
-          {/* One card per client: client header + its nested action items, urgency-ordered. */}
-          <div className="space-y-3">
-            {orderedClients.map((c) => {
-              const clientSignals = signalsByClient.get(c.id) ?? [];
-              return (
-                <div key={c.id} className="overflow-hidden rounded-xl border border-border bg-white">
-                  {/* Client header — what the marketer cares about: who, spend, campaigns */}
-                  <button
-                    type="button"
-                    onClick={() => openClient(c)}
-                    className="group flex w-full items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-accent/40"
-                  >
-                    <ClientLogo domain={c.domain} name={c.name} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[14px] font-semibold text-foreground">{c.name}</span>
-                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", STATUS_STYLE[c.status])}>
-                          {c.status}
-                        </span>
+          {/* Top priorities — the 3 most urgent items across the book (triage shortcut) */}
+          {topPriorities.length > 0 && (
+            <div>
+              <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Top priorities</h2>
+              <div className="space-y-1.5">
+                {topPriorities.map((s) => {
+                  const client = clients.find((c) => c.id === s.clientId);
+                  if (!client) return null;
+                  const { icon: Icon, chip, tint } = SIGNAL_STYLE[s.kind];
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => actOnSignal(s.clientId, s.target)}
+                      className="group flex w-full items-center gap-3 rounded-xl border border-border bg-white px-3.5 py-2.5 text-left transition-colors hover:bg-accent/40"
+                    >
+                      <ClientLogo domain={client.domain} name={client.name} size="sm" />
+                      <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", tint)}>
+                        <Icon className="h-3 w-3" />
+                        {chip}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[13px] font-medium text-foreground">{s.title}</span>
+                        <span className="ml-1.5 text-[11px] text-muted-foreground">· {client.name}</span>
                       </div>
-                      <div className="mt-0.5 text-[12px] text-muted-foreground">{c.industry}</div>
-                    </div>
-                    <div className="hidden shrink-0 text-right sm:block">
-                      <div className="text-[13px] font-medium text-foreground">
-                        {c.monthlyBudget > 0 ? `$${c.monthlyBudget.toLocaleString()}/mo` : "—"}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {c.campaigns} {c.campaigns === 1 ? "campaign" : "campaigns"}
-                      </div>
-                    </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
-                  </button>
+                      <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">{s.meta}</span>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-                  {/* This client's prioritized action items, grouped under the card */}
-                  {clientSignals.length > 0 && (
-                    <div className="border-t border-border bg-muted/20">
-                      {clientSignals.map((s) => {
-                        const { icon: Icon, chip, tint } = SIGNAL_STYLE[s.kind];
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => actOnSignal(s.clientId, s.target)}
-                            className="group flex w-full items-start gap-2.5 border-t border-border/60 px-4 py-2.5 text-left transition-colors first:border-t-0 hover:bg-accent/50"
-                          >
-                            <span className={cn("mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", tint)}>
-                              <Icon className="h-3 w-3" />
-                              {chip}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[12.5px] font-medium text-foreground">{s.title}</div>
-                              <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{s.detail}</div>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2 pt-0.5">
-                              <span className="hidden text-[11px] text-muted-foreground sm:inline">{s.meta}</span>
-                              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          {/* Search + client directory (scan → search → jump in) */}
+          <div className="space-y-2">
+            <form onSubmit={submitSearch} className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search clients…"
+                className="w-full rounded-xl border border-border bg-white py-2.5 pl-9 pr-3 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-ring"
+              />
+            </form>
+
+            <div className="overflow-hidden rounded-xl border border-border bg-white">
+              {filtered.length === 0 ? (
+                <div className="px-4 py-6 text-center text-[13px] text-muted-foreground">No clients match “{query}”.</div>
+              ) : (
+                filtered.map((c, i) => {
+                  const count = reviewCount.get(c.id) ?? 0;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => openClient(c)}
+                      className={cn(
+                        "group flex w-full items-center gap-3.5 px-4 py-3 text-left transition-colors hover:bg-accent/40",
+                        i > 0 && "border-t border-border"
+                      )}
+                    >
+                      <ClientLogo domain={c.domain} name={c.name} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-medium text-foreground">{c.name}</span>
+                          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", STATUS_STYLE[c.status])}>
+                            {c.status}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">{c.industry}</div>
+                      </div>
+                      {count > 0 && (
+                        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                          {count} to review
+                        </span>
+                      )}
+                      <div className="hidden shrink-0 text-right sm:block">
+                        <div className="text-[12.5px] font-medium text-foreground">
+                          {c.monthlyBudget > 0 ? `$${c.monthlyBudget.toLocaleString()}/mo` : "—"}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {c.campaigns} {c.campaigns === 1 ? "campaign" : "campaigns"}
+                        </div>
+                      </div>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
 
-          {/* Add client — collapsed behind a CTA (not a daily task, so it's not exposed) */}
+          {/* Add client — collapsed behind a CTA (not a daily task) */}
           {!showAdd ? (
             <button
               type="button"
               onClick={() => setShowAdd(true)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-white px-4 py-3 text-[13px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-white px-4 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
             >
               <Plus className="h-4 w-4" /> Add client
             </button>

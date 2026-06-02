@@ -7,7 +7,7 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
 import { usePersona } from "@/contexts/persona-context";
 import { AgencyPortfolioView } from "./agency-portfolio-view";
-import { getActiveClient, type ActiveClient } from "@/data/seed-agency";
+import { getActiveClient, getClientSignals, type ActiveClient, type ClientSignal, type SignalKind } from "@/data/seed-agency";
 import {
   Megaphone,
   TrendingUp,
@@ -16,6 +16,10 @@ import {
   Building2,
   ArrowRight,
   Swords,
+  Clock,
+  Plug,
+  PencilLine,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getBrandFromEmail, getCurrentBrand, type BrandProfile } from "@/data/brand-profiles";
@@ -42,6 +46,56 @@ const SECONDARY_IMAGE_INDEX: Record<string, number> = {
   "connect-accounts": 1,
   "plan-spend": 2,
 };
+
+/* ──────────────────────────────────────────────
+   Client attention — a client's pending action items, shown INSIDE that
+   client's scoped home (the portfolio only shows counts + top priorities).
+   ────────────────────────────────────────────── */
+
+const CLIENT_SIGNAL_STYLE: Record<SignalKind, { icon: LucideIcon; chip: string; tint: string }> = {
+  approval: { icon: Clock, chip: "In approval", tint: "bg-amber-50 text-amber-600" },
+  anomaly: { icon: TrendingUp, chip: "Needs review", tint: "bg-amber-50 text-amber-600" },
+  setup: { icon: Plug, chip: "Setup", tint: "bg-amber-50 text-amber-600" },
+  draft: { icon: PencilLine, chip: "Draft", tint: "bg-muted text-muted-foreground" },
+  opportunity: { icon: Sparkles, chip: "Opportunity", tint: "bg-[#EBF5FB] text-[#2C9FDD]" },
+};
+
+function ClientAttention({ signals }: { signals: ClientSignal[] }) {
+  if (signals.length === 0) return null;
+  return (
+    <div>
+      <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Needs attention
+      </h2>
+      <div className="space-y-1.5">
+        {signals.map((s) => {
+          const { icon: Icon, chip, tint } = CLIENT_SIGNAL_STYLE[s.kind];
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => { window.location.href = `/${s.target}`; }}
+              className="group flex w-full items-start gap-3 rounded-xl border border-border bg-background px-4 py-3 text-left transition-colors hover:bg-accent/40"
+            >
+              <span className={cn("mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", tint)}>
+                <Icon className="h-3 w-3" />
+                {chip}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-medium text-foreground">{s.title}</div>
+                <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{s.detail}</div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 pt-0.5">
+                <span className="hidden text-[11px] text-muted-foreground sm:inline">{s.meta}</span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /* ──────────────────────────────────────────────
    Hero image carousel — crossfade, no controls
@@ -423,6 +477,13 @@ export function DashboardView() {
     setActiveClient(getActiveClient());
   }, []);
 
+  // In client-scoped mode, that client's pending action items live here (the
+  // portfolio only shows counts + top priorities).
+  const clientSignals = useMemo(
+    () => (activePersona.vertical === "agency" && activeClient ? getClientSignals(activeClient.id) : []),
+    [activePersona.vertical, activeClient]
+  );
+
   const isReturningUser = hydrated && demoState === "first-time"
     ? false
     : hydrated && (savedStrategies?.length || 0) > 0;
@@ -517,6 +578,8 @@ export function DashboardView() {
           )}
         </div>
       </div>
+
+      {clientSignals.length > 0 && <ClientAttention signals={clientSignals} />}
 
       {isReturningUser && (
         <FocusChatsTabs strategies={savedStrategies} />

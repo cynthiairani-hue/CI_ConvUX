@@ -195,6 +195,13 @@ export function getPortfolioSignals(clients: AgencyClient[]): ClientSignal[] {
   );
 }
 
+/** Signals for one client, urgency-ordered — surfaced inside that client's scoped home. */
+export function getClientSignals(clientId: string): ClientSignal[] {
+  return CLIENT_SIGNALS.filter((s) => s.clientId === clientId).sort(
+    (a, b) => SIGNAL_ORDER[a.kind] - SIGNAL_ORDER[b.kind]
+  );
+}
+
 /** AI-native client onboarding: infer a client brand from a pasted domain. */
 export function inferClientFromDomain(input: string): AgencyClient {
   const domain = input
