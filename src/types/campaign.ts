@@ -352,6 +352,8 @@ export interface MediaCampaign {
    *  CTV Los Angeles). Empty on the default one-line-per-channel plan. */
   location?: string;
   creative?: string;
+  audience?: string;
+  keywords?: string;
 }
 
 export interface MediaPlanSummary {

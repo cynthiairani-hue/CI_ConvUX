@@ -1,5 +1,6 @@
 import type {
   Advertiser,
+  FunnelStage,
   IABIndustry,
   MediaCampaign,
   MediaChannelKey,
@@ -225,16 +226,57 @@ export function removeCampaign(plan: MediaPlan, campaignId: string): MediaPlan {
   return recalcMediaPlan({ ...plan, campaigns, aiTouched: undefined });
 }
 
-/** Edit a line's location/creative text fields (no recalc — not a budget change). */
+/** Edit a line's text fields (label/audience/location/creative/keywords) — no
+ *  recalc, since none of these change budget. */
 export function editCampaignFields(
   plan: MediaPlan,
   campaignId: string,
-  fields: { location?: string; creative?: string }
+  fields: { label?: string; audience?: string; location?: string; creative?: string; keywords?: string }
 ): MediaPlan {
   const campaigns = plan.campaigns.map((c) =>
     c.id === campaignId ? { ...c, ...fields } : c
   );
   return { ...plan, campaigns };
+}
+
+/** Channels a user can add a line for (from the channel templates), de-duped. */
+export const CHANNEL_OPTIONS: { key: MediaChannelKey; label: string; defaultStage: FunnelStage }[] =
+  CHANNEL_TEMPLATE.map((t) => ({ key: t.channel, label: t.label, defaultStage: t.funnelStage }));
+
+/**
+ * Add a fresh line item to a flight (funnel stage), choosing its channel. Seeds
+ * label/description/forecast from the channel template, starts at a modest
+ * budget (added on top of the plan total — the user tunes it inline), recalcs.
+ * Returns { plan, newId } so the UI can focus the new row.
+ */
+export function addBlankLine(plan: MediaPlan, stage: FunnelStage, channel: MediaChannelKey): { plan: MediaPlan; newId: string } {
+  const tmpl = CHANNEL_TEMPLATE.find((t) => t.channel === channel) ?? CHANNEL_TEMPLATE[0];
+  const startBudget = 5_000;
+  const factor = startBudget / Math.max(1, tmpl.baseBudget);
+  const baseForecast = scaleForecast(tmpl.baseForecast, factor);
+  const newId = `${channel}-${Math.abs(hashStr(channel + stage + plan.campaigns.length))}`;
+  const line: MediaCampaign = {
+    id: newId,
+    channel,
+    label: tmpl.label,
+    description: tmpl.description,
+    funnelStage: stage,
+    status: tmpl.status,
+    budget: startBudget,
+    baseBudget: startBudget,
+    enabled: true,
+    baseForecast,
+    forecast: baseForecast,
+    location: "",
+    creative: "",
+    audience: "",
+    keywords: "",
+  };
+  // Insert after the last line already in that stage (keeps the flight grouped).
+  const lastIdxInStage = plan.campaigns.reduce((acc, c, i) => (c.funnelStage === stage ? i : acc), -1);
+  const campaigns = [...plan.campaigns];
+  campaigns.splice(lastIdxInStage + 1, 0, line);
+  return { plan: recalcMediaPlan({ ...plan, campaigns, aiTouched: undefined }), newId };
 }
 
 /** Small stable string hash for generating line ids deterministically. */

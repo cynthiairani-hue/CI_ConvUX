@@ -5,9 +5,9 @@ import {
   Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, X, MapPin,
 } from "lucide-react";
 import type {
-  FunnelStage, MediaCampaign, MediaPlan,
+  FunnelStage, MediaCampaign, MediaChannelKey, MediaPlan,
 } from "@/types/campaign";
-import { editCampaignBudget, toggleCampaign, setTotalBudget, addCampaignLine, removeCampaign, editCampaignFields } from "@/data/media-plan-flow";
+import { editCampaignBudget, toggleCampaign, setTotalBudget, addCampaignLine, removeCampaign, editCampaignFields, addBlankLine, CHANNEL_OPTIONS } from "@/data/media-plan-flow";
 import { cn } from "@/lib/utils";
 
 interface MediaPlanCardProps {
@@ -104,6 +104,56 @@ function LineField({ value, placeholder, icon, onCommit }: { value: string; plac
         className="w-[120px] bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground/60"
         aria-label={placeholder}
       />
+    </div>
+  );
+}
+
+/** Click-to-edit line name (campaign type) — Enter commits, Escape cancels. */
+function LineLabel({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { if (draft.trim() && draft !== value) onCommit(draft.trim()); setEditing(false); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        }}
+        className="rounded border border-[#2C9FDD] bg-white px-1 py-0.5 text-[13px] font-medium text-foreground outline-none"
+        style={{ width: `${Math.max(draft.length, 8)}ch` }}
+        aria-label="Line name"
+      />
+    );
+  }
+  return (
+    <button type="button" onClick={() => setEditing(true)} className="rounded px-0.5 text-[13px] font-medium text-foreground hover:bg-accent" title="Click to rename">
+      {value}
+    </button>
+  );
+}
+
+/** "+ Add line" channel picker — adds a fresh line item to a flight (stage). */
+function AddLinePicker({ onAdd }: { onAdd: (channel: MediaChannelKey) => void }) {
+  return (
+    <div className="relative inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-medium text-[#1A7BB5] transition-colors hover:bg-[#EBF5FB]">
+      <Plus className="h-3 w-3" />
+      Add line
+      <select
+        value=""
+        onChange={(e) => { if (e.target.value) onAdd(e.target.value as MediaChannelKey); e.currentTarget.value = ""; }}
+        className="absolute inset-0 cursor-pointer opacity-0"
+        aria-label="Add a line — choose channel"
+      >
+        <option value="" disabled>Choose a channel…</option>
+        {CHANNEL_OPTIONS.map((o) => (
+          <option key={o.key} value={o.key}>{o.label}</option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -251,8 +301,13 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
     onChange(removeCampaign(plan, id));
     pushFlash();
   }
-  function handleField(id: string, fields: { location?: string; creative?: string }) {
+  function handleField(id: string, fields: { label?: string; audience?: string; location?: string; creative?: string; keywords?: string }) {
     onChange(editCampaignFields(plan, id, fields));
+  }
+  function handleAddBlankLine(stage: FunnelStage, channel: MediaChannelKey) {
+    const { plan: next } = addBlankLine(plan, stage, channel);
+    onChange(next);
+    pushFlash();
   }
   const aiTouched = plan.aiTouched ?? [];
 
@@ -428,13 +483,11 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
               );
             })()}
             <div className="divide-y divide-border">
-              {rows.map((c) => {
-                const channelLineCount = rows.filter((r) => r.channel === c.channel).length;
-                return (
+              {rows.map((c) => (
                 <div key={c.id} className={cn("flex items-start gap-3 px-4 py-3", !c.enabled && "opacity-50")}>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] font-medium text-foreground">{c.label}</span>
+                      <LineLabel value={c.label} onCommit={(v) => handleField(c.id, { label: v })} />
                       {c.location && (
                         <span className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground">
                           <MapPin className="h-2.5 w-2.5" /> {c.location}
@@ -451,8 +504,13 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                       {c.status === "closed_beta" && " · we'll help activate this manually"}
                     </p>
                     <RowMetrics c={c} />
-                    {/* Per-line targeting — market + creative (multi-line media buy) */}
+                    {/* Per-line attributes — audience, market, creative, keywords (full line-item edit) */}
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <LineField
+                        value={c.audience ?? ""}
+                        placeholder="Audience"
+                        onCommit={(v) => handleField(c.id, { audience: v })}
+                      />
                       <LineField
                         value={c.location ?? ""}
                         placeholder="Market / city"
@@ -464,24 +522,27 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                         placeholder="Creative"
                         onCommit={(v) => handleField(c.id, { creative: v })}
                       />
+                      <LineField
+                        value={c.keywords ?? ""}
+                        placeholder="Keywords"
+                        onCommit={(v) => handleField(c.id, { keywords: v })}
+                      />
                       <button
                         type="button"
                         onClick={() => handleAddLine(c.id)}
                         className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-[#1A7BB5] transition-colors hover:bg-[#EBF5FB]"
-                        title={`Add another ${c.label} line for a different market`}
+                        title={`Duplicate this ${c.label} line for another market`}
                       >
-                        <Plus className="h-3 w-3" /> Add line
+                        <Plus className="h-3 w-3" /> Duplicate
                       </button>
-                      {channelLineCount > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveLine(c.id)}
-                          className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-600"
-                          title="Remove this line"
-                        >
-                          <X className="h-3 w-3" /> Remove
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLine(c.id)}
+                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-600"
+                        title="Remove this line"
+                      >
+                        <X className="h-3 w-3" /> Remove
+                      </button>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
@@ -492,8 +553,11 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     <Toggle checked={c.enabled} onChange={() => handleToggle(c.id)} label={`Toggle ${c.label}`} />
                   </div>
                 </div>
-                );
-              })}
+              ))}
+              {/* Flight-level: add a fresh line item to this stage (choose channel) */}
+              <div className="px-4 py-2.5">
+                <AddLinePicker onAdd={(channel) => handleAddBlankLine(stage, channel)} />
+              </div>
             </div>
           </div>
         );
