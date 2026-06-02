@@ -28,12 +28,14 @@ export async function POST(req: NextRequest) {
   }
 
   const res = NextResponse.json({ ok: true });
+  // SESSION cookie — no maxAge/expires. The browser discards it when the
+  // session ends (browser/tab closed), so every fresh visit must re-enter the
+  // password. We are NOT remembering visitors across visits.
   res.cookies.set(COOKIE_NAME, password, {
     httpOnly: true,
     secure: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
   });
   return res;
 }
