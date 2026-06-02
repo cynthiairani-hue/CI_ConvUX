@@ -37,3 +37,9 @@ next-env.d.ts
 
 # Local personal context (not shared)
 CLAUDE.local.md
+scripts/cube-clients.local.json
+
+# Real-data tooling — local/secure (SemanticSugar) only, never in public repos
+scripts/cube-snapshot.mjs
+src/data/real-client-data.json
+src/data/client-data.real.json

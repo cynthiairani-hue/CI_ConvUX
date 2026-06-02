@@ -1,0 +1,413 @@
+{
+  "generatedAt": "2026-06-02",
+  "synthetic": true,
+  "windowDays": 90,
+  "monthsBack": 6,
+  "clients": {
+    "client-estee": {
+      "totals": {
+        "cost": 1079569.67,
+        "impressions": 113638912,
+        "clicks": 473842,
+        "conversions": 22893,
+        "revenue": 6196369.42,
+        "roas": 5.74,
+        "cpa": 47.16
+      },
+      "channels": [
+        {
+          "channel": "Google",
+          "cost": 667860.88,
+          "impressions": 70301145,
+          "clicks": 295662,
+          "conversions": 15684,
+          "revenue": 4273265.13,
+          "roas": 6.4,
+          "cpa": 42.58
+        },
+        {
+          "channel": "Display",
+          "cost": 247965.48,
+          "impressions": 26101629,
+          "clicks": 106286,
+          "conversions": 4487,
+          "revenue": 1228230.84,
+          "roas": 4.95,
+          "cpa": 55.27
+        },
+        {
+          "channel": "Social",
+          "cost": 163743.31,
+          "impressions": 17236138,
+          "clicks": 71894,
+          "conversions": 2722,
+          "revenue": 694873.45,
+          "roas": 4.24,
+          "cpa": 60.16
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2026-01",
+          "cost": 146971.67,
+          "conversions": 2932,
+          "revenue": 810567.81
+        },
+        {
+          "month": "2026-02",
+          "cost": 153826.13,
+          "conversions": 3285,
+          "revenue": 876231.65
+        },
+        {
+          "month": "2026-03",
+          "cost": 188858.08,
+          "conversions": 4041,
+          "revenue": 1121450.68
+        },
+        {
+          "month": "2026-04",
+          "cost": 172411.33,
+          "conversions": 3779,
+          "revenue": 985914.85
+        },
+        {
+          "month": "2026-05",
+          "cost": 191295.83,
+          "conversions": 4224,
+          "revenue": 1059359.71
+        },
+        {
+          "month": "2026-06",
+          "cost": 226206.63,
+          "conversions": 4630,
+          "revenue": 1342844.73
+        }
+      ]
+    },
+    "client-vans": {
+      "totals": {
+        "cost": 591287.43,
+        "impressions": 82123254,
+        "clicks": 491980,
+        "conversions": 28224,
+        "revenue": 4031369.36,
+        "roas": 6.82,
+        "cpa": 20.95
+      },
+      "channels": [
+        {
+          "channel": "Google",
+          "cost": 312144.47,
+          "impressions": 43353398,
+          "clicks": 257658,
+          "conversions": 16972,
+          "revenue": 2381095.35,
+          "roas": 7.63,
+          "cpa": 18.39
+        },
+        {
+          "channel": "Social",
+          "cost": 174627.02,
+          "impressions": 24253753,
+          "clicks": 145031,
+          "conversions": 7593,
+          "revenue": 1105758.76,
+          "roas": 6.33,
+          "cpa": 23
+        },
+        {
+          "channel": "Display",
+          "cost": 104515.94,
+          "impressions": 14516103,
+          "clicks": 89291,
+          "conversions": 3659,
+          "revenue": 544515.25,
+          "roas": 5.21,
+          "cpa": 28.57
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2026-01",
+          "cost": 92188.97,
+          "conversions": 4590,
+          "revenue": 609886.12
+        },
+        {
+          "month": "2026-02",
+          "cost": 92370.37,
+          "conversions": 4690,
+          "revenue": 616684.69
+        },
+        {
+          "month": "2026-03",
+          "cost": 96242.07,
+          "conversions": 4507,
+          "revenue": 660596.66
+        },
+        {
+          "month": "2026-04",
+          "cost": 101296.06,
+          "conversions": 4670,
+          "revenue": 688547.93
+        },
+        {
+          "month": "2026-05",
+          "cost": 96710.05,
+          "conversions": 4454,
+          "revenue": 709614.71
+        },
+        {
+          "month": "2026-06",
+          "cost": 112479.91,
+          "conversions": 5313,
+          "revenue": 746039.25
+        }
+      ]
+    },
+    "client-harrods": {
+      "totals": {
+        "cost": 725014.03,
+        "impressions": 65910366,
+        "clicks": 230772,
+        "conversions": 9128,
+        "revenue": 1388681.46,
+        "roas": 1.92,
+        "cpa": 79.43
+      },
+      "channels": [
+        {
+          "channel": "Social",
+          "cost": 418958.23,
+          "impressions": 38087112,
+          "clicks": 134719,
+          "conversions": 4860,
+          "revenue": 674174.71,
+          "roas": 1.61,
+          "cpa": 86.2
+        },
+        {
+          "channel": "Display",
+          "cost": 194215.27,
+          "impressions": 17655933,
+          "clicks": 61596,
+          "conversions": 2585,
+          "revenue": 406998.91,
+          "roas": 2.1,
+          "cpa": 75.13
+        },
+        {
+          "channel": "Google",
+          "cost": 111840.53,
+          "impressions": 10167321,
+          "clicks": 34457,
+          "conversions": 1683,
+          "revenue": 307507.84,
+          "roas": 2.75,
+          "cpa": 66.45
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2026-01",
+          "cost": 112505,
+          "conversions": 1373,
+          "revenue": 212276.54
+        },
+        {
+          "month": "2026-02",
+          "cost": 107511.14,
+          "conversions": 1416,
+          "revenue": 213749.14
+        },
+        {
+          "month": "2026-03",
+          "cost": 110152.72,
+          "conversions": 1386,
+          "revenue": 213346.67
+        },
+        {
+          "month": "2026-04",
+          "cost": 120960.66,
+          "conversions": 1448,
+          "revenue": 228766.86
+        },
+        {
+          "month": "2026-05",
+          "cost": 127505.82,
+          "conversions": 1610,
+          "revenue": 245690.95
+        },
+        {
+          "month": "2026-06",
+          "cost": 146378.67,
+          "conversions": 1896,
+          "revenue": 274851.31
+        }
+      ]
+    },
+    "client-simplybusiness": {
+      "totals": {
+        "cost": 244225.19,
+        "impressions": 30528148,
+        "clicks": 144509,
+        "conversions": 3676,
+        "revenue": 213896.81,
+        "roas": 0.88,
+        "cpa": 66.44
+      },
+      "channels": [
+        {
+          "channel": "Google",
+          "cost": 93044.58,
+          "impressions": 11630572,
+          "clicks": 54347,
+          "conversions": 1783,
+          "revenue": 100689.7,
+          "roas": 1.08,
+          "cpa": 52.2
+        },
+        {
+          "channel": "Social",
+          "cost": 63817.33,
+          "impressions": 7977166,
+          "clicks": 37008,
+          "conversions": 1003,
+          "revenue": 43422.52,
+          "roas": 0.68,
+          "cpa": 63.61
+        },
+        {
+          "channel": "LinkedIn",
+          "cost": 54264.73,
+          "impressions": 6783091,
+          "clicks": 33547,
+          "conversions": 470,
+          "revenue": 48758.76,
+          "roas": 0.9,
+          "cpa": 115.41
+        },
+        {
+          "channel": "Display",
+          "cost": 33098.55,
+          "impressions": 4137319,
+          "clicks": 19607,
+          "conversions": 420,
+          "revenue": 21025.83,
+          "roas": 0.64,
+          "cpa": 78.78
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2026-01",
+          "cost": 34052.67,
+          "conversions": 527,
+          "revenue": 31554.48
+        },
+        {
+          "month": "2026-02",
+          "cost": 38411.82,
+          "conversions": 533,
+          "revenue": 33539.26
+        },
+        {
+          "month": "2026-03",
+          "cost": 37717.1,
+          "conversions": 579,
+          "revenue": 31877.88
+        },
+        {
+          "month": "2026-04",
+          "cost": 43229.31,
+          "conversions": 681,
+          "revenue": 36731.11
+        },
+        {
+          "month": "2026-05",
+          "cost": 42870.68,
+          "conversions": 648,
+          "revenue": 38169.08
+        },
+        {
+          "month": "2026-06",
+          "cost": 47943.61,
+          "conversions": 708,
+          "revenue": 42025.01
+        }
+      ]
+    },
+    "client-expedia": {
+      "totals": {
+        "cost": 342950.9,
+        "impressions": 52761676,
+        "clicks": 291657,
+        "conversions": 14314,
+        "revenue": 2264403.6,
+        "roas": 6.6,
+        "cpa": 23.96
+      },
+      "channels": [
+        {
+          "channel": "Google",
+          "cost": 202463.18,
+          "impressions": 31148181,
+          "clicks": 171852,
+          "conversions": 9257,
+          "revenue": 1423434.24,
+          "roas": 7.03,
+          "cpa": 21.87
+        },
+        {
+          "channel": "Display",
+          "cost": 140487.72,
+          "impressions": 21613495,
+          "clicks": 119805,
+          "conversions": 5057,
+          "revenue": 840969.36,
+          "roas": 5.99,
+          "cpa": 27.78
+        }
+      ],
+      "monthly": [
+        {
+          "month": "2026-01",
+          "cost": 53296.25,
+          "conversions": 2197,
+          "revenue": 336383.13
+        },
+        {
+          "month": "2026-02",
+          "cost": 57462,
+          "conversions": 2190,
+          "revenue": 392767.36
+        },
+        {
+          "month": "2026-03",
+          "cost": 54044.69,
+          "conversions": 2362,
+          "revenue": 355301.01
+        },
+        {
+          "month": "2026-04",
+          "cost": 53652.93,
+          "conversions": 2125,
+          "revenue": 343002.89
+        },
+        {
+          "month": "2026-05",
+          "cost": 62790.04,
+          "conversions": 2715,
+          "revenue": 412869.15
+        },
+        {
+          "month": "2026-06",
+          "cost": 61704.98,
+          "conversions": 2725,
+          "revenue": 424080.06
+        }
+      ]
+    }
+  }
+}
