@@ -3,16 +3,16 @@ import { Persona, GettingStartedTask, PersonaId } from "@/types/persona";
 export const personas: Persona[] = [
   {
     id: "cynthia-b2c",
-    name: "Cynthia Irani (SMB)",
+    name: "Cynthia Irani (In-house)",
     vertical: "b2c",
-    verticalLabel: "B2C Marketer",
+    verticalLabel: "Brand-side marketer",
     initials: "CI",
   },
   {
     id: "cynthia-b2b",
-    name: "Cynthia Irani (ABM)",
+    name: "Cynthia Irani (Enterprise)",
     vertical: "b2b",
-    verticalLabel: "B2B Marketer",
+    verticalLabel: "Account-based (ABM)",
     initials: "CI",
   },
   {
