@@ -907,9 +907,39 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           setMessages((prev) => [...prev, replyMsg]);
           return;
         }
-        // Edit-shaped but unresolved (e.g. "make it bigger", no channel/amount): ask
-        // rather than letting the language model fabricate a change it didn't make.
-        const looksLikeEdit = /\b(change|set|shift|move|increase|decrease|raise|lower|cut|bump|budget|spend|reallocate)\b/.test(content.toLowerCase());
+        // Funnel-stage toggle: "disable conversion" / "turn off awareness" toggles
+        // every channel in that stage — and ACTUALLY mutates the plan (no fabrication).
+        const lc = content.toLowerCase();
+        const stageHit = /\b(awareness|consideration|conversion)\b/.exec(lc);
+        const wantsOff = /\b(disable|turn off|pause|remove|drop|stop|kill)\b/.test(lc);
+        const wantsOn = /\b(enable|turn on|add back|resume|reactivate)\b/.test(lc);
+        if (stageHit && (wantsOff || wantsOn)) {
+          setMessages((prev) => [...prev, userMsg]);
+          const stage = stageHit[1];
+          const turnOn = wantsOn && !wantsOff;
+          let p = plan;
+          const ids: string[] = [];
+          for (const c of plan.campaigns) {
+            if (c.funnelStage === stage && c.enabled !== turnOn) {
+              p = toggleCampaign(p, c.id);
+              ids.push(c.id);
+            }
+          }
+          const f = (n: number) => n.toLocaleString();
+          if (ids.length === 0) {
+            setMessages((prev) => [...prev, { id: nextId(), role: "assistant", content: `The ${stage} stage is already ${turnOn ? "on" : "off"} — nothing to change.` }]);
+            return;
+          }
+          const np = { ...p, aiTouched: ids };
+          setActiveMediaPlan(np);
+          saveMediaPlan(np);
+          setMessages((prev) => [...prev, { id: nextId(), role: "assistant", content: `${turnOn ? "Re-enabled" : "Disabled"} the ${stage} stage (${ids.length} channel${ids.length === 1 ? "" : "s"}). Now forecasting **${f(np.summary.estConversions)} conversions** at **${np.summary.estRoas}× ROAS** on $${f(np.summary.totalBudget)} total.` }]);
+          return;
+        }
+
+        // Edit-shaped but unresolved: ask rather than letting the model fabricate a
+        // change it didn't make. (Broadened to catch toggle/disable phrasing too.)
+        const looksLikeEdit = /\b(change|set|shift|move|increase|decrease|raise|lower|cut|bump|budget|spend|reallocate|disable|enable|turn off|turn on|pause|remove|drop|toggle)\b/.test(lc);
         if (looksLikeEdit) {
           setMessages((prev) => [...prev, userMsg]);
           const msg: ChatMessage = {
