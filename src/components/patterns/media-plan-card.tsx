@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, X, Copy,
+  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, X, Copy, ChevronDown, ChevronRight,
 } from "lucide-react";
 import type {
   FunnelStage, MediaCampaign, MediaChannelKey, MediaPlan,
@@ -246,6 +246,14 @@ function CellInput({ value, placeholder, onCommit }: { value: string; placeholde
 
 export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   const [flash, setFlash] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<FunnelStage>>(() => new Set());
+  function toggleGroup(stage: FunnelStage) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(stage)) next.delete(stage); else next.add(stage);
+      return next;
+    });
+  }
 
   function pushFlash() {
     setFlash(true);
@@ -305,16 +313,6 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   const linePct = (budget: number) =>
     summary.totalBudget > 0 ? Math.round((budget / summary.totalBudget) * 100) : 0;
 
-  // Group every line item into flights (a channel group), in first-seen order.
-  // This is the editor's grouping; recalc/summary are unaffected.
-  const flightGroups: { channel: MediaChannelKey; lines: MediaCampaign[] }[] = [];
-  {
-    const idx: Record<string, number> = {};
-    for (const c of plan.campaigns) {
-      if (idx[c.channel] === undefined) { idx[c.channel] = flightGroups.length; flightGroups.push({ channel: c.channel, lines: [] }); }
-      flightGroups[idx[c.channel]].lines.push(c);
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -456,39 +454,45 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
               <th className="px-2 py-2"></th>
             </tr>
           </thead>
-          {flightGroups.map((group, fi) => {
-            const lines = group.lines;
-            const flightBudget = lines.filter((l) => l.enabled).reduce((a, l) => a + l.budget, 0);
-            const flightName = lines[0].label.replace(/\s*\(.+\)\s*$/, "");
-            const stage = lines[0].funnelStage;
+          {STAGE_ORDER.map((stage) => {
+            const lines = plan.campaigns.filter((c) => c.funnelStage === stage);
+            const st = stageStat(stage);
+            const isCollapsed = collapsed.has(stage);
+            const meta = STAGE_META[stage];
             return (
-              <tbody key={group.channel} className="border-b border-border last:border-0">
-                {/* Flight group header */}
-                <tr className="bg-muted/40">
-                  <td colSpan={7} className="px-3 py-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[#1A7BB5]">Flight {fi + 1}</span>
-                      <span className="text-[13px] font-medium text-foreground">{flightName}</span>
-                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">{STAGE_META[stage].label}</span>
+              <tbody key={stage} className="border-b border-border last:border-0">
+                {/* Funnel group header (Airtable-style, collapsible) */}
+                <tr className="bg-muted/50">
+                  <td colSpan={10} className="px-2 py-2">
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => toggleGroup(stage)} className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" title={isCollapsed ? "Expand" : "Collapse"}>
+                        {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      </button>
+                      <span className="text-[13px] font-semibold text-foreground">{meta.label}</span>
+                      <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{lines.length} {lines.length === 1 ? "line" : "lines"}</span>
+                      <span className="ml-1 text-[11px] text-muted-foreground">{meta.tagline}</span>
+                      <div className="ml-auto flex items-center gap-4">
+                        <span className="text-[11px] text-muted-foreground">{stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}</span>
+                        <span className="text-[12px] font-semibold text-foreground">{fmtMoney(st.budget)} <span className="font-normal text-muted-foreground">· {st.pct}%</span></span>
+                        <AddLinePicker label="Add line" onAdd={(channel) => handleAddBlankLine(stage, channel)} />
+                      </div>
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-right text-[12px] font-semibold text-foreground">{fmtMoney(flightBudget)}</td>
-                  <td className="px-2 py-2 text-[11px] text-muted-foreground">{linePct(flightBudget)}% of plan</td>
-                  <td className="px-2 py-2 text-right">
-                    <button type="button" onClick={() => handleAddLine(lines[0].id)} className="inline-flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-1 text-[11px] font-medium text-[#1A7BB5] transition-colors hover:bg-[#EBF5FB]" title="Add a line to this flight">
-                      <Plus className="h-3 w-3" /> Line
-                    </button>
-                  </td>
                 </tr>
-                {/* Line-item rows */}
-                {lines.map((c, li) => {
+                {/* Line-item rows in this funnel group */}
+                {!isCollapsed && lines.length === 0 && (
+                  <tr className="border-t border-border">
+                    <td colSpan={10} className="px-3 py-3 text-[12px] text-muted-foreground">No lines yet — use “Add line” to add one.</td>
+                  </tr>
+                )}
+                {!isCollapsed && lines.map((c, li) => {
                   const est = c.funnelStage === "awareness"
                     ? `${fmtImpr(c.forecast.impressions)} impr${c.forecast.cpm ? ` · $${c.forecast.cpm} CPM` : ""}`
                     : `${fmtNum(c.forecast.conversions)} conv${c.forecast.roas != null ? ` · ${c.forecast.roas}×` : ""}`;
                   return (
                     <tr key={c.id} className={cn("border-t border-border align-middle", !c.enabled && "opacity-50", aiTouched.includes(c.id) && "bg-[#F3F0FF]")}>
                       <td className="px-3 py-1.5">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 pl-5">
                           <span className="text-[10px] font-medium text-muted-foreground">{li + 1}</span>
                           <LineLabel value={c.label} onCommit={(v) => handleField(c.id, { label: v })} />
                           {c.status === "closed_beta" && (
@@ -517,17 +521,6 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
               </tbody>
             );
           })}
-          {/* Add a new flight (channel group) */}
-          <tbody>
-            <tr className="border-t border-border">
-              <td colSpan={10} className="px-3 py-2.5">
-                <AddLinePicker
-                  label="Add flight"
-                  onAdd={(channel) => handleAddBlankLine(CHANNEL_OPTIONS.find((o) => o.key === channel)?.defaultStage ?? "awareness", channel)}
-                />
-              </td>
-            </tr>
-          </tbody>
         </table>
       </div>
 
