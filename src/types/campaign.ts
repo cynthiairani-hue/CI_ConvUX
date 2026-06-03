@@ -354,6 +354,8 @@ export interface MediaCampaign {
   creative?: string;
   audience?: string;
   keywords?: string;
+  /** Flighting window for this line, e.g. "Jun 1 – Jun 30" (scheduling). */
+  flightDates?: string;
 }
 
 export interface MediaPlanSummary {

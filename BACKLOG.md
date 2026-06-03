@@ -53,3 +53,15 @@ Tie to the Live Status pacing signals above.
 Line items now support per-line market/creative + add/remove (CTV-NY, CTV-LA…).
 Next: per-line forecast weighting by market, creative thumbnails/upload per line,
 and a "duplicate across cities" bulk action for tour-style buys.
+
+## Media plan editor — next from research (Jun 3)
+The editor is now a grouped line-item grid (Mediaocean/Basis/Bionic style):
+flights as groups, line items as rows, standard columns, inline-editable.
+Next, in priority order:
+- Pacing timeline / Gantt view (flighting over the flight window; the second lens).
+- Top tab bar: Plan · Budget & Forecasting · Creatives · Review & Launch.
+- Point-and-chat: select any cell/row → contextual AI (outputs in RHS panel).
+- Canvas share + inline comments (manager/teammate feedback in-view).
+- Brief upload → AI auto-fills Campaign Setup; Forecasting panel (audience size,
+  reach/frequency).
+- Channel/format editing per line via dropdown; multiple flights (bursts) per line.

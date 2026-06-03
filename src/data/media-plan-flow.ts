@@ -231,7 +231,7 @@ export function removeCampaign(plan: MediaPlan, campaignId: string): MediaPlan {
 export function editCampaignFields(
   plan: MediaPlan,
   campaignId: string,
-  fields: { label?: string; audience?: string; location?: string; creative?: string; keywords?: string }
+  fields: { label?: string; audience?: string; location?: string; creative?: string; keywords?: string; flightDates?: string }
 ): MediaPlan {
   const campaigns = plan.campaigns.map((c) =>
     c.id === campaignId ? { ...c, ...fields } : c
