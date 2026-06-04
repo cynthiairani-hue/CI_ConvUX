@@ -123,27 +123,21 @@ function LineLabel({ value, onCommit }: { value: string; onCommit: (v: string) =
   );
 }
 
-/** Channel picker — adds a fresh line/flight to a stage. Label configurable. */
-function AddLinePicker({ onAdd, label = "Add line", block = false }: { onAdd: (channel: MediaChannelKey) => void; label?: string; block?: boolean }) {
+/** Channel picker — adds a fresh line to a stage. Uses the standard SearchPicker
+ *  dropdown (search + keyboard nav), same as audience/geo/keyword pickers. */
+function AddLinePicker({ onAdd, label = "Add line" }: { onAdd: (channel: MediaChannelKey) => void; label?: string }) {
   return (
-    <div className={cn(
-      "relative inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-2 text-[12px] font-medium text-[#1A7BB5] transition-colors hover:bg-[#EBF5FB]",
-      block && "flex w-full border border-dashed border-[#9ED0EC]"
-    )}>
-      <Plus className="h-3.5 w-3.5" />
-      {label}
-      <select
-        value=""
-        onChange={(e) => { if (e.target.value) onAdd(e.target.value as MediaChannelKey); e.currentTarget.value = ""; }}
-        className="absolute inset-0 cursor-pointer opacity-0"
-        aria-label={`${label} — choose channel`}
-      >
-        <option value="" disabled>Choose a channel…</option>
-        {CHANNEL_OPTIONS.map((o) => (
-          <option key={o.key} value={o.key}>{o.label}</option>
-        ))}
-      </select>
-    </div>
+    <SearchPicker
+      options={CHANNEL_OPTIONS.map((o) => ({ id: o.key, label: o.label }))}
+      value=""
+      onChange={(v) => onAdd(v as MediaChannelKey)}
+      searchPlaceholder="Search channels…"
+      trigger={() => (
+        <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] font-medium text-[#1A7BB5] transition-colors hover:bg-[#EBF5FB]">
+          <Plus className="h-3.5 w-3.5" /> {label}
+        </span>
+      )}
+    />
   );
 }
 
@@ -326,7 +320,7 @@ function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: Medi
                 {fmtVal(m.delivered, m.kind)} <span className="text-[12px] font-normal text-muted-foreground">/ {fmtVal(m.planned, m.kind)} planned</span>
               </div>
               <div className="relative mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div className="absolute inset-y-0 left-0 rounded-full bg-slate-400" style={{ width: `${fillPct}%` }} />
+                <div className="absolute inset-y-0 left-0 rounded-full bg-[#9FD0EC]" style={{ width: `${fillPct}%` }} />
                 <div className="absolute inset-y-[-2px] w-0.5 bg-foreground/70" style={{ left: `${expPct}%` }} title={`Expected by now: ${expPct}%`} />
               </div>
               <div className="mt-1 text-[10px] text-muted-foreground">{m.pct}% delivered · {expPct}% expected by today</div>
@@ -353,14 +347,16 @@ function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: Medi
       )}
       {/* Collapsed suggestion — quiet solid sparkle, bottom-right, click to restore */}
       {inflight.suggestion && dismissed && (
-        <button
-          type="button"
-          onClick={() => setDismissed(false)}
-          title="Show AI suggestion"
-          className="absolute bottom-3 right-3 flex h-7 w-7 items-center justify-center rounded-full text-[#5B43D6]/55 transition-colors hover:bg-[#F3F0FF] hover:text-[#5B43D6]"
-        >
-          <Sparkles className="h-4 w-4 fill-current" />
-        </button>
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setDismissed(false)}
+            title="Show AI suggestion"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-[#5B43D6]/55 transition-colors hover:bg-[#F3F0FF] hover:text-[#5B43D6]"
+          >
+            <Sparkles className="h-4 w-4 fill-current" />
+          </button>
+        </div>
       )}
     </div>
   );
@@ -602,8 +598,8 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
       {/* Line-item editor — grouped by funnel stage (Airtable-style). The row
           stays quiet: core columns + an overflow menu. Secondary attributes
           (geo, creative, keywords, flight dates) live in an expandable detail. */}
-      <div className="overflow-hidden rounded-xl border border-border bg-white">
-        <table className="w-full table-fixed border-collapse text-left">
+      <div className="overflow-x-auto rounded-xl border border-border bg-white">
+        <table className="w-full min-w-[940px] table-fixed border-collapse text-left">
           <colgroup>
             <col />
             <col style={{ width: "104px" }} />
@@ -641,10 +637,10 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                       </button>
                       <span className="text-[13px] font-semibold text-foreground">{meta.label}</span>
                       <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{lines.length} {lines.length === 1 ? "line" : "lines"}</span>
-                      <div className="ml-auto flex items-center gap-4">
-                        <span className="text-[11px] text-muted-foreground">{stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}</span>
-                        <span className="text-[12px] font-semibold text-foreground">{fmtMoney(st.budget)} <span className="font-normal text-muted-foreground">· {st.pct}%</span></span>
-                      </div>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        <span className="font-medium text-foreground">{fmtMoney(st.budget)}</span> · {st.pct}% · {stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -675,6 +671,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                         <td className="px-2 py-2.5"><span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{c.channel}</span></td>
                         <td className="px-2 py-1.5">
                           <SearchPicker
+                            flush
                             options={audienceOptions}
                             value={c.audience ?? ""}
                             onChange={(v) => handleField(c.id, { audience: v as string })}
@@ -683,7 +680,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                             footerActions={audienceFooter}
                           />
                         </td>
-                        <td className="px-2 py-2.5 text-right"><BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} /></td>
+                        <td className="px-2 py-2.5"><div className="flex justify-end"><BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} /></div></td>
                         <td className="whitespace-nowrap px-2 py-2.5 text-[11px] text-muted-foreground">{est}</td>
                         <td className="py-2.5 pl-2 pr-4">
                           <div className="flex items-center justify-end gap-1.5">

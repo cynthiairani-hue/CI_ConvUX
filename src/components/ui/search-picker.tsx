@@ -37,6 +37,8 @@ interface SearchPickerProps {
   align?: "left" | "right";
   /** Bordered (form/detail panel) vs borderless (inline table cell). */
   bordered?: boolean;
+  /** Remove the trigger's horizontal padding so content aligns to the cell edge. */
+  flush?: boolean;
 }
 
 /**
@@ -57,6 +59,7 @@ export function SearchPicker({
   trigger,
   align = "left",
   bordered = false,
+  flush = false,
 }: SearchPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -125,7 +128,8 @@ export function SearchPicker({
           type="button"
           onClick={() => setOpen((v) => !v)}
           className={cn(
-            "flex w-full items-center gap-1.5 rounded-md border px-2 py-1.5 text-left text-[12px] transition-colors hover:border-border focus:border-[#2C9FDD] focus:outline-none",
+            "flex w-full items-center gap-1.5 rounded-md border py-1.5 text-left text-[12px] transition-colors hover:border-border focus:border-[#2C9FDD] focus:outline-none",
+            flush ? "px-0" : "px-2",
             bordered ? "border-border bg-white" : "border-transparent",
             open && "border-[#2C9FDD]"
           )}
