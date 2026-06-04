@@ -409,6 +409,13 @@ export interface MediaPlan {
   comments?: MediaPlanComment[];
   sharedWithClient?: boolean;
   sharedClientId?: PersonaId;
+  /** Client sign-off — separate from the internal agency review gate. */
+  clientApproval?: {
+    state: "approved" | "changes-requested";
+    byName: string;
+    at: string; // ISO
+    note?: string;
+  };
 }
 
 /** A comment on a media plan — pinned to an element (anchor) or plan-level.

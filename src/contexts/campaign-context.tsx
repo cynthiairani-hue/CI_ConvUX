@@ -80,6 +80,10 @@ interface CampaignContextValue {
   ) => void;
   resolveMediaPlanComment: (planId: string, commentId: string, resolved: boolean) => void;
   shareMediaPlanWithClient: (planId: string, clientId: PersonaId) => void;
+  setClientApproval: (
+    planId: string,
+    input: { state: "approved" | "changes-requested"; byName: string; note?: string } | null
+  ) => void;
   duplicateMediaPlan: (id: string) => void;
   renameMediaPlan: (id: string, name: string) => void;
   archiveMediaPlan: (id: string) => void;
@@ -333,6 +337,16 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const shareMediaPlanWithClient = useCallback(
     (planId: string, clientId: PersonaId) => {
       mutateMediaPlan(planId, (p) => ({ ...p, sharedWithClient: true, sharedClientId: clientId }));
+    },
+    [mutateMediaPlan]
+  );
+
+  const setClientApproval = useCallback(
+    (planId: string, input: { state: "approved" | "changes-requested"; byName: string; note?: string } | null) => {
+      mutateMediaPlan(planId, (p) => ({
+        ...p,
+        clientApproval: input ? { state: input.state, byName: input.byName, at: new Date().toISOString(), note: input.note } : undefined,
+      }));
     },
     [mutateMediaPlan]
   );
@@ -752,6 +766,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         addMediaPlanComment,
         resolveMediaPlanComment,
         shareMediaPlanWithClient,
+        setClientApproval,
         duplicateMediaPlan,
         renameMediaPlan,
         archiveMediaPlan,

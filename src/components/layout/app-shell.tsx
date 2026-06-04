@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, CheckCircle2, Zap, MessageSquare, Eye, Link2, Check } from "lucide-react";
+import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, CheckCircle2, Zap, MessageSquare, Eye, Link2, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { approvers } from "@/data/approvers";
 import { usePersona } from "@/contexts/persona-context";
@@ -425,7 +425,7 @@ const MP_REVIEW_STYLE: Record<string, { label: string; tint: string }> = {
 };
 
 function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof useCampaign>["activeMediaPlan"]> }) {
-  const { setActiveMediaPlan, saveMediaPlan, showToast, addMediaPlanComment, resolveMediaPlanComment, shareMediaPlanWithClient } = useCampaign();
+  const { setActiveMediaPlan, saveMediaPlan, showToast, addMediaPlanComment, resolveMediaPlanComment, shareMediaPlanWithClient, setClientApproval } = useCampaign();
   const { setState, setSelectMode } = useAICompanion();
   const { activePersona } = usePersona();
   const isClient = activePersona.role === "client";
@@ -436,10 +436,27 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
   const [composerAnchor, setComposerAnchor] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [previewAsClient, setPreviewAsClient] = useState(false);
+  const [changesOpen, setChangesOpen] = useState(false);
 
   const isClientView = isClient || previewAsClient;
   const authorRole: "agency" | "client" = isClientView ? "client" : "agency";
   const unresolved = (plan.comments ?? []).filter((c) => !c.resolved).length;
+  // Client sign-off (separate from the internal agency review gate).
+  const clientName = isClient ? activePersona.name : "Jordan Reyes";
+  const clientApproverId: typeof activePersona.id = isClient ? activePersona.id : "jordan-reyes";
+  const signoff = plan.clientApproval;
+
+  function clientApprove() {
+    setClientApproval(plan.id, { state: "approved", byName: clientName });
+    addMediaPlanComment(plan.id, { authorId: clientApproverId, authorRole: "client", content: "Approved this plan. ✅" });
+    showToast("Plan approved — your agency has been notified");
+  }
+  function clientRequestChanges(note: string) {
+    setClientApproval(plan.id, { state: "changes-requested", byName: clientName, note });
+    addMediaPlanComment(plan.id, { authorId: clientApproverId, authorRole: "client", content: `Requested changes: ${note}` });
+    setChangesOpen(false);
+    showToast("Sent back to your agency with your notes");
+  }
 
   // Keep the active plan and the persisted list in sync on every change.
   const commit = (updated: typeof plan) => { setActiveMediaPlan(updated); saveMediaPlan(updated); };
@@ -489,9 +506,19 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", review.tint)}>
             {review.label}
           </span>
-          {plan.sharedWithClient && !isClientView && (
+          {plan.sharedWithClient && !isClientView && !signoff && (
             <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
               <Check className="h-3 w-3" /> Shared
+            </span>
+          )}
+          {!isClientView && signoff?.state === "approved" && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+              <CheckCircle2 className="h-3 w-3" /> Client approved
+            </span>
+          )}
+          {!isClientView && signoff?.state === "changes-requested" && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-600">
+              <AlertCircle className="h-3 w-3" /> Client: changes requested
             </span>
           )}
         </div>
@@ -549,6 +576,33 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
             </>
           )}
 
+          {/* Client sign-off — separate from the internal agency gate */}
+          {isClientView && (
+            signoff?.state === "approved" ? (
+              <span className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-[12px] font-medium text-emerald-600">
+                <CheckCircle2 className="h-3.5 w-3.5" /> You approved this plan
+                <button type="button" onClick={() => setClientApproval(plan.id, null)} className="ml-1 text-[11px] font-medium text-emerald-700 underline underline-offset-2">Undo</button>
+              </span>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setChangesOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+                >
+                  <AlertCircle className="h-3.5 w-3.5" /> Request changes
+                </button>
+                <button
+                  type="button"
+                  onClick={clientApprove}
+                  className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Approve plan
+                </button>
+              </>
+            )
+          )}
+
           <div className="mx-0.5 h-5 w-px bg-border" />
           <button
             type="button"
@@ -597,7 +651,47 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           onClose={() => setShareOpen(false)}
         />
       )}
+
+      {changesOpen && (
+        <RequestChangesDialog
+          onSubmit={(note) => clientRequestChanges(note)}
+          onClose={() => setChangesOpen(false)}
+        />
+      )}
     </main>
+  );
+}
+
+function RequestChangesDialog({ onSubmit, onClose }: { onSubmit: (note: string) => void; onClose: () => void }) {
+  const [note, setNote] = useState("");
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl border border-border bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold text-foreground">Request changes</h2>
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="mt-1 text-[12px] text-muted-foreground">Tell your agency what to adjust. They&apos;ll see your note and follow up.</p>
+        <textarea
+          autoFocus
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="e.g. Shift a bit more budget to awareness, and let's revisit the CTV split."
+          rows={4}
+          className="mt-3 w-full resize-none rounded-lg border border-border px-3 py-2 text-[13px] text-foreground outline-none focus:border-[#7C5CFC]"
+        />
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">Cancel</button>
+          <button
+            onClick={() => onSubmit(note.trim())}
+            disabled={!note.trim()}
+            className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90 disabled:opacity-40"
+          >
+            <Send className="h-3.5 w-3.5" /> Send to agency
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
