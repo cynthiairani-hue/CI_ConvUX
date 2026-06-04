@@ -49,7 +49,7 @@ import { SEED_CHAT_SESSIONS } from "@/data/seed-chats";
 import { ensureReturningSeed } from "@/data/seed-returning";
 import { buildCompetitiveBrief } from "@/data/competitive-flow";
 import { buildOperatorPlan } from "@/data/operator-flow";
-import { buildMediaPlan, editCampaignBudget, toggleCampaign, setTotalBudget, parseMediaPlanCommand, WHY_CHANNEL } from "@/data/media-plan-flow";
+import { buildMediaPlan, editCampaignBudget, toggleCampaign, setTotalBudget, parseMediaPlanCommand, WHY_CHANNEL, getPlanInflight } from "@/data/media-plan-flow";
 import { getActiveClient } from "@/data/seed-agency";
 import { getClientDataSummary } from "@/data/client-data";
 
@@ -164,6 +164,8 @@ interface AICompanionContextValue {
   openFullscreen: (initialMessage?: string, opts?: { skipIntentRouting?: boolean }) => void;
   startCampaignFlow: () => void;
   startMediaPlanFlow: () => void;
+  /** Open a plan with a contextual chat starter (status + in-flight suggestion). */
+  openPlanContext: (plan: MediaPlan) => void;
   minimize: () => void;
   close: () => void;
   expand: () => void;
@@ -2109,6 +2111,35 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // In-flight optimization suggestion (contextual chat starter on an active
+      // plan) — apply the budget shift, explain, or dismiss.
+      if (field === "inflight-suggestion") {
+        const sel = selected[0];
+        setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, toolCall: undefined } : m)));
+        const plan = activeMediaPlanRef.current;
+        const inf = plan ? getPlanInflight(plan) : null;
+        const s = inf?.suggestion;
+        const clean = (x: string) => x.replace(/\s*\(.+\)\s*$/, "");
+        const f = (n: number) => `$${Math.round(n).toLocaleString()}`;
+        let reply = "";
+        if (sel === "apply" && plan && s) {
+          const from = plan.campaigns.find((c) => c.id === s.fromId);
+          const to = plan.campaigns.find((c) => c.id === s.toId);
+          const move = Math.min(s.amount, from?.budget ?? 0);
+          let p = editCampaignBudget(plan, s.toId, (to?.budget ?? 0) + move);
+          p = editCampaignBudget(p, s.fromId, (from?.budget ?? 0) - move);
+          const np = { ...p, aiTouched: [s.fromId, s.toId] };
+          setActiveMediaPlan(np); saveMediaPlan(np);
+          reply = `Done — moved ${f(move)} from ${clean(s.fromLabel)} to ${clean(s.toLabel)}. Now forecasting **${np.summary.estConversions.toLocaleString()} conversions** at **${np.summary.estRoas}× ROAS**. It's on the canvas, and reversible — say the word to undo.`;
+        } else if (sel === "why" && s) {
+          reply = `${clean(s.fromLabel)} is converting at ${s.fromRoas.toFixed(1)}× — the lowest in the plan — while ${clean(s.toLabel)} is at ${s.toRoas.toFixed(1)}×. Moving spend toward the stronger performer lifts blended ROAS without changing the total budget. Want me to apply it?`;
+        } else {
+          reply = "No problem — I'll keep watching pacing and flag it again if the gap widens.";
+        }
+        setMessages((prev) => [...prev, { id: nextId(), role: "assistant", content: reply }]);
+        return;
+      }
+
       // Next-step menu after an answer — send the chosen option as a normal
       // message so it routes through the same flows (analytical guard,
       // competitive intent, etc.). sendMessage appends the user message itself.
@@ -2650,6 +2681,47 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     setMessages([intro, card]);
   }, [setState]);
 
+  // Open a plan with a chat starter contextual to its current state — and, for a
+  // live plan, surface the optimization suggestion in chat (not on the canvas).
+  const openPlanContext = useCallback((plan: MediaPlan) => {
+    const enabled = plan.campaigns.filter((c) => c.enabled).length;
+    const f = (n: number) => `$${Math.round(n).toLocaleString()}`;
+    const clean = (x: string) => x.replace(/\s*\(.+\)\s*$/, "");
+    const statusLabel: Record<string, string> = {
+      draft: "a draft", "pending-approval": "pending approval", approved: "approved — ready to activate",
+      active: "live", paused: "paused", archived: "archived",
+    };
+    const lead = `You're in **${plan.name}** — ${statusLabel[plan.reviewState] ?? plan.reviewState}, ${f(plan.summary.totalBudget)} across ${enabled} ${enabled === 1 ? "channel" : "channels"}, ${plan.flight}.`;
+    const msgs: ChatMessage[] = [];
+    if (plan.reviewState === "active") {
+      const inf = getPlanInflight(plan);
+      msgs.push({ id: nextId(), role: "assistant", content: `${lead} It's **${inf.status.toLowerCase()}** — day ${inf.elapsedDays} of ${inf.totalDays}. Ask me to adjust budgets, shift between channels, or dig into pacing.` });
+      if (inf.suggestion) {
+        const s = inf.suggestion;
+        msgs.push({ id: nextId(), role: "assistant", content: `One thing worth a look: **${clean(s.fromLabel)}** is your weakest at ${s.fromRoas.toFixed(1)}× ROAS, while **${clean(s.toLabel)}** is delivering ${s.toRoas.toFixed(1)}×. I can shift **${f(s.amount)}** to lift blended return.` });
+        msgs.push({
+          id: nextId(), role: "assistant", content: "",
+          toolCall: {
+            type: "choices", field: "inflight-suggestion", question: "Apply this optimization?",
+            step: 1, totalSteps: 1, multiSelect: false,
+            options: [
+              { id: "apply", label: `Apply — shift ${f(s.amount)} to ${clean(s.toLabel)}` },
+              { id: "not-now", label: "Not now" },
+              { id: "why", label: "Why this shift?" },
+            ],
+          },
+        });
+      }
+    } else {
+      msgs.push({ id: nextId(), role: "assistant", content: `${lead} Tell me what to change — budget, a channel's spend, audiences, or the goal — or ask why the plan looks the way it does.` });
+    }
+    initNewSession(true);
+    setMessages(msgs);
+    setActiveMediaPlan(plan);
+    setState("split");
+    collapseLeftRail();
+  }, [initNewSession, setActiveMediaPlan, setState, collapseLeftRail]);
+
   const openFullscreen = useCallback(
     (initialMessage?: string, opts?: { skipIntentRouting?: boolean }) => {
       if (initialMessage) {
@@ -2769,6 +2841,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         openFullscreen,
         startCampaignFlow,
         startMediaPlanFlow,
+        openPlanContext,
         minimize,
         close,
         expand,

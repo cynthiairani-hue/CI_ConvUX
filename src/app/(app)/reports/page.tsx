@@ -601,6 +601,98 @@ function LivePacingSection({ plans, onOpen }: { plans: MediaPlan[]; onOpen: (p: 
   );
 }
 
+/* ──────────────────────────────────────────────
+   Campaign Timeline (Gantt) — all media plans across the calendar year,
+   each bar colored by status. Reads the plan's flight string (e.g. "Jun–Aug
+   2026") to position the bar; clicking a row opens that plan.
+   ────────────────────────────────────────────── */
+
+const TL_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function parseFlightMonths(flight: string): { start: number; end: number } | null {
+  const matches = flight.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/gi);
+  if (!matches) return null;
+  const found = matches
+    .map((m) => TL_MONTHS.findIndex((x) => x.toLowerCase() === m.slice(0, 3).toLowerCase()))
+    .filter((i) => i >= 0);
+  if (found.length === 0) return null;
+  return { start: found[0], end: found[found.length - 1] };
+}
+
+const TL_STATUS: Record<string, { bar: string; dot: string; label: string }> = {
+  active: { bar: "bg-emerald-500", dot: "bg-emerald-500", label: "Active" },
+  approved: { bar: "bg-[#2C9FDD]", dot: "bg-[#2C9FDD]", label: "Approved" },
+  "pending-approval": { bar: "bg-amber-400", dot: "bg-amber-400", label: "Pending" },
+  draft: { bar: "bg-slate-300", dot: "bg-slate-300", label: "Draft" },
+  paused: { bar: "bg-amber-300", dot: "bg-amber-300", label: "Paused" },
+  archived: { bar: "bg-slate-200", dot: "bg-slate-200", label: "Archived" },
+};
+
+function CampaignTimeline({ plans, onOpen }: { plans: MediaPlan[]; onOpen: (p: MediaPlan) => void }) {
+  if (plans.length === 0) return null;
+  const legendStates = Array.from(new Set(plans.map((p) => p.reviewState))).filter((s) => TL_STATUS[s]);
+  return (
+    <div className="rounded-xl border border-border bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+          <div className="text-[13px] font-semibold text-foreground">Campaign timeline</div>
+          <div className="text-[11px] text-muted-foreground">All media plans across the year — click to open</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {legendStates.map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className={cn("h-2 w-2 rounded-full", TL_STATUS[s].dot)} />
+              {TL_STATUS[s].label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[760px] px-4 py-3">
+          {/* Month axis */}
+          <div className="flex border-b border-border pb-1.5">
+            <div className="w-[200px] shrink-0" />
+            <div className="flex flex-1">
+              {TL_MONTHS.map((m) => (
+                <div key={m} className="flex-1 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">{m}</div>
+              ))}
+            </div>
+          </div>
+          {/* Rows */}
+          {plans.map((p) => {
+            const f = parseFlightMonths(p.flight);
+            const st = TL_STATUS[p.reviewState] ?? TL_STATUS.draft;
+            const left = f ? (f.start / 12) * 100 : 0;
+            const width = f ? ((f.end - f.start + 1) / 12) * 100 : 0;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onOpen(p)}
+                className="flex w-full items-center rounded-md py-2 text-left transition-colors hover:bg-accent"
+              >
+                <div className="w-[200px] shrink-0 pr-3">
+                  <div className="truncate text-[13px] font-medium text-foreground">{p.name}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">{p.flight}</div>
+                </div>
+                <div className="relative h-6 flex-1">
+                  {f && (
+                    <div
+                      className={cn("absolute top-1/2 h-2.5 -translate-y-1/2 rounded-full", st.bar)}
+                      style={{ left: `${left}%`, width: `${width}%` }}
+                      title={`${p.name} · ${p.flight} · ${st.label}`}
+                    />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReportsPage() {
   const {
     savedNarratives,
@@ -613,16 +705,14 @@ export default function ReportsPage() {
     showToast,
     hydrated,
     savedMediaPlans,
-    setActiveMediaPlan,
   } = useCampaign();
-  const { openFullscreen, setState: setChatState } = useAICompanion();
+  const { openFullscreen, openPlanContext } = useAICompanion();
   const { activePersona } = usePersona();
   const isAgency = activePersona.vertical === "agency";
   const activePlans = (savedMediaPlans ?? []).filter((p) => p.reviewState === "active");
 
   function handleOpenPlanPacing(p: MediaPlan) {
-    setActiveMediaPlan(p);
-    setChatState("resting");
+    openPlanContext(p);
   }
 
   const [activeTab, setActiveTab] = useState<ReportsTab>("saved");
@@ -725,6 +815,13 @@ export default function ReportsPage() {
               ? "Track active media plans in flight against their stated goals — adjust as you go."
               : "Performance dashboards, automated reports, and saved narratives."}
           </p>
+
+          {/* Campaign timeline (Gantt) — agency: all plans across the year */}
+          {isAgency && (savedMediaPlans ?? []).length > 0 && (
+            <div className="mt-8">
+              <CampaignTimeline plans={savedMediaPlans} onOpen={handleOpenPlanPacing} />
+            </div>
+          )}
 
           {/* In-flight pacing — agency, active plans only (live status) */}
           {isAgency && activePlans.length > 0 && (

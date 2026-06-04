@@ -276,27 +276,15 @@ function StatusPill({ active, onToggle }: { active: boolean; onToggle: () => voi
 
 /** In-flight view for an ACTIVE plan: delivered vs planned (with an expected-
  *  by-now marker), pacing status, and one approvable optimization suggestion. */
-function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: MediaPlan) => void }) {
-  const [dismissed, setDismissed] = useState(false);
+function InflightPanel({ plan }: { plan: MediaPlan }) {
   const inflight: PlanInflight = getPlanInflight(plan);
   const fmtVal = (n: number, kind: string) => (kind === "money" ? fmtMoney(n) : kind === "impr" ? fmtImpr(n) : fmtNum(n));
-  const cleanName = (s: string) => s.replace(/\s*\(.+\)\s*$/, "");
   const statusTone = inflight.status === "On track" ? "bg-emerald-50 text-emerald-600" : inflight.status === "Slightly behind" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600";
 
-  function applySuggestion() {
-    const s = inflight.suggestion;
-    if (!s) return;
-    const from = plan.campaigns.find((c) => c.id === s.fromId);
-    const to = plan.campaigns.find((c) => c.id === s.toId);
-    const move = Math.min(s.amount, from?.budget ?? 0);
-    let p = editCampaignBudget(plan, s.toId, (to?.budget ?? 0) + move);
-    p = editCampaignBudget(p, s.fromId, (from?.budget ?? 0) - move);
-    onChange({ ...p, aiTouched: [s.fromId, s.toId] });
-    setDismissed(true);
-  }
-
+  // Pacing only — the optimization suggestion lives in the chat assistant now,
+  // so the canvas stays a clean read of delivery vs plan.
   return (
-    <div className="relative rounded-xl border border-border bg-white p-5">
+    <div className="rounded-xl border border-border bg-white p-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-foreground" />
@@ -330,36 +318,6 @@ function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: Medi
           );
         })}
       </div>
-      {inflight.suggestion && !dismissed && (
-        <div className="mt-4 rounded-lg border border-[#7C5CFC]/30 bg-[#F7F4FE] p-3.5">
-          <div className="flex items-start gap-2.5">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 fill-[#5B43D6] text-[#5B43D6]" />
-            <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-semibold text-foreground">AI suggestion — review & approve</div>
-              <p className="mt-0.5 text-[12px] text-muted-foreground">
-                <span className="font-medium text-foreground">{cleanName(inflight.suggestion.fromLabel)}</span> is the weakest performer at {inflight.suggestion.fromRoas.toFixed(1)}× ROAS; <span className="font-medium text-foreground">{cleanName(inflight.suggestion.toLabel)}</span> is delivering {inflight.suggestion.toRoas.toFixed(1)}×. Shift <span className="font-medium text-foreground">{fmtMoney(inflight.suggestion.amount)}</span> to lift blended return.
-              </p>
-              <div className="mt-2.5 flex items-center gap-2">
-                <button type="button" onClick={applySuggestion} className="rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">Apply change</button>
-                <button type="button" onClick={() => setDismissed(true)} className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">Dismiss</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Collapsed suggestion — quiet solid sparkle, bottom-right, click to restore */}
-      {inflight.suggestion && dismissed && (
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={() => setDismissed(false)}
-            title="Show AI suggestion"
-            className="flex h-7 w-7 items-center justify-center rounded-full text-[#5B43D6]/55 transition-colors hover:bg-[#F3F0FF] hover:text-[#5B43D6]"
-          >
-            <Sparkles className="h-4 w-4 fill-current" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -481,7 +439,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
       {/* Plan header */}
       <div
         onClick={selectMode ? () => selectFromCanvas(`${plan.name} (whole plan)`, `${plan.name} — ${fmtMoney(summary.totalBudget)} across ${enabled.length} channels, ${plan.flight}, est. ${fmtNum(summary.estConversions)} conv · ${summary.estRoas}× ROAS`) : undefined}
-        className={cn("rounded-xl border border-border bg-white p-5", selectMode && "cursor-pointer outline-dashed outline-1 outline-[#7C5CFC]/40 hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none")}
+        className={cn("rounded-xl border border-border bg-white p-5", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none")}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -595,7 +553,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
       </div>
 
       {/* In-flight view — only once the plan is live */}
-      {plan.reviewState === "active" && <InflightPanel plan={plan} onChange={onChange} />}
+      {plan.reviewState === "active" && <InflightPanel plan={plan} />}
 
       {/* Line-item editor — grouped by funnel stage (Airtable-style). The row
           stays quiet: core columns + an overflow menu. Secondary attributes
@@ -630,7 +588,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                 {/* Funnel group header (Airtable-style, collapsible) */}
                 <tr
                   onClick={selectMode ? () => selectFromCanvas(`${meta.label} funnel`, `the ${meta.label} funnel — ${fmtMoney(st.budget)} (${st.pct}% of plan), ${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}`) : undefined}
-                  className={cn("bg-muted/40", selectMode && "cursor-pointer bg-[#EDE7FD] [&_*]:pointer-events-none hover:bg-[#E2D9FB] [&>td:first-child]:shadow-[inset_3px_0_0_#7C5CFC]")}
+                  className={cn("bg-muted/40", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none")}
                 >
                   <td colSpan={6} className="px-2 py-2.5">
                     <div className="flex items-center gap-2.5">
@@ -656,7 +614,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     <Fragment key={c.id}>
                       <tr
                         onClick={selectMode ? () => selectFromCanvas(`Line ${li + 1} · ${c.label.replace(/\s*\(.+\)\s*$/, "")}`, `${meta.label} · Line ${li + 1}: ${c.label}${c.location ? ` (${c.location})` : ""} — ${c.enabled ? fmtMoney(c.budget) : "off"}, ${est}`) : undefined}
-                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectMode && "cursor-pointer bg-[#F7F4FE] [&_*]:pointer-events-none hover:bg-[#EBE4FC] [&>td:first-child]:shadow-[inset_3px_0_0_#7C5CFC]")}
+                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none")}
                       >
                         <td className="py-2.5 pl-4 pr-2">
                           <div className="flex min-w-0 items-center gap-2">

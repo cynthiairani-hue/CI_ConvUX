@@ -105,21 +105,31 @@ function buildSeedMediaPlans(adv: Advertiser): MediaPlan[] {
     goal: { conversions?: number; roas?: number },
     overrides: Partial<MediaPlan>
   ): MediaPlan => ({ ...buildMediaPlan(adv, objective, budget, goal), ...overrides });
+  // Staggered flights across the year so the Campaign Timeline reads like a
+  // real calendar (not all bars stacked in one span), with a spread of statuses.
   return [
     mk("awareness", 120_000, { conversions: 5_000, roas: 3 }, {
       id: "seed-mp-launch", name: `${n} — Spring Launch`, reviewState: "active",
+      flight: "Apr–Jun 2026", durationDays: 90,
       createdAt: daysAgo(20), lastModifiedAt: daysAgo(3), lastModifiedBy: "Cynthia Irani",
       chatSessionId: "seed-chat-launch", // reopen restores this conversation
     }),
     mk("sales", 80_000, { conversions: 3_500, roas: 3.5 }, {
-      id: "seed-mp-aon", name: `${n} — Always-On Retargeting`, reviewState: "pending-approval",
+      id: "seed-mp-aon", name: `${n} — Always-On Retargeting`, reviewState: "active",
+      flight: "Jan–Dec 2026", durationDays: 365,
       createdAt: daysAgo(6), lastModifiedAt: daysAgo(1), lastModifiedBy: "Cynthia Irani",
       chatSessionId: "seed-chat-aon",
     }),
     mk("awareness", 45_000, { conversions: 1_800, roas: 3 }, {
       id: "seed-mp-q3", name: `${n} — Q3 Prospecting`, reviewState: "draft",
+      flight: "Jul–Sep 2026", durationDays: 90,
       createdAt: daysAgo(2), lastModifiedAt: daysAgo(2), lastModifiedBy: "Cynthia Irani",
       chatSessionId: "seed-chat-q3",
+    }),
+    mk("sales", 65_000, { conversions: 2_600, roas: 4 }, {
+      id: "seed-mp-holiday", name: `${n} — Holiday Push`, reviewState: "approved",
+      flight: "Sep–Dec 2026", durationDays: 90,
+      createdAt: daysAgo(4), lastModifiedAt: daysAgo(1), lastModifiedBy: "Cynthia Irani",
     }),
   ];
 }
@@ -333,6 +343,14 @@ export function ensureReturningSeed(): void {
     set("fuseiq-chat-sessions", isAgencyClient ? buildAgencyChatSessions(adv.companyName) : SEED_CHAT_SESSIONS);
   }
   // Media plans — the agency's unit of work. Seeded so the Media Plans page has
-  // real plans that open the media-plan card (not campaigns).
-  if (isEmptyKey("fuseiq-media-plans")) set("fuseiq-media-plans", buildSeedMediaPlans(adv));
+  // real plans that open the media-plan card (not campaigns). Version-gated: a
+  // bump re-seeds the curated set once (e.g. to refresh staggered flights),
+  // overwriting prior demo plans, then respects the user's edits going forward.
+  const MP_SEED_VERSION = "v3-two-active";
+  if (localStorage.getItem("fuseiq-media-plans-seed") !== MP_SEED_VERSION) {
+    set("fuseiq-media-plans", buildSeedMediaPlans(adv));
+    localStorage.setItem("fuseiq-media-plans-seed", MP_SEED_VERSION);
+  } else if (isEmptyKey("fuseiq-media-plans")) {
+    set("fuseiq-media-plans", buildSeedMediaPlans(adv));
+  }
 }
