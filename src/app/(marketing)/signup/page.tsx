@@ -299,15 +299,19 @@ const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; p
   { id: "abm", label: "Enterprise", role: "Account-based (ABM)", brand: "Norwest Analytics · B2B SaaS", persona: "cynthia-b2b", email: "cynthia@norwest.io", comingSoon: true, level: 1, maturityLabel: "Coming soon" },
 ];
 
-/** Signal-style maturity meter: 3 green = most complete, 2 amber = WIP, 1 red = coming soon. */
+/** Battery-style maturity meter — fill conveys "how far along", never "done":
+ *  most complete ≈ half-full green, WIP ≈ 20% amber, coming soon = empty red. */
 function MaturityMeter({ level, label }: { level: 1 | 2 | 3; label: string }) {
+  const pct = level === 3 ? 50 : level === 2 ? 20 : 0;
   const fill = level === 3 ? "bg-emerald-500" : level === 2 ? "bg-amber-500" : "bg-red-400";
-  const heights = ["h-1.5", "h-2.5", "h-3.5"];
+  const border = level === 1 ? "border-red-300" : "border-foreground/25";
+  const nub = level === 1 ? "bg-red-300" : "bg-foreground/25";
   return (
-    <span className="flex items-end gap-0.5" title={label} aria-label={label}>
-      {[1, 2, 3].map((i) => (
-        <span key={i} className={cn("w-1 rounded-sm", heights[i - 1], i <= level ? fill : "bg-muted")} />
-      ))}
+    <span className="flex items-center gap-[2px]" title={label} aria-label={label}>
+      <span className={cn("flex h-3.5 w-7 items-center rounded-[3px] border p-[1.5px]", border)}>
+        {pct > 0 && <span className={cn("h-full rounded-[1px]", fill)} style={{ width: `${pct}%` }} />}
+      </span>
+      <span className={cn("h-1.5 w-[2px] rounded-r-sm", nub)} />
     </span>
   );
 }
