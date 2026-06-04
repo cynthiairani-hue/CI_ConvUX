@@ -25,7 +25,9 @@ interface MediaPlanCardProps {
 }
 
 /** Data-viz palette for the client-evidence channel mix (meaningful, not decorative). */
-const EV_COLORS = ["bg-blue-500", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500"];
+// Neutral slate shades — this is historical reference data, deliberately NOT the
+// funnel stage colors (blue/purple/green) so the two bars don't get confused.
+const EV_COLORS = ["bg-slate-600", "bg-slate-400", "bg-slate-300", "bg-slate-500", "bg-slate-200"];
 
 const STAGE_META: Record<FunnelStage, { label: string; tagline: string; icon: typeof Megaphone }> = {
   awareness: { label: "Awareness", tagline: "Reach new audiences & build brand recognition", icon: Megaphone },
@@ -117,7 +119,7 @@ function LineLabel({ value, onCommit }: { value: string; onCommit: (v: string) =
     );
   }
   return (
-    <button type="button" onClick={() => setEditing(true)} className="rounded px-0.5 text-[13px] font-medium text-foreground hover:bg-accent" title="Click to rename">
+    <button type="button" onClick={() => setEditing(true)} className="min-w-0 truncate rounded px-0.5 text-left text-[13px] font-medium text-foreground hover:bg-accent" title={value}>
       {value}
     </button>
   );
@@ -541,9 +543,10 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
         )}
       </div>
 
-      {/* Client evidence — where they spend today (evidence before persuasion). */}
+      {/* Client evidence — where they spend today (evidence before persuasion).
+          Compact: small bar + inline legend, neutral colors (reference data). */}
       {plan.evidence && (
-        <div className="rounded-xl border border-border bg-white p-5">
+        <div className="rounded-xl border border-border bg-white p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               <BarChart3 className="h-3.5 w-3.5" />
@@ -551,26 +554,25 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
             </div>
             <span className="text-[11px] text-muted-foreground">{plan.evidence.basis}</span>
           </div>
-          <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-muted">
-            {plan.evidence.channels.map((c, i) => (
-              <div
-                key={c.channel}
-                className={EV_COLORS[i % EV_COLORS.length]}
-                style={{ width: `${Math.round(c.spendShare * 100)}%` }}
-                title={`${c.channel} · ${Math.round(c.spendShare * 100)}% · ${c.roas.toFixed(1)}× ROAS`}
-              />
-            ))}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <div className="flex h-1.5 w-[140px] shrink-0 overflow-hidden rounded-full bg-muted">
+              {plan.evidence.channels.map((c, i) => (
+                <div
+                  key={c.channel}
+                  className={EV_COLORS[i % EV_COLORS.length]}
+                  style={{ width: `${Math.round(c.spendShare * 100)}%` }}
+                  title={`${c.channel} · ${Math.round(c.spendShare * 100)}% · ${c.roas.toFixed(1)}× ROAS`}
+                />
+              ))}
+            </div>
             {plan.evidence.channels.map((c, i) => (
               <span key={c.channel} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span className={cn("h-2 w-2 rounded-full", EV_COLORS[i % EV_COLORS.length])} />
-                {c.channel} <span className="font-medium text-foreground">{Math.round(c.spendShare * 100)}%</span>
-                <span>· {c.roas.toFixed(1)}× ROAS</span>
+                {c.channel} <span className="font-medium text-foreground">{Math.round(c.spendShare * 100)}%</span> · {c.roas.toFixed(1)}× ROAS
               </span>
             ))}
           </div>
-          <p className="mt-3 text-[12px] text-muted-foreground">
+          <p className="mt-2.5 text-[12px] text-muted-foreground">
             Blended ROAS <span className="font-medium text-foreground">{plan.evidence.blendedRoas.toFixed(1)}×</span> over the last 90 days — this plan is anchored to it, not generic benchmarks.
           </p>
         </div>
@@ -599,14 +601,14 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
           stays quiet: core columns + an overflow menu. Secondary attributes
           (geo, creative, keywords, flight dates) live in an expandable detail. */}
       <div className="overflow-x-auto rounded-xl border border-border bg-white">
-        <table className="w-full min-w-[940px] table-fixed border-collapse text-left">
+        <table className="w-full min-w-[640px] table-fixed border-collapse text-left">
           <colgroup>
-            <col />
-            <col style={{ width: "104px" }} />
-            <col style={{ width: "208px" }} />
-            <col style={{ width: "120px" }} />
-            <col style={{ width: "168px" }} />
-            <col style={{ width: "132px" }} />
+            <col style={{ width: "28%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "11%" }} />
           </colgroup>
           <thead>
             <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -615,7 +617,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
               <th className="px-2 py-2.5 font-medium">Audience</th>
               <th className="px-2 py-2.5 text-right font-medium">Budget</th>
               <th className="px-2 py-2.5 font-medium">Est. results</th>
-              <th className="py-2.5 pl-2 pr-4 text-right font-medium">Status</th>
+              <th className="py-2.5 pl-2 pr-4 font-medium">Status</th>
             </tr>
           </thead>
           {STAGE_ORDER.map((stage) => {
@@ -657,14 +659,14 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                         className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectMode && "cursor-pointer bg-[#F7F4FE] [&_*]:pointer-events-none hover:bg-[#EBE4FC] [&>td:first-child]:shadow-[inset_3px_0_0_#7C5CFC]")}
                       >
                         <td className="py-2.5 pl-4 pr-2">
-                          <div className="flex items-center gap-2">
-                            <button type="button" onClick={() => toggleExpanded(c.id)} className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground" title={isOpen ? "Hide details" : "Show details"}>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <button type="button" onClick={() => toggleExpanded(c.id)} className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground" title={isOpen ? "Hide details" : "Show details"}>
                               {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                             </button>
-                            <span className="w-4 text-[11px] font-medium text-muted-foreground">{li + 1}</span>
+                            <span className="w-4 shrink-0 text-[11px] font-medium text-muted-foreground">{li + 1}</span>
                             <LineLabel value={c.label} onCommit={(v) => handleField(c.id, { label: v })} />
                             {c.status === "closed_beta" && (
-                              <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600">Beta</span>
+                              <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600">Beta</span>
                             )}
                           </div>
                         </td>
@@ -681,9 +683,9 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                           />
                         </td>
                         <td className="px-2 py-2.5"><div className="flex justify-end"><BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} /></div></td>
-                        <td className="whitespace-nowrap px-2 py-2.5 text-[11px] text-muted-foreground">{est}</td>
+                        <td className="truncate px-2 py-2.5 text-[11px] text-muted-foreground">{est}</td>
                         <td className="py-2.5 pl-2 pr-4">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center gap-1.5">
                             <StatusPill active={c.enabled} onToggle={() => handleToggle(c.id)} />
                             <CardOverflowMenu actions={lineActions(c)} />
                           </div>
