@@ -1,69 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, Send, X, Check, Pin, CornerDownRight } from "lucide-react";
+import { MessageSquare, X, Check, Send, CornerDownRight } from "lucide-react";
 import type { MediaPlan, MediaPlanComment } from "@/types/campaign";
 import { cn } from "@/lib/utils";
 
 interface MediaPlanCommentsProps {
   plan: MediaPlan;
-  /** Pin mode is on → user is about to click an element to anchor a comment. */
-  pinMode: boolean;
-  onTogglePin: (on: boolean) => void;
-  /** Anchor pre-filled from a pin click (composer opens anchored to this element). */
-  composerAnchor: string | null;
-  onClearComposerAnchor: () => void;
-  /** Thread currently focused (rings the matching element on the canvas). */
-  activeAnchor: string | null;
-  onFocusAnchor: (anchor: string | null) => void;
-  onAdd: (input: { content: string; anchor?: string; parentId?: string }) => void;
+  /** The thread currently focused — its pin is highlighted on the canvas. */
+  activeCommentId: string | null;
+  onFocusComment: (id: string | null) => void;
+  onReply: (parentId: string, content: string) => void;
   onResolve: (commentId: string, resolved: boolean) => void;
   onClose: () => void;
 }
 
-const GENERAL = "__general__";
-
 export function MediaPlanComments({
   plan,
-  pinMode,
-  onTogglePin,
-  composerAnchor,
-  onClearComposerAnchor,
-  activeAnchor,
-  onFocusAnchor,
-  onAdd,
+  activeCommentId,
+  onFocusComment,
+  onReply,
   onResolve,
   onClose,
 }: MediaPlanCommentsProps) {
-  const [text, setText] = useState("");
-  const [replyTo, setReplyTo] = useState<MediaPlanComment | null>(null);
-
   const all = plan.comments ?? [];
   const tops = all.filter((c) => !c.parentId);
   const repliesOf = (id: string) => all.filter((c) => c.parentId === id);
 
-  // Group top-level comments by anchor (pinned groups first, General last).
-  const groups = new Map<string, MediaPlanComment[]>();
-  for (const c of tops) {
-    const key = c.anchor ?? GENERAL;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(c);
-  }
-  const groupKeys = Array.from(groups.keys()).sort((a, b) => {
-    if (a === GENERAL) return 1;
-    if (b === GENERAL) return -1;
-    return a.localeCompare(b);
-  });
-
-  function submit() {
-    const content = text.trim();
-    if (!content) return;
-    const anchor = replyTo ? replyTo.anchor : composerAnchor ?? undefined;
-    onAdd({ content, anchor: anchor ?? undefined, parentId: replyTo?.id });
-    setText("");
-    setReplyTo(null);
-    onClearComposerAnchor();
-  }
+  // Pins are numbered in creation order, matching the canvas markers.
+  const pinNumber = new Map<string, number>();
+  let n = 0;
+  tops.forEach((c) => { if (c.pin) { n += 1; pinNumber.set(c.id, n); } });
 
   return (
     <div className="flex w-80 shrink-0 flex-col border-l border-border bg-white">
@@ -81,173 +48,125 @@ export function MediaPlanComments({
         </button>
       </div>
 
-      {/* Pin CTA */}
-      <div className="border-b border-border px-4 py-2.5">
-        <button
-          onClick={() => onTogglePin(!pinMode)}
-          className={cn(
-            "flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
-            pinMode
-              ? "border-[#7C5CFC] bg-[#F3F0FF] text-[#7C5CFC]"
-              : "border-border text-foreground hover:bg-muted"
-          )}
-        >
-          <Pin className="h-3.5 w-3.5" />
-          {pinMode ? "Click an element to pin…" : "Comment on an element"}
-        </button>
-      </div>
-
       {/* Thread list */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {tops.length === 0 ? (
           <div className="mt-8 text-center text-[12px] text-muted-foreground">
-            No comments yet — pin one to start the conversation.
+            No comments yet — click <span className="font-medium text-foreground">Add comment</span>, then drop a pin anywhere on the plan.
           </div>
         ) : (
-          <div className="space-y-4">
-            {groupKeys.map((key) => (
-              <div key={key}>
-                <button
-                  onClick={() => onFocusAnchor(key === GENERAL ? null : key)}
-                  className="mb-1.5 flex items-center gap-1.5"
-                >
-                  {key === GENERAL ? (
-                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      General
-                    </span>
-                  ) : (
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                        activeAnchor === key
-                          ? "bg-[#7C5CFC] text-white"
-                          : "bg-[#F3F0FF] text-[#7C5CFC]"
-                      )}
-                    >
-                      <Pin className="h-2.5 w-2.5" />
-                      {key}
-                    </span>
-                  )}
-                </button>
-                <div className="space-y-2">
-                  {groups.get(key)!.map((c) => (
-                    <CommentBubble
-                      key={c.id}
-                      comment={c}
-                      replies={repliesOf(c.id)}
-                      onResolve={onResolve}
-                      onReply={(parent) => {
-                        setReplyTo(parent);
-                        onFocusAnchor(parent.anchor ?? null);
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
+          <div className="space-y-3">
+            {tops.map((c) => (
+              <ThreadItem
+                key={c.id}
+                comment={c}
+                number={pinNumber.get(c.id)}
+                replies={repliesOf(c.id)}
+                active={activeCommentId === c.id}
+                onFocus={() => onFocusComment(c.id)}
+                onReply={onReply}
+                onResolve={onResolve}
+              />
             ))}
           </div>
         )}
-      </div>
-
-      {/* Composer */}
-      <div className="border-t border-border px-4 py-3">
-        {(replyTo || composerAnchor) && (
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#F3F0FF] px-2 py-0.5 text-[10px] font-medium text-[#7C5CFC]">
-              <Pin className="h-2.5 w-2.5" />
-              {replyTo ? `Replying to ${replyTo.authorName}` : composerAnchor}
-            </span>
-            <button
-              onClick={() => {
-                setReplyTo(null);
-                onClearComposerAnchor();
-              }}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-            placeholder="Add a comment…"
-            className="flex-1 rounded-md border border-border px-3 py-1.5 text-[13px] outline-none focus:ring-1 focus:ring-foreground/20"
-          />
-          <button
-            onClick={submit}
-            disabled={!text.trim()}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted disabled:opacity-30"
-          >
-            <Send className="h-3.5 w-3.5" />
-          </button>
-        </div>
       </div>
     </div>
   );
 }
 
-function CommentBubble({
+function ThreadItem({
   comment,
+  number,
   replies,
-  onResolve,
+  active,
+  onFocus,
   onReply,
+  onResolve,
 }: {
   comment: MediaPlanComment;
+  number?: number;
   replies: MediaPlanComment[];
+  active: boolean;
+  onFocus: () => void;
+  onReply: (parentId: string, content: string) => void;
   onResolve: (commentId: string, resolved: boolean) => void;
-  onReply: (parent: MediaPlanComment) => void;
 }) {
+  const [replying, setReplying] = useState(false);
+  const [text, setText] = useState("");
+
+  function submitReply() {
+    const t = text.trim();
+    if (!t) return;
+    onReply(comment.id, t);
+    setText("");
+    setReplying(false);
+  }
+
   return (
-    <div className={cn("rounded-md bg-muted/50 px-3 py-2", comment.resolved && "opacity-60")}>
-      <div className="mb-0.5 flex items-center gap-2">
-        <span className="text-[12px] font-medium text-foreground">{comment.authorName}</span>
-        <span
-          className={cn(
-            "rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide",
-            comment.authorRole === "client" ? "bg-[#F3F0FF] text-[#7C5CFC]" : "bg-muted text-muted-foreground"
-          )}
-        >
-          {comment.authorRole}
+    <div
+      onClick={onFocus}
+      className={cn(
+        "cursor-pointer rounded-xl border bg-white p-3.5 transition-colors",
+        active ? "border-[#7C5CFC] ring-1 ring-[#7C5CFC]/30" : "border-border hover:border-muted-foreground/30",
+        comment.resolved && "opacity-60"
+      )}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white", comment.resolved ? "bg-muted-foreground/50" : "bg-[#7C5CFC]")}>
+          {number ?? comment.authorName.charAt(0)}
         </span>
-        <span className="ml-auto text-[10px] text-muted-foreground">{comment.timestamp}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[13px] font-semibold text-foreground">{comment.authorName}</span>
+            <span className={cn("shrink-0 rounded px-1 py-0.5 text-[9px] font-medium uppercase tracking-wide", comment.authorRole === "client" ? "bg-[#F3F0FF] text-[#7C5CFC]" : "bg-muted text-muted-foreground")}>
+              {comment.authorRole}
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">{comment.timestamp}</span>
+        </div>
       </div>
-      <p className="text-[13px] text-foreground">{comment.content}</p>
+
+      <p className="mt-2.5 text-[13px] leading-relaxed text-foreground">{comment.content}</p>
 
       {replies.length > 0 && (
-        <div className="mt-2 space-y-1.5 border-l-2 border-border pl-2.5">
+        <div className="mt-3 space-y-2.5 border-l-2 border-border pl-3">
           {replies.map((r) => (
             <div key={r.id}>
-              <div className="mb-0.5 flex items-center gap-1.5">
-                <span className="text-[11px] font-medium text-foreground">{r.authorName}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] font-semibold text-foreground">{r.authorName}</span>
                 <span className="text-[10px] text-muted-foreground">{r.timestamp}</span>
               </div>
-              <p className="text-[12px] text-foreground">{r.content}</p>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-foreground">{r.content}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="mt-1.5 flex items-center gap-3">
-        <button
-          onClick={() => onReply(comment)}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <CornerDownRight className="h-3 w-3" /> Reply
-        </button>
-        <button
-          onClick={() => onResolve(comment.id, !comment.resolved)}
-          className={cn(
-            "flex items-center gap-1 text-[11px] transition-colors",
-            comment.resolved ? "text-emerald-600" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Check className="h-3 w-3" /> {comment.resolved ? "Resolved" : "Resolve"}
-        </button>
-      </div>
+      {replying ? (
+        <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <input
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submitReply(); if (e.key === "Escape") setReplying(false); }}
+            placeholder="Reply…"
+            className="flex-1 rounded-md border border-border px-2.5 py-1.5 text-[12px] outline-none focus:border-[#7C5CFC]"
+          />
+          <button onClick={submitReply} disabled={!text.trim()} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted disabled:opacity-30">
+            <Send className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 flex items-center gap-4">
+          <button onClick={(e) => { e.stopPropagation(); setReplying(true); }} className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+            <CornerDownRight className="h-3 w-3" /> Reply
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onResolve(comment.id, !comment.resolved); }} className={cn("flex items-center gap-1 text-[11px] font-medium transition-colors", comment.resolved ? "text-emerald-600" : "text-muted-foreground hover:text-foreground")}>
+            <Check className="h-3 w-3" /> {comment.resolved ? "Resolved" : "Resolve"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

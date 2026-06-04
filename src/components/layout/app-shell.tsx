@@ -424,19 +424,25 @@ const MP_REVIEW_STYLE: Record<string, { label: string; tint: string }> = {
   active: { label: "Active", tint: "bg-emerald-50 text-emerald-600" },
 };
 
+// Comment drop-tool cursor: the same teardrop pin as the canvas markers, drawn
+// white (empty) since no message exists yet. Hotspot at the bottom-left tail.
+const COMMENT_CURSOR =
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='-2 -2 28 28'%3E%3Cpath fill='white' stroke='%237C5CFC' stroke-width='2' d='M12 0 A12 12 0 0 1 24 12 A12 12 0 0 1 12 24 L0 24 L0 12 A12 12 0 0 1 12 0 Z'/%3E%3C/svg%3E") 1 19, auto`;
+
 function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof useCampaign>["activeMediaPlan"]> }) {
   const { setActiveMediaPlan, saveMediaPlan, showToast, addMediaPlanComment, resolveMediaPlanComment, shareMediaPlanWithClient, setClientApproval } = useCampaign();
-  const { setState, setSelectMode } = useAICompanion();
+  const { setState } = useAICompanion();
   const { activePersona } = usePersona();
   const isClient = activePersona.role === "client";
 
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [pinMode, setPinMode] = useState(false);
-  const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
-  const [composerAnchor, setComposerAnchor] = useState<string | null>(null);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [draftPin, setDraftPin] = useState<{ xPct: number; yPct: number } | null>(null);
+  const [draftText, setDraftText] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
   const [previewAsClient, setPreviewAsClient] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const isClientView = isClient || previewAsClient;
   const authorRole: "agency" | "client" = isClientView ? "client" : "agency";
@@ -475,19 +481,24 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
     showToast(`${plan.campaigns.filter((c) => c.enabled).length} campaigns created in AdRoll · check-in set for +45 days`);
   }
 
-  function enterPin(on: boolean) {
-    setPinMode(on);
-    if (on) { setSelectMode(false); setComposerAnchor(null); }
+  // Figma/Miro comment tool: in comment mode the cursor is a comment icon and a
+  // click anywhere on the canvas drops a pin at that spot (stored as % of the box).
+  const pinnedTops = (plan.comments ?? []).filter((c) => !c.parentId && c.pin);
+  function dropPin(e: React.MouseEvent) {
+    const box = canvasRef.current;
+    if (!box) return;
+    const r = box.getBoundingClientRect();
+    const xPct = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+    const yPct = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+    setDraftPin({ xPct, yPct });
+    setDraftText("");
   }
-  function handlePin(anchor: string) {
-    setComposerAnchor(anchor);
-    setActiveAnchor(anchor);
-    setPinMode(false);
-    setCommentsOpen(true);
-  }
-  function openThread(anchor: string) {
-    setActiveAnchor(anchor);
-    setCommentsOpen(true);
+  function submitDraft() {
+    const t = draftText.trim();
+    if (!t || !draftPin) return;
+    addMediaPlanComment(plan.id, { authorId: activePersona.id, authorRole, content: t, pin: draftPin });
+    setDraftPin(null);
+    setDraftText("");
   }
 
   const review = MP_REVIEW_STYLE[plan.reviewState] ?? MP_REVIEW_STYLE.draft;
@@ -615,30 +626,74 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
       </header>
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
-          <div className="mx-auto w-full max-w-6xl">
+          <div ref={canvasRef} className="relative mx-auto w-full max-w-6xl">
             <MediaPlanCard
               plan={plan}
               onChange={(updated) => commit(updated)}
               readOnly={isClientView}
-              pinMode={pinMode}
-              onPinComment={(anchor) => handlePin(anchor)}
-              onOpenThread={openThread}
-              activeAnchor={activeAnchor}
             />
+
+            {/* Comment-drop capture layer (below the pins) — the cursor becomes the
+                comment pin and a click on empty canvas drops a new pin. Active
+                whenever the panel is open and we're not mid-compose. */}
+            {commentsOpen && !draftPin && (
+              <div className="absolute inset-0 z-30" style={{ cursor: COMMENT_CURSOR }} onClick={dropPin} />
+            )}
+
+            {/* Comment pins (Figma/Miro) — positioned as % of the canvas box.
+                One shape everywhere: blue teardrop with a number when it has a
+                message, white teardrop when empty (the draft). */}
+            <div className="pointer-events-none absolute inset-0 z-40">
+              {pinnedTops.map((c, i) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => { setActiveCommentId(c.id); setCommentsOpen(true); }}
+                  style={{ left: `${c.pin!.xPct}%`, top: `${c.pin!.yPct}%` }}
+                  className={cn(
+                    "pointer-events-auto absolute flex h-6 w-6 -translate-x-1 -translate-y-full items-center justify-center rounded-full rounded-bl-none text-[10px] font-bold shadow-md ring-2 ring-white transition-transform hover:scale-110",
+                    c.resolved ? "bg-muted text-muted-foreground" : activeCommentId === c.id ? "bg-[#5B3FD6] text-white" : "bg-[#7C5CFC] text-white"
+                  )}
+                  title={c.content}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              {/* Draft pin + composer popover (white = empty, no message yet) */}
+              {draftPin && (
+                <div style={{ left: `${draftPin.xPct}%`, top: `${draftPin.yPct}%` }} className="pointer-events-auto absolute">
+                  <span className="absolute -translate-x-1 -translate-y-full flex h-6 w-6 items-center justify-center rounded-full rounded-bl-none border-2 border-[#7C5CFC] bg-white shadow-md" />
+                  <div className="absolute left-2 top-1 w-64 rounded-xl border border-border bg-white p-2.5 shadow-xl">
+                    <textarea
+                      autoFocus
+                      value={draftText}
+                      onChange={(e) => setDraftText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitDraft(); } if (e.key === "Escape") { setDraftPin(null); } }}
+                      placeholder="Add a comment…"
+                      rows={3}
+                      className="w-full resize-none rounded-lg border border-border px-2.5 py-1.5 text-[13px] outline-none focus:border-[#7C5CFC]"
+                    />
+                    <div className="mt-1.5 flex items-center justify-end gap-2">
+                      <button onClick={() => setDraftPin(null)} className="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted">Cancel</button>
+                      <button onClick={submitDraft} disabled={!draftText.trim()} className="flex items-center gap-1 rounded-md bg-foreground px-2.5 py-1 text-[11px] font-medium text-white hover:bg-foreground/90 disabled:opacity-40">
+                        <Send className="h-3 w-3" /> Comment
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         {commentsOpen && (
           <MediaPlanComments
             plan={plan}
-            pinMode={pinMode}
-            onTogglePin={enterPin}
-            composerAnchor={composerAnchor}
-            onClearComposerAnchor={() => setComposerAnchor(null)}
-            activeAnchor={activeAnchor}
-            onFocusAnchor={setActiveAnchor}
-            onAdd={(input) => addMediaPlanComment(plan.id, { authorId: activePersona.id, authorRole, ...input })}
+            activeCommentId={activeCommentId}
+            onFocusComment={setActiveCommentId}
+            onReply={(parentId, content) => addMediaPlanComment(plan.id, { authorId: activePersona.id, authorRole, content, parentId })}
             onResolve={(commentId, resolved) => resolveMediaPlanComment(plan.id, commentId, resolved)}
-            onClose={() => { setCommentsOpen(false); enterPin(false); }}
+            onClose={() => { setCommentsOpen(false); setDraftPin(null); }}
           />
         )}
       </div>

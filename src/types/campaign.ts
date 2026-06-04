@@ -418,8 +418,8 @@ export interface MediaPlan {
   };
 }
 
-/** A comment on a media plan — pinned to an element (anchor) or plan-level.
- *  Shared between the agency and the client view (Figma-style commenting). */
+/** A comment on a media plan — a Figma/Miro-style pin dropped anywhere on the
+ *  canvas. Shared between the agency and the client view. */
 export interface MediaPlanComment {
   id: string;
   authorId: PersonaId;
@@ -427,8 +427,8 @@ export interface MediaPlanComment {
   authorRole: "agency" | "client";
   content: string;
   timestamp: string; // new Date().toLocaleString(), matches ApprovalComment
-  /** Pinned-element label, e.g. "Total budget" or "Awareness funnel". Undefined = plan-level. */
-  anchor?: string;
+  /** Drop location as a % of the canvas content box (so it tracks on scroll/resize). */
+  pin?: { xPct: number; yPct: number };
   resolved?: boolean;
   /** Top-level when undefined; otherwise a reply to this comment id. */
   parentId?: string;

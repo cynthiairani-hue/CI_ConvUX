@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import {
-  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, Copy, ChevronDown, ChevronRight, Trash2, Pause, Play, Pencil, MessageSquare,
+  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, Copy, ChevronDown, ChevronRight, Trash2, Pause, Play, Pencil,
 } from "lucide-react";
 import { Store, Plug } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
@@ -28,49 +28,22 @@ function SelectWrap({
   onSelect,
   className,
   children,
-  marker,
-  ring,
 }: {
   active: boolean;
   onSelect: () => void;
   className?: string;
   children: ReactNode;
-  /** Comment-count marker pinned to this element (rendered top-right). */
-  marker?: ReactNode;
-  /** Solid ring when this element's comment thread is focused. */
-  ring?: boolean;
 }) {
   return (
     <div
       onClick={active ? onSelect : undefined}
       className={cn(
-        "relative",
         className,
-        active && "cursor-pointer rounded-xl hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none",
-        ring && "rounded-xl outline outline-2 outline-[#7C5CFC]"
+        active && "cursor-pointer rounded-xl hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none"
       )}
     >
       {children}
-      {marker}
     </div>
-  );
-}
-
-/** Comment-count badge pinned to a canvas element (Figma-style). */
-function CommentMarker({ count, active, onClick }: { count: number; active?: boolean; onClick?: () => void }) {
-  if (count <= 0) return null;
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-      className={cn(
-        "absolute -right-2 -top-2 z-10 flex h-[18px] min-w-[18px] items-center justify-center gap-0.5 rounded-full px-1 text-[10px] font-semibold shadow-sm",
-        active ? "bg-[#7C5CFC] text-white" : "bg-[#F3F0FF] text-[#7C5CFC] ring-1 ring-[#7C5CFC]/30"
-      )}
-    >
-      <MessageSquare className="h-2.5 w-2.5" />
-      {count}
-    </button>
   );
 }
 
@@ -78,15 +51,8 @@ interface MediaPlanCardProps {
   plan: MediaPlan;
   /** Single source of truth: every edit returns a recalculated plan to the host. */
   onChange: (plan: MediaPlan) => void;
-  /** Read-only (client view / preview): hides every edit affordance. Pinning still works. */
+  /** Read-only (client view / preview): hides every edit affordance. */
   readOnly?: boolean;
-  /** Pin mode: selecting an element pins a comment to it instead of attaching AI context. */
-  pinMode?: boolean;
-  onPinComment?: (anchor: string, detail: string) => void;
-  /** Marker click → focus that anchor's thread in the comments panel. */
-  onOpenThread?: (anchor: string) => void;
-  /** The anchor whose thread is focused — its element gets a solid ring. */
-  activeAnchor?: string | null;
 }
 
 /** Data-viz palette for the client-evidence channel mix (meaningful, not decorative). */
@@ -397,7 +363,7 @@ function InflightPanel({ plan }: { plan: MediaPlan }) {
   );
 }
 
-export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment, onOpenThread, activeAnchor }: MediaPlanCardProps) {
+export function MediaPlanCard({ plan, onChange, readOnly }: MediaPlanCardProps) {
   const ro = !!readOnly;
   const [flash, setFlash] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<FunnelStage>>(() => new Set());
@@ -409,17 +375,8 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
     setPendingContext({ label, detail });
     setSelectMode(false);
   }
-  // Either mode arms the same dashed-outline highlight; the click is dispatched
-  // to the comment sink (pin) or the AI sink (select) — never both.
-  const selectable = (!!pinMode || selectMode) && !flash;
-  function pick(label: string, detail: string) {
-    if (pinMode && onPinComment) onPinComment(label, detail);
-    else if (selectMode) selectFromCanvas(label, detail);
-  }
-  const comments = plan.comments ?? [];
-  function commentsFor(anchor: string) {
-    return comments.filter((c) => c.anchor === anchor && !c.resolved).length;
-  }
+  // AI select-mode arms the dashed-outline whole-element highlight (attach to chat).
+  const selectable = selectMode && !flash;
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -534,14 +491,12 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
     <div className="space-y-4">
       {/* Plan header */}
       <div
-        onClick={selectable ? () => pick(`${plan.name} (whole plan)`, `${plan.name} — ${fmtMoney(summary.totalBudget)} across ${enabled.length} channels, ${plan.flight}, est. ${fmtNum(summary.estConversions)} conv · ${summary.estRoas}× ROAS`) : undefined}
+        onClick={selectable ? () => selectFromCanvas(`${plan.name} (whole plan)`, `${plan.name} — ${fmtMoney(summary.totalBudget)} across ${enabled.length} channels, ${plan.flight}, est. ${fmtNum(summary.estConversions)} conv · ${summary.estRoas}× ROAS`) : undefined}
         className={cn(
-          "relative rounded-xl border border-border bg-white p-5",
-          selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none",
-          activeAnchor === `${plan.name} (whole plan)` && "outline outline-2 outline-[#7C5CFC]"
+          "rounded-xl border border-border bg-white p-5",
+          selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none"
         )}
       >
-        <CommentMarker count={commentsFor(`${plan.name} (whole plan)`)} active={activeAnchor === `${plan.name} (whole plan)`} onClick={() => onOpenThread?.(`${plan.name} (whole plan)`)} />
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{plan.name}</h2>
@@ -609,9 +564,7 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
       {plan.evidence && (
         <SelectWrap
           active={selectable}
-          onSelect={() => pick(plan.evidence!.label, `${plan.evidence!.label} — blended ROAS ${plan.evidence!.blendedRoas.toFixed(1)}× over the last 90 days, ${plan.evidence!.basis}`)}
-          ring={activeAnchor === plan.evidence.label}
-          marker={<CommentMarker count={commentsFor(plan.evidence.label)} active={activeAnchor === plan.evidence.label} onClick={() => onOpenThread?.(plan.evidence!.label)} />}
+          onSelect={() => selectFromCanvas(plan.evidence!.label, `${plan.evidence!.label} — blended ROAS ${plan.evidence!.blendedRoas.toFixed(1)}× over the last 90 days, ${plan.evidence!.basis}`)}
         >
         <div className="rounded-xl border border-border bg-white p-4">
           <div className="flex items-center justify-between gap-3">
@@ -648,10 +601,10 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
 
       {/* Summary KPIs — total budget + goals, always present & editable */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SelectWrap active={selectable} onSelect={() => pick("Total budget", `Total budget — ${fmtMoney(summary.totalBudget)} across the plan`)} ring={activeAnchor === "Total budget"} marker={<CommentMarker count={commentsFor("Total budget")} active={activeAnchor === "Total budget"} onClick={() => onOpenThread?.("Total budget")} />}>
+        <SelectWrap active={selectable} onSelect={() => selectFromCanvas("Total budget", `Total budget — ${fmtMoney(summary.totalBudget)} across the plan`)}>
           <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={ro ? undefined : { amount: summary.totalBudget, onCommit: handleTotal }} aiHighlight={aiTouched.includes("total")} />
         </SelectWrap>
-        <SelectWrap active={selectable} onSelect={() => pick("Est. conversions", `Est. conversions — ${fmtNum(summary.estConversions)} vs goal ${fmtNum(summary.targets.conversions)}`)} ring={activeAnchor === "Est. conversions"} marker={<CommentMarker count={commentsFor("Est. conversions")} active={activeAnchor === "Est. conversions"} onClick={() => onOpenThread?.("Est. conversions")} />}>
+        <SelectWrap active={selectable} onSelect={() => selectFromCanvas("Est. conversions", `Est. conversions — ${fmtNum(summary.estConversions)} vs goal ${fmtNum(summary.targets.conversions)}`)}>
           <KpiTile
             label="Est. conversions"
             value={fmtNum(summary.estConversions)}
@@ -659,7 +612,7 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
             editTarget={ro ? undefined : { amount: summary.targets.conversions, up: convDelta >= 0, prefix: " ", onCommit: (n) => handleTarget("conversions", n) }}
           />
         </SelectWrap>
-        <SelectWrap active={selectable} onSelect={() => pick("Est. ROAS", `Est. ROAS — ${summary.estRoas}× vs goal ${summary.targets.roas}×`)} ring={activeAnchor === "Est. ROAS"} marker={<CommentMarker count={commentsFor("Est. ROAS")} active={activeAnchor === "Est. ROAS"} onClick={() => onOpenThread?.("Est. ROAS")} />}>
+        <SelectWrap active={selectable} onSelect={() => selectFromCanvas("Est. ROAS", `Est. ROAS — ${summary.estRoas}× vs goal ${summary.targets.roas}×`)}>
           <KpiTile
             label="Est. ROAS"
             value={`${summary.estRoas}×`}
@@ -667,14 +620,14 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
             editTarget={ro ? undefined : { amount: summary.targets.roas, up: roasDelta >= 0, prefix: " ", suffix: "×", onCommit: (n) => handleTarget("roas", n) }}
           />
         </SelectWrap>
-        <SelectWrap active={selectable} onSelect={() => pick("Est. impressions", `Est. impressions — ${fmtImpr(summary.estImpressions)} across the plan`)} ring={activeAnchor === "Est. impressions"} marker={<CommentMarker count={commentsFor("Est. impressions")} active={activeAnchor === "Est. impressions"} onClick={() => onOpenThread?.("Est. impressions")} />}>
+        <SelectWrap active={selectable} onSelect={() => selectFromCanvas("Est. impressions", `Est. impressions — ${fmtImpr(summary.estImpressions)} across the plan`)}>
           <KpiTile label="Est. impressions" value={fmtImpr(summary.estImpressions)} />
         </SelectWrap>
       </div>
 
       {/* In-flight view — only once the plan is live */}
       {plan.reviewState === "active" && (
-        <SelectWrap active={selectable} onSelect={() => pick("In-flight pacing", `${plan.name} in-flight — ${(() => { const i = getPlanInflight(plan); return `day ${i.elapsedDays} of ${i.totalDays}, ${i.status.toLowerCase()}`; })()}`)} ring={activeAnchor === "In-flight pacing"} marker={<CommentMarker count={commentsFor("In-flight pacing")} active={activeAnchor === "In-flight pacing"} onClick={() => onOpenThread?.("In-flight pacing")} />}>
+        <SelectWrap active={selectable} onSelect={() => selectFromCanvas("In-flight pacing", `${plan.name} in-flight — ${(() => { const i = getPlanInflight(plan); return `day ${i.elapsedDays} of ${i.totalDays}, ${i.status.toLowerCase()}`; })()}`)}>
           <InflightPanel plan={plan} />
         </SelectWrap>
       )}
@@ -711,8 +664,8 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
               <tbody key={stage} className="border-b border-border last:border-0">
                 {/* Funnel group header (Airtable-style, collapsible) */}
                 <tr
-                  onClick={selectable ? () => pick(`${meta.label} funnel`, `the ${meta.label} funnel — ${fmtMoney(st.budget)} (${st.pct}% of plan), ${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}`) : undefined}
-                  className={cn("bg-muted/40", selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none", activeAnchor === `${meta.label} funnel` && "outline outline-2 -outline-offset-2 outline-[#7C5CFC]")}
+                  onClick={selectable ? () => selectFromCanvas(`${meta.label} funnel`, `the ${meta.label} funnel — ${fmtMoney(st.budget)} (${st.pct}% of plan), ${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}`) : undefined}
+                  className={cn("bg-muted/40", selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none")}
                 >
                   <td colSpan={6} className="px-2 py-2.5">
                     <div className="flex items-center gap-2.5">
@@ -725,11 +678,6 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
                       <span className="text-[11px] text-muted-foreground">
                         <span className="font-medium text-foreground">{fmtMoney(st.budget)}</span> · {st.pct}% · {stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}
                       </span>
-                      {commentsFor(`${meta.label} funnel`) > 0 && (
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onOpenThread?.(`${meta.label} funnel`); }} className={cn("ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold", activeAnchor === `${meta.label} funnel` ? "bg-[#7C5CFC] text-white" : "bg-[#F3F0FF] text-[#7C5CFC]")}>
-                          <MessageSquare className="h-2.5 w-2.5" /> {commentsFor(`${meta.label} funnel`)}
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -740,12 +688,11 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
                     : `${fmtNum(c.forecast.conversions)} conv${c.forecast.roas != null ? ` · ${c.forecast.roas}×` : ""}`;
                   const isOpen = expanded.has(c.id);
                   const lineAnchor = `Line ${li + 1} · ${c.label.replace(/\s*\(.+\)\s*$/, "")}`;
-                  const lineCount = commentsFor(lineAnchor);
                   return (
                     <Fragment key={c.id}>
                       <tr
-                        onClick={selectable ? () => pick(lineAnchor, `${meta.label} · Line ${li + 1}: ${c.label}${c.location ? ` (${c.location})` : ""} — ${c.enabled ? fmtMoney(c.budget) : "off"}, ${est}`) : undefined}
-                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none", activeAnchor === lineAnchor && "outline outline-2 -outline-offset-2 outline-[#7C5CFC]")}
+                        onClick={selectable ? () => selectFromCanvas(lineAnchor, `${meta.label} · Line ${li + 1}: ${c.label}${c.location ? ` (${c.location})` : ""} — ${c.enabled ? fmtMoney(c.budget) : "off"}, ${est}`) : undefined}
+                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none")}
                       >
                         <td className="py-2.5 pl-4 pr-2">
                           <div className="flex min-w-0 items-center gap-2">
@@ -758,11 +705,6 @@ export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment,
                               : <LineLabel value={c.label} onCommit={(v) => handleField(c.id, { label: v })} />}
                             {c.status === "closed_beta" && (
                               <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600">Beta</span>
-                            )}
-                            {lineCount > 0 && (
-                              <button type="button" onClick={(e) => { e.stopPropagation(); onOpenThread?.(lineAnchor); }} className={cn("shrink-0 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold", activeAnchor === lineAnchor ? "bg-[#7C5CFC] text-white" : "bg-[#F3F0FF] text-[#7C5CFC]")}>
-                                <MessageSquare className="h-2.5 w-2.5" /> {lineCount}
-                              </button>
                             )}
                           </div>
                         </td>

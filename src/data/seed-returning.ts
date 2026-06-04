@@ -51,6 +51,18 @@ function getSeedAdvertiser(): Advertiser {
   };
 }
 
+/** Media plans are the agency↔client artifact about its client, Vans — NOT the
+ *  viewer's current brand. Pin them to Vans so they never flip to Ffern/Norwest
+ *  when a non-agency persona (SMB/client) triggers a reseed. Matches the agency
+ *  roster entry in seed-agency.ts (vans.com · Footwear & apparel). */
+const VANS_ADVERTISER: Advertiser = {
+  id: "adv-vans-com",
+  companyName: "Vans",
+  websiteUrl: "vans.com",
+  industry: mapBrandIndustryToIAB("Footwear & apparel"),
+  restrictedCategories: [],
+};
+
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toISOString();
 }
@@ -122,8 +134,8 @@ function buildSeedMediaPlans(adv: Advertiser): MediaPlan[] {
           authorName: "Jordan Reyes",
           authorRole: "client",
           content: "Love where this is heading. Can we push a bit more into awareness for the launch window?",
-          timestamp: daysAgo(2),
-          anchor: "Total budget",
+          timestamp: "Jun 2, 2026, 9:39 AM",
+          pin: { xPct: 12, yPct: 24 },
         },
       ],
     }),
@@ -308,6 +320,15 @@ function isEmptyKey(key: string): boolean {
 export function ensureReturningSeed(): void {
   if (typeof window === "undefined") return;
   if (localStorage.getItem("fuseiq-demo-user-state") === "first-time") return;
+
+  const set = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
+
+  // Media plans — the agency↔client artifact about Vans. Seeded for EVERY persona
+  // (incl. the agency portfolio and the client), always pinned to Vans, never the
+  // viewer's current brand. Runs before the agency-portfolio guard so it can't be
+  // skipped (and corrects any plans a non-agency reseed wrote with the wrong brand).
+  seedMediaPlans(set);
+
   // Agency portfolio (no client selected) works per-client (see ensureAgencySeed)
   // — don't seed a single-brand workspace there. But once a client is entered,
   // getCurrentBrand() resolves to that client, so seeding fills *their* scoped
@@ -319,7 +340,6 @@ export function ensureReturningSeed(): void {
     return;
   }
 
-  const set = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
   const adv = getSeedAdvertiser();
 
   let strategies: StrategyPlan[] | null = null;
@@ -359,11 +379,23 @@ export function ensureReturningSeed(): void {
   // real plans that open the media-plan card (not campaigns). Version-gated: a
   // bump re-seeds the curated set once (e.g. to refresh staggered flights),
   // overwriting prior demo plans, then respects the user's edits going forward.
-  const MP_SEED_VERSION = "v4-client-share";
-  if (localStorage.getItem("fuseiq-media-plans-seed") !== MP_SEED_VERSION) {
-    set("fuseiq-media-plans", buildSeedMediaPlans(adv));
-    localStorage.setItem("fuseiq-media-plans-seed", MP_SEED_VERSION);
-  } else if (isEmptyKey("fuseiq-media-plans")) {
-    set("fuseiq-media-plans", buildSeedMediaPlans(adv));
+}
+
+/** Media plans = the agency's Vans book of work. Version-gated; always Vans, and
+ *  registers the Vans advertiser so the plans resolve to "Vans" in the UI. */
+function seedMediaPlans(set: (key: string, value: unknown) => void): void {
+  const MP_SEED_VERSION = "v7-vans-pins";
+  const needs =
+    localStorage.getItem("fuseiq-media-plans-seed") !== MP_SEED_VERSION || isEmptyKey("fuseiq-media-plans");
+  if (!needs) return;
+  set("fuseiq-media-plans", buildSeedMediaPlans(VANS_ADVERTISER));
+  localStorage.setItem("fuseiq-media-plans-seed", MP_SEED_VERSION);
+  try {
+    const advs = JSON.parse(localStorage.getItem("fuseiq-advertisers") || "[]") as Advertiser[];
+    if (!advs.some((a) => a.id === VANS_ADVERTISER.id)) {
+      set("fuseiq-advertisers", [VANS_ADVERTISER, ...advs]);
+    }
+  } catch {
+    set("fuseiq-advertisers", [VANS_ADVERTISER]);
   }
 }

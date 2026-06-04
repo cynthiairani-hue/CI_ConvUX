@@ -76,7 +76,7 @@ interface CampaignContextValue {
   saveMediaPlan: (plan: MediaPlan) => void;
   addMediaPlanComment: (
     planId: string,
-    input: { authorId: PersonaId; authorRole: "agency" | "client"; content: string; anchor?: string; parentId?: string }
+    input: { authorId: PersonaId; authorRole: "agency" | "client"; content: string; pin?: { xPct: number; yPct: number }; parentId?: string }
   ) => void;
   resolveMediaPlanComment: (planId: string, commentId: string, resolved: boolean) => void;
   shareMediaPlanWithClient: (planId: string, clientId: PersonaId) => void;
@@ -306,7 +306,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const addMediaPlanComment = useCallback(
     (
       planId: string,
-      input: { authorId: PersonaId; authorRole: "agency" | "client"; content: string; anchor?: string; parentId?: string }
+      input: { authorId: PersonaId; authorRole: "agency" | "client"; content: string; pin?: { xPct: number; yPct: number }; parentId?: string }
     ) => {
       const author = personas.find((p) => p.id === input.authorId);
       const comment: MediaPlanComment = {
@@ -316,7 +316,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         authorRole: input.authorRole,
         content: input.content,
         timestamp: new Date().toLocaleString(),
-        anchor: input.anchor,
+        pin: input.pin,
         parentId: input.parentId,
       };
       mutateMediaPlan(planId, (p) => ({ ...p, comments: [...(p.comments ?? []), comment] }));
