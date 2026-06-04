@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, type FormEvent, type DragEvent, type KeyboardEvent } from "react";
-import { ArrowUp, Paperclip, Mic, X, FileText, SlidersHorizontal, Check, Zap, ListChecks, Lightbulb, Search, Plus, Upload, Plug, Wand2, Bot, Database, AtSign } from "lucide-react";
+import { ArrowUp, Paperclip, Mic, X, FileText, SlidersHorizontal, Check, Zap, ListChecks, Lightbulb, Search, Plus, Upload, Plug, Wand2, Bot, Database, SquareDashedMousePointer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useAICompanion } from "@/contexts/ai-companion-context";
@@ -176,7 +176,7 @@ export function AIInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { isListening, hasSpeechAPI, toggleVoice } = useVoiceInput(value, setValue);
-  const { pendingContext, setPendingContext } = useAICompanion();
+  const { pendingContext, setPendingContext, selectMode, setSelectMode } = useAICompanion();
 
   // Auto-resize textarea
   useEffect(() => {
@@ -194,7 +194,7 @@ export function AIInput({
     if (!trimmed && files.length === 0 && !pendingContext) return;
 
     const base = trimmed || (files.length > 0 ? `[Attached ${files.length} file${files.length > 1 ? "s" : ""}]` : "");
-    // Point-and-chat: prepend the selected canvas element so the AI answers about it.
+    // Contextual edit: prepend the selected element so the AI acts on it.
     const message = pendingContext
       ? `Re: ${pendingContext.label} (${pendingContext.detail})${base ? `\n\n${base}` : " — tell me about this."}`
       : base;
@@ -263,7 +263,7 @@ export function AIInput({
     setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
-  const hasContent = value.trim() || files.length > 0;
+  const hasContent = value.trim() || files.length > 0 || !!pendingContext;
 
   return (
     <div
@@ -328,18 +328,13 @@ export function AIInput({
         </div>
       )}
 
-      {/* Point-and-chat context chip — the canvas element the user selected */}
+      {/* Contextual-edit chip — the canvas element attached via select mode */}
       {pendingContext && (
         <div className="flex items-center pb-2">
-          <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[#2C9FDD]/40 bg-[#EBF5FB] px-2 py-1 text-[11px] font-medium text-[#1A7BB5]">
-            <AtSign className="h-3 w-3 shrink-0" />
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[#7C5CFC]/40 bg-[#F3F0FF] px-2 py-1 text-[11px] font-medium text-[#5B43D6]">
+            <SquareDashedMousePointer className="h-3 w-3 shrink-0" />
             <span className="truncate">{pendingContext.label}</span>
-            <button
-              type="button"
-              onClick={() => setPendingContext(null)}
-              className="ml-0.5 shrink-0 rounded text-[#1A7BB5]/60 transition-colors hover:text-[#1A7BB5]"
-              aria-label="Remove context"
-            >
+            <button type="button" onClick={() => setPendingContext(null)} className="ml-0.5 shrink-0 rounded text-[#5B43D6]/60 transition-colors hover:text-[#5B43D6]" aria-label="Remove context">
               <X className="h-3 w-3" />
             </button>
           </span>
@@ -370,6 +365,18 @@ export function AIInput({
           <div className="flex items-center">
             <ToolsPopover onAttachFile={() => fileInputRef.current?.click()} />
             <ModePopover />
+            <button
+              type="button"
+              onClick={() => setSelectMode(!selectMode)}
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                selectMode ? "bg-[#F3F0FF] text-[#5B43D6]" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+              title={selectMode ? "Selecting — click an element on the canvas" : "Select an element to discuss"}
+              aria-pressed={selectMode}
+            >
+              <SquareDashedMousePointer className="h-4 w-4" />
+            </button>
           </div>
           <div className="flex items-center gap-0.5">
             {hasSpeechAPI && (

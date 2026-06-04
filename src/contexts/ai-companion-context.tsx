@@ -143,9 +143,9 @@ export interface ChatMessage {
   tokenCount?: number;
 }
 
-/** A canvas element the user selected to talk about in chat (point-and-chat). */
+/** A canvas element selected for contextual edit (Figma-Make-style select mode). */
 export interface ChatContextRef {
-  label: string;  // short chip label, e.g. "Line 3 · Lookalike Prospecting"
+  label: string;  // chip label, e.g. "Line 1 · Connected TV (CTV)"
   detail: string; // fuller context handed to the LLM
 }
 
@@ -180,9 +180,12 @@ interface AICompanionContextValue {
   }) => void;
   submitKeywords: (messageId: string, selectedKeywordIds: string[], allKeywords: KeywordChip[]) => void;
   submitPlatformConnection: (messageId: string, connectedIds: string[], intentTag: string) => void;
-  /** Point-and-chat: the canvas element currently attached to the chat input. */
+  /** Contextual edit (select mode): the element attached to the chat input. */
   pendingContext: ChatContextRef | null;
   setPendingContext: (ctx: ChatContextRef | null) => void;
+  /** When true, the canvas highlights selectable containers to attach to chat. */
+  selectMode: boolean;
+  setSelectMode: (on: boolean) => void;
   /** Chat session management */
   currentSessionId: string | null;
   chatSessions: ChatSessionMeta[];
@@ -299,6 +302,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pendingContext, setPendingContext] = useState<ChatContextRef | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
   const [campaignIntent, setCampaignIntent] = useState<CampaignIntent | null>(null);
   const [strategyIntent, setStrategyIntent] = useState<StrategyIntent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -2849,6 +2853,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         sendMessage,
         pendingContext,
         setPendingContext,
+        selectMode,
+        setSelectMode,
         submitChoice,
         skipChoice,
         submitAdvertiserSetup,
