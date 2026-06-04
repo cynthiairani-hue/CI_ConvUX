@@ -500,14 +500,6 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
       </header>
       <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
         <div className="mx-auto w-full max-w-6xl">
-          {plan.reviewState === "active" && (
-            <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              <span>
-                {plan.campaigns.filter((c) => c.enabled).length} campaigns created · all <span className="font-medium">awaiting creative</span> · check-in scheduled for {plan.checkInDays} days. Upload creative and they go live within 24h.
-              </span>
-            </div>
-          )}
           <MediaPlanCard plan={plan} onChange={(updated) => commit(updated)} />
         </div>
       </div>

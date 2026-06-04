@@ -300,7 +300,7 @@ function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: Medi
   }
 
   return (
-    <div className="rounded-xl border border-border bg-white p-5">
+    <div className="relative rounded-xl border border-border bg-white p-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-foreground" />
@@ -326,8 +326,8 @@ function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: Medi
                 {fmtVal(m.delivered, m.kind)} <span className="text-[12px] font-normal text-muted-foreground">/ {fmtVal(m.planned, m.kind)} planned</span>
               </div>
               <div className="relative mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div className="absolute inset-y-0 left-0 rounded-full bg-foreground/80" style={{ width: `${fillPct}%` }} />
-                <div className="absolute inset-y-[-2px] w-0.5 bg-[#7C5CFC]" style={{ left: `${expPct}%` }} title={`Expected by now: ${expPct}%`} />
+                <div className="absolute inset-y-0 left-0 rounded-full bg-slate-400" style={{ width: `${fillPct}%` }} />
+                <div className="absolute inset-y-[-2px] w-0.5 bg-foreground/70" style={{ left: `${expPct}%` }} title={`Expected by now: ${expPct}%`} />
               </div>
               <div className="mt-1 text-[10px] text-muted-foreground">{m.pct}% delivered · {expPct}% expected by today</div>
             </div>
@@ -337,7 +337,7 @@ function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: Medi
       {inflight.suggestion && !dismissed && (
         <div className="mt-4 rounded-lg border border-[#7C5CFC]/30 bg-[#F7F4FE] p-3.5">
           <div className="flex items-start gap-2.5">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#5B43D6]" />
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 fill-[#5B43D6] text-[#5B43D6]" />
             <div className="min-w-0 flex-1">
               <div className="text-[12px] font-semibold text-foreground">AI suggestion — review & approve</div>
               <p className="mt-0.5 text-[12px] text-muted-foreground">
@@ -350,6 +350,17 @@ function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: Medi
             </div>
           </div>
         </div>
+      )}
+      {/* Collapsed suggestion — quiet solid sparkle, bottom-right, click to restore */}
+      {inflight.suggestion && dismissed && (
+        <button
+          type="button"
+          onClick={() => setDismissed(false)}
+          title="Show AI suggestion"
+          className="absolute bottom-3 right-3 flex h-7 w-7 items-center justify-center rounded-full text-[#5B43D6]/55 transition-colors hover:bg-[#F3F0FF] hover:text-[#5B43D6]"
+        >
+          <Sparkles className="h-4 w-4 fill-current" />
+        </button>
       )}
     </div>
   );
@@ -488,22 +499,22 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
           )}
         </div>
 
-        {/* Budget allocation across the funnel */}
-        <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-muted">
-          {STAGE_ORDER.map((stage) => {
-            const s = stageStat(stage);
-            if (s.budget <= 0) return null;
-            return (
-              <div
-                key={stage}
-                className={cn("h-full", STAGE_TINT[stage].bar)}
-                style={{ width: `${s.pct}%` }}
-                title={`${STAGE_META[stage].label} · ${fmtMoney(s.budget)} · ${s.pct}%`}
-              />
-            );
-          })}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+        {/* Budget allocation across the funnel — compact bar + inline legend */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <div className="flex h-1.5 w-[140px] shrink-0 overflow-hidden rounded-full bg-muted">
+            {STAGE_ORDER.map((stage) => {
+              const s = stageStat(stage);
+              if (s.budget <= 0) return null;
+              return (
+                <div
+                  key={stage}
+                  className={cn("h-full", STAGE_TINT[stage].bar)}
+                  style={{ width: `${s.pct}%` }}
+                  title={`${STAGE_META[stage].label} · ${fmtMoney(s.budget)} · ${s.pct}%`}
+                />
+              );
+            })}
+          </div>
           {STAGE_ORDER.map((stage) => {
             const s = stageStat(stage);
             if (s.budget <= 0) return null;
@@ -516,27 +527,22 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
           })}
         </div>
 
-        {/* Data-personalization callout (progressive readiness) */}
-        <div className={cn(
-          "mt-4 flex items-start gap-2 rounded-lg px-3 py-2 text-[12px]",
-          plan.pixelReady ? "bg-[#EBF5FB] text-[#1c6fa3]" : "bg-amber-50 text-amber-700"
-        )}>
-          {plan.pixelReady ? <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-          <span className="flex-1">
-            {plan.pixelReady
-              ? <>Personalized from this advertiser&apos;s account data and <span className="font-medium">{plan.benchmarkBasis}</span>.</>
-              : <>No pixel detected — projections use <span className="font-medium">{plan.benchmarkBasis}</span>. Connect it to personalize the forecast with real CPA history.</>}
-          </span>
-          {!plan.pixelReady && (
-            <button
-              type="button"
-              onClick={handleConnectPixel}
-              className="shrink-0 rounded-lg bg-foreground px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-foreground/90"
-            >
+        {/* Data-personalization (progressive readiness). When ready, a quiet
+            footnote; when not, a full amber callout with a connect action. */}
+        {plan.pixelReady ? (
+          <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Sparkles className="h-3 w-3 shrink-0 text-[#1A7BB5]" />
+            Personalized from this advertiser&apos;s account data and <span className="font-medium text-foreground">{plan.benchmarkBasis}</span>.
+          </p>
+        ) : (
+          <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1">No pixel detected — projections use <span className="font-medium">{plan.benchmarkBasis}</span>. Connect it to personalize the forecast with real CPA history.</span>
+            <button type="button" onClick={handleConnectPixel} className="shrink-0 rounded-lg bg-foreground px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-foreground/90">
               Connect pixel
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Client evidence — where they spend today (evidence before persuasion). */}
@@ -574,7 +580,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
         </div>
       )}
 
-      {/* Summary KPIs vs target */}
+      {/* Summary KPIs — total budget + goals, always present & editable */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={{ amount: summary.totalBudget, onCommit: handleTotal }} aiHighlight={aiTouched.includes("total")} />
         <KpiTile
