@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import {
-  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, Copy, ChevronDown, ChevronRight, Trash2, Pause, Play, Pencil,
+  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, Copy, ChevronDown, ChevronRight, Trash2, Pause, Play, Pencil, MessageSquare,
 } from "lucide-react";
 import { Store, Plug } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
@@ -28,22 +28,49 @@ function SelectWrap({
   onSelect,
   className,
   children,
+  marker,
+  ring,
 }: {
   active: boolean;
   onSelect: () => void;
   className?: string;
   children: ReactNode;
+  /** Comment-count marker pinned to this element (rendered top-right). */
+  marker?: ReactNode;
+  /** Solid ring when this element's comment thread is focused. */
+  ring?: boolean;
 }) {
   return (
     <div
       onClick={active ? onSelect : undefined}
       className={cn(
+        "relative",
         className,
-        active && "cursor-pointer rounded-xl hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none"
+        active && "cursor-pointer rounded-xl hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none",
+        ring && "rounded-xl outline outline-2 outline-[#7C5CFC]"
       )}
     >
       {children}
+      {marker}
     </div>
+  );
+}
+
+/** Comment-count badge pinned to a canvas element (Figma-style). */
+function CommentMarker({ count, active, onClick }: { count: number; active?: boolean; onClick?: () => void }) {
+  if (count <= 0) return null;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+      className={cn(
+        "absolute -right-2 -top-2 z-10 flex h-[18px] min-w-[18px] items-center justify-center gap-0.5 rounded-full px-1 text-[10px] font-semibold shadow-sm",
+        active ? "bg-[#7C5CFC] text-white" : "bg-[#F3F0FF] text-[#7C5CFC] ring-1 ring-[#7C5CFC]/30"
+      )}
+    >
+      <MessageSquare className="h-2.5 w-2.5" />
+      {count}
+    </button>
   );
 }
 
@@ -51,6 +78,15 @@ interface MediaPlanCardProps {
   plan: MediaPlan;
   /** Single source of truth: every edit returns a recalculated plan to the host. */
   onChange: (plan: MediaPlan) => void;
+  /** Read-only (client view / preview): hides every edit affordance. Pinning still works. */
+  readOnly?: boolean;
+  /** Pin mode: selecting an element pins a comment to it instead of attaching AI context. */
+  pinMode?: boolean;
+  onPinComment?: (anchor: string, detail: string) => void;
+  /** Marker click → focus that anchor's thread in the comments panel. */
+  onOpenThread?: (anchor: string) => void;
+  /** The anchor whose thread is focused — its element gets a solid ring. */
+  activeAnchor?: string | null;
 }
 
 /** Data-viz palette for the client-evidence channel mix (meaningful, not decorative). */
@@ -259,6 +295,16 @@ function KpiTile({
 }
 
 /** Labeled field for the expanded line detail panel. Commits on blur / Enter. */
+/** Read-only display of a line-detail field (client view). */
+function ReadField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="block text-[13px] text-foreground">{value}</span>
+    </div>
+  );
+}
+
 function DetailField({ label, value, placeholder, onCommit }: { label: string; value: string; placeholder: string; onCommit: (v: string) => void }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
@@ -351,7 +397,8 @@ function InflightPanel({ plan }: { plan: MediaPlan }) {
   );
 }
 
-export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
+export function MediaPlanCard({ plan, onChange, readOnly, pinMode, onPinComment, onOpenThread, activeAnchor }: MediaPlanCardProps) {
+  const ro = !!readOnly;
   const [flash, setFlash] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<FunnelStage>>(() => new Set());
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -361,6 +408,17 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   function selectFromCanvas(label: string, detail: string) {
     setPendingContext({ label, detail });
     setSelectMode(false);
+  }
+  // Either mode arms the same dashed-outline highlight; the click is dispatched
+  // to the comment sink (pin) or the AI sink (select) — never both.
+  const selectable = (!!pinMode || selectMode) && !flash;
+  function pick(label: string, detail: string) {
+    if (pinMode && onPinComment) onPinComment(label, detail);
+    else if (selectMode) selectFromCanvas(label, detail);
+  }
+  const comments = plan.comments ?? [];
+  function commentsFor(anchor: string) {
+    return comments.filter((c) => c.anchor === anchor && !c.resolved).length;
   }
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
@@ -390,36 +448,45 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   }
   // Manual edits clear the AI-change highlight (it's the human's edit now).
   function handleBudget(id: string, n: number) {
+    if (ro) return;
     onChange({ ...editCampaignBudget(plan, id, n), aiTouched: undefined });
     pushFlash();
   }
   function handleToggle(id: string) {
+    if (ro) return;
     onChange({ ...toggleCampaign(plan, id), aiTouched: undefined });
     pushFlash();
   }
   function handleTotal(n: number) {
+    if (ro) return;
     onChange({ ...setTotalBudget(plan, n), aiTouched: undefined });
     pushFlash();
   }
   function handleConnectPixel() {
+    if (ro) return;
     onChange({ ...plan, pixelReady: true, aiTouched: undefined });
   }
   function handleTarget(field: "conversions" | "roas", value: number) {
+    if (ro) return;
     onChange({ ...plan, summary: { ...plan.summary, targets: { ...plan.summary.targets, [field]: Math.max(0, value) } } });
   }
   function handleAddLine(sourceId: string) {
+    if (ro) return;
     const { plan: next } = addCampaignLine(plan, sourceId);
     onChange(next);
     pushFlash();
   }
   function handleRemoveLine(id: string) {
+    if (ro) return;
     onChange(removeCampaign(plan, id));
     pushFlash();
   }
   function handleField(id: string, fields: { label?: string; audience?: string; location?: string; creative?: string; keywords?: string; flightDates?: string }) {
+    if (ro) return;
     onChange(editCampaignFields(plan, id, fields));
   }
   function handleAddBlankLine(stage: FunnelStage, channel: MediaChannelKey) {
+    if (ro) return;
     const { plan: next } = addBlankLine(plan, stage, channel);
     onChange(next);
     pushFlash();
@@ -467,9 +534,14 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
     <div className="space-y-4">
       {/* Plan header */}
       <div
-        onClick={selectMode ? () => selectFromCanvas(`${plan.name} (whole plan)`, `${plan.name} — ${fmtMoney(summary.totalBudget)} across ${enabled.length} channels, ${plan.flight}, est. ${fmtNum(summary.estConversions)} conv · ${summary.estRoas}× ROAS`) : undefined}
-        className={cn("rounded-xl border border-border bg-white p-5", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none")}
+        onClick={selectable ? () => pick(`${plan.name} (whole plan)`, `${plan.name} — ${fmtMoney(summary.totalBudget)} across ${enabled.length} channels, ${plan.flight}, est. ${fmtNum(summary.estConversions)} conv · ${summary.estRoas}× ROAS`) : undefined}
+        className={cn(
+          "relative rounded-xl border border-border bg-white p-5",
+          selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none",
+          activeAnchor === `${plan.name} (whole plan)` && "outline outline-2 outline-[#7C5CFC]"
+        )}
       >
+        <CommentMarker count={commentsFor(`${plan.name} (whole plan)`)} active={activeAnchor === `${plan.name} (whole plan)`} onClick={() => onOpenThread?.(`${plan.name} (whole plan)`)} />
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{plan.name}</h2>
@@ -523,9 +595,11 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
           <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span className="flex-1">No pixel detected — projections use <span className="font-medium">{plan.benchmarkBasis}</span>. Connect it to personalize the forecast with real CPA history.</span>
-            <button type="button" onClick={handleConnectPixel} className="shrink-0 rounded-lg bg-foreground px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-foreground/90">
-              Connect pixel
-            </button>
+            {!ro && (
+              <button type="button" onClick={handleConnectPixel} className="shrink-0 rounded-lg bg-foreground px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-foreground/90">
+                Connect pixel
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -534,8 +608,10 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
           Compact: small bar + inline legend, neutral colors (reference data). */}
       {plan.evidence && (
         <SelectWrap
-          active={selectMode}
-          onSelect={() => selectFromCanvas(plan.evidence!.label, `${plan.evidence!.label} — blended ROAS ${plan.evidence!.blendedRoas.toFixed(1)}× over the last 90 days, ${plan.evidence!.basis}`)}
+          active={selectable}
+          onSelect={() => pick(plan.evidence!.label, `${plan.evidence!.label} — blended ROAS ${plan.evidence!.blendedRoas.toFixed(1)}× over the last 90 days, ${plan.evidence!.basis}`)}
+          ring={activeAnchor === plan.evidence.label}
+          marker={<CommentMarker count={commentsFor(plan.evidence.label)} active={activeAnchor === plan.evidence.label} onClick={() => onOpenThread?.(plan.evidence!.label)} />}
         >
         <div className="rounded-xl border border-border bg-white p-4">
           <div className="flex items-center justify-between gap-3">
@@ -572,31 +648,33 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
 
       {/* Summary KPIs — total budget + goals, always present & editable */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("Total budget", `Total budget — ${fmtMoney(summary.totalBudget)} across the plan`)}>
-          <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={{ amount: summary.totalBudget, onCommit: handleTotal }} aiHighlight={aiTouched.includes("total")} />
+        <SelectWrap active={selectable} onSelect={() => pick("Total budget", `Total budget — ${fmtMoney(summary.totalBudget)} across the plan`)} ring={activeAnchor === "Total budget"} marker={<CommentMarker count={commentsFor("Total budget")} active={activeAnchor === "Total budget"} onClick={() => onOpenThread?.("Total budget")} />}>
+          <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={ro ? undefined : { amount: summary.totalBudget, onCommit: handleTotal }} aiHighlight={aiTouched.includes("total")} />
         </SelectWrap>
-        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("Est. conversions", `Est. conversions — ${fmtNum(summary.estConversions)} vs goal ${fmtNum(summary.targets.conversions)}`)}>
+        <SelectWrap active={selectable} onSelect={() => pick("Est. conversions", `Est. conversions — ${fmtNum(summary.estConversions)} vs goal ${fmtNum(summary.targets.conversions)}`)} ring={activeAnchor === "Est. conversions"} marker={<CommentMarker count={commentsFor("Est. conversions")} active={activeAnchor === "Est. conversions"} onClick={() => onOpenThread?.("Est. conversions")} />}>
           <KpiTile
             label="Est. conversions"
             value={fmtNum(summary.estConversions)}
-            editTarget={{ amount: summary.targets.conversions, up: convDelta >= 0, prefix: " ", onCommit: (n) => handleTarget("conversions", n) }}
+            delta={ro ? { up: convDelta >= 0, text: `goal ${fmtNum(summary.targets.conversions)}` } : undefined}
+            editTarget={ro ? undefined : { amount: summary.targets.conversions, up: convDelta >= 0, prefix: " ", onCommit: (n) => handleTarget("conversions", n) }}
           />
         </SelectWrap>
-        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("Est. ROAS", `Est. ROAS — ${summary.estRoas}× vs goal ${summary.targets.roas}×`)}>
+        <SelectWrap active={selectable} onSelect={() => pick("Est. ROAS", `Est. ROAS — ${summary.estRoas}× vs goal ${summary.targets.roas}×`)} ring={activeAnchor === "Est. ROAS"} marker={<CommentMarker count={commentsFor("Est. ROAS")} active={activeAnchor === "Est. ROAS"} onClick={() => onOpenThread?.("Est. ROAS")} />}>
           <KpiTile
             label="Est. ROAS"
             value={`${summary.estRoas}×`}
-            editTarget={{ amount: summary.targets.roas, up: roasDelta >= 0, prefix: " ", suffix: "×", onCommit: (n) => handleTarget("roas", n) }}
+            delta={ro ? { up: roasDelta >= 0, text: `goal ${summary.targets.roas}×` } : undefined}
+            editTarget={ro ? undefined : { amount: summary.targets.roas, up: roasDelta >= 0, prefix: " ", suffix: "×", onCommit: (n) => handleTarget("roas", n) }}
           />
         </SelectWrap>
-        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("Est. impressions", `Est. impressions — ${fmtImpr(summary.estImpressions)} across the plan`)}>
+        <SelectWrap active={selectable} onSelect={() => pick("Est. impressions", `Est. impressions — ${fmtImpr(summary.estImpressions)} across the plan`)} ring={activeAnchor === "Est. impressions"} marker={<CommentMarker count={commentsFor("Est. impressions")} active={activeAnchor === "Est. impressions"} onClick={() => onOpenThread?.("Est. impressions")} />}>
           <KpiTile label="Est. impressions" value={fmtImpr(summary.estImpressions)} />
         </SelectWrap>
       </div>
 
       {/* In-flight view — only once the plan is live */}
       {plan.reviewState === "active" && (
-        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("In-flight pacing", `${plan.name} in-flight — ${(() => { const i = getPlanInflight(plan); return `day ${i.elapsedDays} of ${i.totalDays}, ${i.status.toLowerCase()}`; })()}`)}>
+        <SelectWrap active={selectable} onSelect={() => pick("In-flight pacing", `${plan.name} in-flight — ${(() => { const i = getPlanInflight(plan); return `day ${i.elapsedDays} of ${i.totalDays}, ${i.status.toLowerCase()}`; })()}`)} ring={activeAnchor === "In-flight pacing"} marker={<CommentMarker count={commentsFor("In-flight pacing")} active={activeAnchor === "In-flight pacing"} onClick={() => onOpenThread?.("In-flight pacing")} />}>
           <InflightPanel plan={plan} />
         </SelectWrap>
       )}
@@ -633,8 +711,8 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
               <tbody key={stage} className="border-b border-border last:border-0">
                 {/* Funnel group header (Airtable-style, collapsible) */}
                 <tr
-                  onClick={selectMode ? () => selectFromCanvas(`${meta.label} funnel`, `the ${meta.label} funnel — ${fmtMoney(st.budget)} (${st.pct}% of plan), ${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}`) : undefined}
-                  className={cn("bg-muted/40", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none")}
+                  onClick={selectable ? () => pick(`${meta.label} funnel`, `the ${meta.label} funnel — ${fmtMoney(st.budget)} (${st.pct}% of plan), ${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}`) : undefined}
+                  className={cn("bg-muted/40", selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none", activeAnchor === `${meta.label} funnel` && "outline outline-2 -outline-offset-2 outline-[#7C5CFC]")}
                 >
                   <td colSpan={6} className="px-2 py-2.5">
                     <div className="flex items-center gap-2.5">
@@ -647,6 +725,11 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                       <span className="text-[11px] text-muted-foreground">
                         <span className="font-medium text-foreground">{fmtMoney(st.budget)}</span> · {st.pct}% · {stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}
                       </span>
+                      {commentsFor(`${meta.label} funnel`) > 0 && (
+                        <button type="button" onClick={(e) => { e.stopPropagation(); onOpenThread?.(`${meta.label} funnel`); }} className={cn("ml-1 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold", activeAnchor === `${meta.label} funnel` ? "bg-[#7C5CFC] text-white" : "bg-[#F3F0FF] text-[#7C5CFC]")}>
+                          <MessageSquare className="h-2.5 w-2.5" /> {commentsFor(`${meta.label} funnel`)}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -656,11 +739,13 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     ? `${fmtImpr(c.forecast.impressions)} impr${c.forecast.cpm ? ` · $${c.forecast.cpm} CPM` : ""}`
                     : `${fmtNum(c.forecast.conversions)} conv${c.forecast.roas != null ? ` · ${c.forecast.roas}×` : ""}`;
                   const isOpen = expanded.has(c.id);
+                  const lineAnchor = `Line ${li + 1} · ${c.label.replace(/\s*\(.+\)\s*$/, "")}`;
+                  const lineCount = commentsFor(lineAnchor);
                   return (
                     <Fragment key={c.id}>
                       <tr
-                        onClick={selectMode ? () => selectFromCanvas(`Line ${li + 1} · ${c.label.replace(/\s*\(.+\)\s*$/, "")}`, `${meta.label} · Line ${li + 1}: ${c.label}${c.location ? ` (${c.location})` : ""} — ${c.enabled ? fmtMoney(c.budget) : "off"}, ${est}`) : undefined}
-                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none")}
+                        onClick={selectable ? () => pick(lineAnchor, `${meta.label} · Line ${li + 1}: ${c.label}${c.location ? ` (${c.location})` : ""} — ${c.enabled ? fmtMoney(c.budget) : "off"}, ${est}`) : undefined}
+                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectable && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none", activeAnchor === lineAnchor && "outline outline-2 -outline-offset-2 outline-[#7C5CFC]")}
                       >
                         <td className="py-2.5 pl-4 pr-2">
                           <div className="flex min-w-0 items-center gap-2">
@@ -668,30 +753,49 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                               {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                             </button>
                             <span className="w-4 shrink-0 text-[11px] font-medium text-muted-foreground">{li + 1}</span>
-                            <LineLabel value={c.label} onCommit={(v) => handleField(c.id, { label: v })} />
+                            {ro
+                              ? <span className="min-w-0 truncate text-[13px] font-medium text-foreground" title={c.label}>{c.label}</span>
+                              : <LineLabel value={c.label} onCommit={(v) => handleField(c.id, { label: v })} />}
                             {c.status === "closed_beta" && (
                               <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600">Beta</span>
+                            )}
+                            {lineCount > 0 && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); onOpenThread?.(lineAnchor); }} className={cn("shrink-0 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold", activeAnchor === lineAnchor ? "bg-[#7C5CFC] text-white" : "bg-[#F3F0FF] text-[#7C5CFC]")}>
+                                <MessageSquare className="h-2.5 w-2.5" /> {lineCount}
+                              </button>
                             )}
                           </div>
                         </td>
                         <td className="px-2 py-2.5"><span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{c.channel}</span></td>
                         <td className="px-2 py-1.5">
-                          <SearchPicker
-                            flush
-                            options={audienceOptions}
-                            value={c.audience ?? ""}
-                            onChange={(v) => handleField(c.id, { audience: v as string })}
-                            placeholder="Add audience…"
-                            searchPlaceholder="Search audiences…"
-                            footerActions={audienceFooter}
-                          />
+                          {ro ? (
+                            <span className="block truncate text-[12px] text-muted-foreground">{c.audience || "—"}</span>
+                          ) : (
+                            <SearchPicker
+                              flush
+                              options={audienceOptions}
+                              value={c.audience ?? ""}
+                              onChange={(v) => handleField(c.id, { audience: v as string })}
+                              placeholder="Add audience…"
+                              searchPlaceholder="Search audiences…"
+                              footerActions={audienceFooter}
+                            />
+                          )}
                         </td>
-                        <td className="px-2 py-2.5"><div className="flex justify-end"><BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} /></div></td>
+                        <td className="px-2 py-2.5"><div className="flex justify-end">{ro ? <span className="text-[13px] font-medium text-foreground">{fmtMoney(c.budget)}</span> : <BudgetInput value={c.budget} onCommit={(n) => handleBudget(c.id, n)} aiHighlight={aiTouched.includes(c.id)} />}</div></td>
                         <td className="truncate px-2 py-2.5 text-[11px] text-muted-foreground">{est}</td>
                         <td className="py-2.5 pl-2 pr-4">
                           <div className="flex items-center gap-1.5">
-                            <StatusPill active={c.enabled} onToggle={() => handleToggle(c.id)} />
-                            <CardOverflowMenu actions={lineActions(c)} />
+                            {ro ? (
+                              <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", c.enabled ? "bg-emerald-50 text-emerald-600" : "bg-muted text-muted-foreground")}>
+                                {c.enabled ? "In plan" : "Paused"}
+                              </span>
+                            ) : (
+                              <>
+                                <StatusPill active={c.enabled} onToggle={() => handleToggle(c.id)} />
+                                <CardOverflowMenu actions={lineActions(c)} />
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -700,6 +804,15 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                         <tr className={cn("border-t border-border bg-muted/20", !c.enabled && "opacity-60")}>
                           <td colSpan={6} className="px-4 py-3.5">
                             <div className="grid grid-cols-2 gap-x-4 gap-y-3 pl-7 sm:grid-cols-4">
+                              {ro ? (
+                                <>
+                                  <ReadField label="Geo / Market" value={c.location || "All markets"} />
+                                  <ReadField label="Keywords" value={c.keywords || "—"} />
+                                  <ReadField label="Flight dates" value={c.flightDates || plan.flight} />
+                                  <ReadField label="Creative concept" value={c.creative || "—"} />
+                                </>
+                              ) : (
+                                <>
                               <div>
                                 <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Geo / Market</span>
                                 <SearchPicker
@@ -733,6 +846,8 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                                 />
                               </div>
                               <DetailField label="Creative concept" value={c.creative ?? ""} placeholder="Describe the concept — asset binds at activation" onCommit={(v) => handleField(c.id, { creative: v })} />
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -741,7 +856,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                   );
                 })}
                 {/* Add line — last row of the group (Airtable pattern) */}
-                {!isCollapsed && (
+                {!isCollapsed && !ro && (
                   <tr className="border-t border-border">
                     <td colSpan={6} className="py-2 pl-[52px] pr-4">
                       <AddLinePicker label="Add line" onAdd={(channel) => handleAddBlankLine(stage, channel)} />

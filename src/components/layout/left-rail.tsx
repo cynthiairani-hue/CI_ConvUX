@@ -54,6 +54,13 @@ export function LeftRail() {
 
   const pendingCount = hydrated ? getPendingForPersona(activePersona.id).length : 0;
   const narrativeCount = hydrated ? savedNarratives.length : 0;
+  const isClient = activePersona.role === "client";
+  // Client portal: only their performance + shared plans. No internal surfaces.
+  const visibleNav = isClient ? navItems.filter((i) => i.id === "home" || i.id === "campaigns") : navItems;
+  // Unread agency comments across the client's shared plans → badge on "My Plans".
+  const clientUnread = hydrated && isClient
+    ? savedMediaPlans.filter((p) => p.sharedWithClient).reduce((n, p) => n + (p.comments ?? []).filter((c) => c.authorRole === "agency" && !c.resolved).length, 0)
+    : 0;
 
   return (
     <aside
@@ -92,26 +99,34 @@ export function LeftRail() {
       )}
 
       <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-        {navItems.map((item) => (
+        {visibleNav.map((item) => (
           <LeftRailNavItem
             key={item.id}
             icon={item.icon}
             label={
-              activePersona.vertical === "agency" && item.id === "campaigns"
+              isClient && item.id === "home"
+                ? "Performance"
+                : isClient && item.id === "campaigns"
+                ? "My Plans"
+                : activePersona.vertical === "agency" && item.id === "campaigns"
                 ? "Media Plans"
                 : activePersona.vertical === "agency" && item.id === "reports"
                 ? "Live Status"
                 : item.label
             }
             href={item.href}
-            badge={item.id === "approvals" ? pendingCount : item.id === "reports" ? narrativeCount : item.badge}
+            badge={
+              isClient
+                ? item.id === "campaigns" ? clientUnread : undefined
+                : item.id === "approvals" ? pendingCount : item.id === "reports" ? narrativeCount : item.badge
+            }
             isActive={pathname.startsWith(item.href)}
             isCollapsed={leftRailCollapsed}
           />
         ))}
       </nav>
 
-      {!leftRailCollapsed && recentChats.length > 0 && (
+      {!isClient && !leftRailCollapsed && recentChats.length > 0 && (
         <>
           <Separator />
           <div className="p-2">

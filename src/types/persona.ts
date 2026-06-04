@@ -8,6 +8,8 @@ export interface Persona {
   vertical: Vertical;
   verticalLabel: string;
   initials: string;
+  /** "client" → read-only client portal (sees shared plans + their performance). */
+  role?: "client";
 }
 
 export interface GettingStartedTask {

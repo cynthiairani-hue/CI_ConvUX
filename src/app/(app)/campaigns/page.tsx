@@ -124,7 +124,7 @@ function StrategyRow({
 
 /** Media-plan row for the agency Media Plans list — opens the media-plan card. */
 function MediaPlanRow({
-  plan, onOpen, onAction, isRenaming, renameValue, onRenameChange, onRenameSubmit, onRenameCancel,
+  plan, onOpen, onAction, isRenaming, renameValue, onRenameChange, onRenameSubmit, onRenameCancel, readOnly,
 }: {
   plan: MediaPlan;
   onOpen: () => void;
@@ -134,6 +134,7 @@ function MediaPlanRow({
   onRenameChange: (v: string) => void;
   onRenameSubmit: () => void;
   onRenameCancel: () => void;
+  readOnly?: boolean;
 }) {
   const config = STATUS_CONFIG[plan.reviewState];
   const enabled = plan.campaigns.filter((c) => c.enabled).length;
@@ -189,7 +190,7 @@ function MediaPlanRow({
           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{timeAgo(plan.lastModifiedAt)}</span>
         </div>
       </div>
-      {!isRenaming && <CardOverflowMenu actions={actions} />}
+      {!isRenaming && !readOnly && <CardOverflowMenu actions={actions} />}
     </div>
   );
 }
@@ -210,13 +211,16 @@ export default function CampaignsPage() {
     savedStrategies, savedAdvertisers, setActiveStrategy,
     activeNarrative, setActiveNarrative, showToast,
     duplicateStrategy, renameStrategy, archiveStrategy, removeStrategy,
-    savedMediaPlans, duplicateMediaPlan, renameMediaPlan, archiveMediaPlan, removeMediaPlan,
+    savedMediaPlans, setActiveMediaPlan, duplicateMediaPlan, renameMediaPlan, archiveMediaPlan, removeMediaPlan,
     hydrated,
   } = useCampaign();
-  const { openFullscreen, startMediaPlanFlow, openPlanContext } = useAICompanion();
+  const { openFullscreen, startMediaPlanFlow, openPlanContext, setState: setChatState } = useAICompanion();
   const { activePersona } = usePersona();
   // Agencies speak "media plan", not "campaign" — the plan is the unit of work.
   const isAgency = activePersona.vertical === "agency";
+  // Client portal: read-only view of plans the agency has shared with them.
+  const isClient = activePersona.role === "client";
+  const showMediaPlans = isAgency || isClient;
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -296,11 +300,13 @@ export default function CampaignsPage() {
     setRenamingId(null);
   }
 
-  const isEmpty = (isAgency ? savedMediaPlans : savedStrategies).length === 0;
+  // Clients only see plans shared with them; agencies see all.
+  const mpSource = isClient ? savedMediaPlans.filter((p) => p.sharedWithClient) : savedMediaPlans;
+  const isEmpty = (showMediaPlans ? mpSource : savedStrategies).length === 0;
   const brand = useBrand();
 
   // Agency: filter + group the saved MEDIA PLANS (not strategies).
-  const mpFiltered = statusFilter === "all" ? savedMediaPlans : savedMediaPlans.filter((p) => p.reviewState === statusFilter);
+  const mpFiltered = statusFilter === "all" ? mpSource : mpSource.filter((p) => p.reviewState === statusFilter);
   const mpGrouped = mpFiltered.reduce<Record<string, MediaPlan[]>>((acc, p) => {
     const raw = advNames.get(p.advertiserId) || p.advertiserId || "Unassigned";
     const key = raw.toUpperCase();
@@ -312,6 +318,9 @@ export default function CampaignsPage() {
     Math.max(...a[1].map((p) => new Date(p.lastModifiedAt).getTime()))
   );
   function handleOpenMediaPlan(plan: MediaPlan) {
+    // Clients get a calm read-only canvas (no AI build chat) — just the plan +
+    // the comments panel. Agencies get the contextual chat starter beside it.
+    if (isClient) { setActiveMediaPlan(plan); setChatState("resting"); return; }
     // Open the plan with a chat starter contextual to its current state
     // (status + in-flight situation), beside the canvas. (Recent-chat clicks in
     // the left rail still restore the original build conversation.)
@@ -361,16 +370,16 @@ export default function CampaignsPage() {
         <div className="mx-auto my-auto w-full max-w-3xl px-4 sm:px-8 py-10">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-foreground">{isAgency ? "Media Plans" : "Campaigns"}</h1>
+              <h1 className="text-xl font-semibold tracking-tight text-foreground">{isClient ? "My Plans" : isAgency ? "Media Plans" : "Campaigns"}</h1>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
                 {(() => {
-                  const count = isAgency ? savedMediaPlans.length : savedStrategies.length;
-                  if (isEmpty) return isAgency ? "Your media plans will live here" : "Your campaigns will live here";
-                  return `${count} ${isAgency ? "media plan" : "campaign"}${count === 1 ? "" : "s"}`;
+                  const count = showMediaPlans ? mpSource.length : savedStrategies.length;
+                  if (isEmpty) return isClient ? "Plans your agency shares will appear here" : isAgency ? "Your media plans will live here" : "Your campaigns will live here";
+                  return `${count} ${isAgency || isClient ? "media plan" : "campaign"}${count === 1 ? "" : "s"}`;
                 })()}
               </p>
             </div>
-            {!isEmpty && (
+            {!isEmpty && !isClient && (
               <button
                 type="button"
                 onClick={handleNewCampaign}
@@ -415,24 +424,28 @@ export default function CampaignsPage() {
                 </div>
               )}
               <h2 className="text-base font-semibold text-foreground">
-                {isAgency ? "Build your first media plan" : "Build your first campaign"}
+                {isClient ? "Nothing shared yet" : isAgency ? "Build your first media plan" : "Build your first campaign"}
               </h2>
               <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-                {isAgency
+                {isClient
+                  ? "When your agency shares a media plan with you, it'll appear here — read-only, with a place to comment."
+                  : isAgency
                   ? "The AI will plan your channel mix, budgets, and forecast — grouped by funnel stage."
                   : "The AI will walk you through targeting, budget, and creative — step by step."}
               </p>
-              <button
-                type="button"
-                onClick={handleNewCampaign}
-                className="mt-5 inline-flex items-center rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
-              >
-                Get started
-              </button>
+              {!isClient && (
+                <button
+                  type="button"
+                  onClick={handleNewCampaign}
+                  className="mt-5 inline-flex items-center rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+                >
+                  Get started
+                </button>
+              )}
             </div>
           ) : (
             <div className="mt-4 space-y-6">
-              {isAgency ? (
+              {showMediaPlans ? (
                 mpGroupEntries.length === 0 ? (
                   <p className="py-8 text-center text-[13px] text-muted-foreground">No media plans match this filter.</p>
                 ) : (
@@ -446,6 +459,7 @@ export default function CampaignsPage() {
                             <MediaPlanRow
                               key={p.id}
                               plan={p}
+                              readOnly={isClient}
                               onOpen={() => handleOpenMediaPlan(p)}
                               onAction={(actionId) => handleMediaPlanAction(p, actionId)}
                               isRenaming={renamingId === p.id}
@@ -492,9 +506,11 @@ export default function CampaignsPage() {
         </div>
       </div>
 
-      <div className="shrink-0 pb-6 pt-2">
-        <PageChatInput placeholder="Ask about strategy, budgets, or creative next steps..." />
-      </div>
+      {!isClient && (
+        <div className="shrink-0 pb-6 pt-2">
+          <PageChatInput placeholder="Ask about strategy, budgets, or creative next steps..." />
+        </div>
+      )}
 
       <ConfirmDialog
         open={deletingId !== null}

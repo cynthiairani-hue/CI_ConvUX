@@ -1,3 +1,5 @@
+import type { PersonaId } from "./persona";
+
 export type ReadinessState = "ready" | "limited" | "blocked";
 
 // --- IAB Standard Categories ---
@@ -402,6 +404,27 @@ export interface MediaPlan {
   createdAt: string;
   lastModifiedAt: string;
   lastModifiedBy: string;
+  /** Client collaboration. Comments are pinned to an element label (anchor) or
+   *  plan-level. Optional ⇒ plans persisted before this field hydrate fine. */
+  comments?: MediaPlanComment[];
+  sharedWithClient?: boolean;
+  sharedClientId?: PersonaId;
+}
+
+/** A comment on a media plan — pinned to an element (anchor) or plan-level.
+ *  Shared between the agency and the client view (Figma-style commenting). */
+export interface MediaPlanComment {
+  id: string;
+  authorId: PersonaId;
+  authorName: string;
+  authorRole: "agency" | "client";
+  content: string;
+  timestamp: string; // new Date().toLocaleString(), matches ApprovalComment
+  /** Pinned-element label, e.g. "Total budget" or "Awareness funnel". Undefined = plan-level. */
+  anchor?: string;
+  resolved?: boolean;
+  /** Top-level when undefined; otherwise a reply to this comment id. */
+  parentId?: string;
 }
 
 // --- Operator (delegated agentic execution) ---

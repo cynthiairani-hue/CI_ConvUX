@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, CheckCircle2, Zap } from "lucide-react";
+import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, CheckCircle2, Zap, MessageSquare, Eye, Link2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { approvers } from "@/data/approvers";
 import { usePersona } from "@/contexts/persona-context";
@@ -18,6 +18,7 @@ import type { StrategyPlan } from "@/types/campaign";
 import { CFONarrativeCard } from "@/components/patterns/cfo-narrative-card";
 import { CompetitiveBriefCard } from "@/components/patterns/competitive-brief-card";
 import { OperatorAuthorizationCard } from "@/components/patterns/operator-authorization-card";
+import { MediaPlanComments } from "@/components/patterns/comment-thread";
 import { MediaPlanCard } from "@/components/patterns/media-plan-card";
 import { AudienceCard } from "@/components/patterns/audience-card";
 import { getCurrentBrand } from "@/data/brand-profiles";
@@ -424,8 +425,21 @@ const MP_REVIEW_STYLE: Record<string, { label: string; tint: string }> = {
 };
 
 function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof useCampaign>["activeMediaPlan"]> }) {
-  const { setActiveMediaPlan, saveMediaPlan, showToast } = useCampaign();
-  const { setState } = useAICompanion();
+  const { setActiveMediaPlan, saveMediaPlan, showToast, addMediaPlanComment, resolveMediaPlanComment, shareMediaPlanWithClient } = useCampaign();
+  const { setState, setSelectMode } = useAICompanion();
+  const { activePersona } = usePersona();
+  const isClient = activePersona.role === "client";
+
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [pinMode, setPinMode] = useState(false);
+  const [activeAnchor, setActiveAnchor] = useState<string | null>(null);
+  const [composerAnchor, setComposerAnchor] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [previewAsClient, setPreviewAsClient] = useState(false);
+
+  const isClientView = isClient || previewAsClient;
+  const authorRole: "agency" | "client" = isClientView ? "client" : "agency";
+  const unresolved = (plan.comments ?? []).filter((c) => !c.resolved).length;
 
   // Keep the active plan and the persisted list in sync on every change.
   const commit = (updated: typeof plan) => { setActiveMediaPlan(updated); saveMediaPlan(updated); };
@@ -444,48 +458,95 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
     showToast(`${plan.campaigns.filter((c) => c.enabled).length} campaigns created in AdRoll · check-in set for +45 days`);
   }
 
+  function enterPin(on: boolean) {
+    setPinMode(on);
+    if (on) { setSelectMode(false); setComposerAnchor(null); }
+  }
+  function handlePin(anchor: string) {
+    setComposerAnchor(anchor);
+    setActiveAnchor(anchor);
+    setPinMode(false);
+    setCommentsOpen(true);
+  }
+  function openThread(anchor: string) {
+    setActiveAnchor(anchor);
+    setCommentsOpen(true);
+  }
+
   const review = MP_REVIEW_STYLE[plan.reviewState] ?? MP_REVIEW_STYLE.draft;
 
   return (
     <main className="flex flex-1 flex-col overflow-hidden">
+      {previewAsClient && (
+        <div className="flex h-9 shrink-0 items-center justify-center gap-3 border-b border-[#7C5CFC]/30 bg-[#F3F0FF] text-[12px] text-[#7C5CFC]">
+          <span className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5" /> Previewing as Jordan Reyes — read-only</span>
+          <button onClick={() => setPreviewAsClient(false)} className="font-medium underline underline-offset-2">Exit preview</button>
+        </div>
+      )}
       <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
         <div className="flex min-w-0 items-center gap-2.5">
           <h1 className="truncate text-[14px] font-semibold text-foreground">{plan.name}</h1>
           <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", review.tint)}>
             {review.label}
           </span>
+          {plan.sharedWithClient && !isClientView && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+              <Check className="h-3 w-3" /> Shared
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => showToast("Plan exported to PDF")}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+            onClick={() => { setCommentsOpen((v) => !v); }}
+            className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors", commentsOpen ? "border-[#7C5CFC] bg-[#F3F0FF] text-[#7C5CFC]" : "border-border text-foreground hover:bg-accent")}
           >
-            <FileDown className="h-3.5 w-3.5" /> Export
-          </button>
-          <button
-            type="button"
-            onClick={() => showToast("Share link copied to clipboard")}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            <Share2 className="h-3.5 w-3.5" /> Share
+            <MessageSquare className="h-3.5 w-3.5" /> Comments{unresolved > 0 ? ` (${unresolved})` : ""}
           </button>
 
-          {/* Lifecycle primary action — advances the gate */}
-          {plan.reviewState === "draft" && (
-            <button type="button" onClick={sendForApproval} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
-              <Send className="h-3.5 w-3.5" /> Send for approval
-            </button>
-          )}
-          {plan.reviewState === "pending-approval" && (
-            <button type="button" onClick={approve} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Approve
-            </button>
-          )}
-          {plan.reviewState === "approved" && (
-            <button type="button" onClick={activate} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
-              <Zap className="h-3.5 w-3.5" /> Activate
-            </button>
+          {!isClientView && (
+            <>
+              <button
+                type="button"
+                onClick={() => showToast("Plan exported to PDF")}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <FileDown className="h-3.5 w-3.5" /> Export
+              </button>
+              <button
+                type="button"
+                onClick={() => setShareOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <Share2 className="h-3.5 w-3.5" /> Share
+              </button>
+              {plan.sharedWithClient && (
+                <button
+                  type="button"
+                  onClick={() => setPreviewAsClient(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+                >
+                  <Eye className="h-3.5 w-3.5" /> Preview as client
+                </button>
+              )}
+
+              {/* Lifecycle primary action — advances the gate */}
+              {plan.reviewState === "draft" && (
+                <button type="button" onClick={sendForApproval} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+                  <Send className="h-3.5 w-3.5" /> Send for approval
+                </button>
+              )}
+              {plan.reviewState === "pending-approval" && (
+                <button type="button" onClick={approve} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+                </button>
+              )}
+              {plan.reviewState === "approved" && (
+                <button type="button" onClick={activate} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+                  <Zap className="h-3.5 w-3.5" /> Activate
+                </button>
+              )}
+            </>
           )}
 
           <div className="mx-0.5 h-5 w-px bg-border" />
@@ -498,12 +559,81 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           </button>
         </div>
       </header>
-      <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
-        <div className="mx-auto w-full max-w-6xl">
-          <MediaPlanCard plan={plan} onChange={(updated) => commit(updated)} />
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-y-auto bg-accent px-8 py-8">
+          <div className="mx-auto w-full max-w-6xl">
+            <MediaPlanCard
+              plan={plan}
+              onChange={(updated) => commit(updated)}
+              readOnly={isClientView}
+              pinMode={pinMode}
+              onPinComment={(anchor) => handlePin(anchor)}
+              onOpenThread={openThread}
+              activeAnchor={activeAnchor}
+            />
+          </div>
+        </div>
+        {commentsOpen && (
+          <MediaPlanComments
+            plan={plan}
+            pinMode={pinMode}
+            onTogglePin={enterPin}
+            composerAnchor={composerAnchor}
+            onClearComposerAnchor={() => setComposerAnchor(null)}
+            activeAnchor={activeAnchor}
+            onFocusAnchor={setActiveAnchor}
+            onAdd={(input) => addMediaPlanComment(plan.id, { authorId: activePersona.id, authorRole, ...input })}
+            onResolve={(commentId, resolved) => resolveMediaPlanComment(plan.id, commentId, resolved)}
+            onClose={() => { setCommentsOpen(false); enterPin(false); }}
+          />
+        )}
+      </div>
+
+      {shareOpen && (
+        <ShareWithClientDialog
+          shared={!!plan.sharedWithClient}
+          onCopyLink={() => { navigator.clipboard?.writeText(`https://app.fuseiq.example/p/${plan.id}`); showToast("Share link copied to clipboard"); }}
+          onShare={() => { shareMediaPlanWithClient(plan.id, "jordan-reyes"); setShareOpen(false); showToast("Shared with Jordan Reyes — they can view & comment"); }}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+    </main>
+  );
+}
+
+function ShareWithClientDialog({ shared, onCopyLink, onShare, onClose }: { shared: boolean; onCopyLink: () => void; onShare: () => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl border border-border bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold text-foreground">Share with client</h2>
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="mt-1 text-[12px] text-muted-foreground">Your client gets a read-only view of this plan and can leave comments.</p>
+
+        <div className="mt-4 flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F3F0FF] text-[11px] font-semibold text-[#7C5CFC]">JR</span>
+            <div>
+              <div className="text-[13px] font-medium text-foreground">Jordan Reyes</div>
+              <div className="text-[11px] text-muted-foreground">Client Lead</div>
+            </div>
+          </div>
+          <span className="text-[11px] font-medium text-muted-foreground">Can view &amp; comment</span>
+        </div>
+
+        <button onClick={onCopyLink} className="mt-3 flex w-full items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-accent">
+          <Link2 className="h-3.5 w-3.5" /> Copy share link
+        </button>
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">Cancel</button>
+          <button onClick={onShare} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+            {shared ? <><Check className="h-3.5 w-3.5" /> Re-share</> : <><Share2 className="h-3.5 w-3.5" /> Share</>}
+          </button>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -711,6 +841,9 @@ function ChatBubble({ onOpen }: { onOpen: () => void }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const { state, dockSide, setState } = useAICompanion();
   const { activeStrategy, savedStrategies, activeNarrative, activeAudience, activeBrief, activeOperator, activeMediaPlan } = useCampaign();
+  const { activePersona } = usePersona();
+  // Client portal is read-only — no AI build companion at all (just view + comment).
+  const isClient = activePersona.role === "client";
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
 
   const strategy = activeStrategy || savedStrategies[savedStrategies.length - 1];
@@ -745,6 +878,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     // Only trigger on transition from no-artifact → has-artifact
     if (!hasArtifact || wasOpen) return;
+    // Clients never get the auto-opened AI companion.
+    if (isClient) return;
     // Manual-GUI-first (Notion-style): a main CTA opened the artifact for manual
     // editing — keep the chat closed; the bubble offers the AI reactively.
     if (typeof window !== "undefined" && sessionStorage.getItem("fuseiq-suppress-autochat")) {
@@ -767,7 +902,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       // Default to split panel for first-time users or those who prefer split
       setState("split");
     }
-  }, [hasArtifact, state, setState]);
+  }, [hasArtifact, state, setState, isClient]);
 
   const handleDrag = useCallback((deltaX: number) => {
     setChatWidth((prev) => Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, prev + deltaX)));
@@ -803,7 +938,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   };
 
-  const showSplitChat = state === "split";
+  const showSplitChat = state === "split" && !isClient;
 
   return (
     <>
@@ -827,11 +962,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           </>
         )}
       </div>
-      {state === "fullscreen" && <AIFullscreen />}
-      {state === "floating" && <AIFloatingPanel />}
+      {!isClient && state === "fullscreen" && <AIFullscreen />}
+      {!isClient && state === "floating" && <AIFloatingPanel />}
 
-      {/* Chat bubble — visible when artifact is open and chat isn't showing in any panel */}
+      {/* Chat bubble — visible when artifact is open and chat isn't showing in any panel.
+          Clients don't get the AI companion at all. */}
       {(() => {
+        if (isClient) return null;
         const chatVisible =
           state === "fullscreen" ||
           state === "floating" ||

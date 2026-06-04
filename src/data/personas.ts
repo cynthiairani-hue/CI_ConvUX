@@ -35,6 +35,7 @@ export const personas: Persona[] = [
     vertical: "b2c",
     verticalLabel: "Client Lead",
     initials: "JR",
+    role: "client",
   },
 ];
 

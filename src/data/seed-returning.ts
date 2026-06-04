@@ -113,6 +113,19 @@ function buildSeedMediaPlans(adv: Advertiser): MediaPlan[] {
       flight: "Apr–Jun 2026", durationDays: 90,
       createdAt: daysAgo(20), lastModifiedAt: daysAgo(3), lastModifiedBy: "Cynthia Irani",
       chatSessionId: "seed-chat-launch", // reopen restores this conversation
+      sharedWithClient: true,
+      sharedClientId: "jordan-reyes",
+      comments: [
+        {
+          id: "seed-mpc-1",
+          authorId: "jordan-reyes",
+          authorName: "Jordan Reyes",
+          authorRole: "client",
+          content: "Love where this is heading. Can we push a bit more into awareness for the launch window?",
+          timestamp: daysAgo(2),
+          anchor: "Total budget",
+        },
+      ],
     }),
     mk("sales", 80_000, { conversions: 3_500, roas: 3.5 }, {
       id: "seed-mp-aon", name: `${n} — Always-On Retargeting`, reviewState: "active",
@@ -346,7 +359,7 @@ export function ensureReturningSeed(): void {
   // real plans that open the media-plan card (not campaigns). Version-gated: a
   // bump re-seeds the curated set once (e.g. to refresh staggered flights),
   // overwriting prior demo plans, then respects the user's edits going forward.
-  const MP_SEED_VERSION = "v3-two-active";
+  const MP_SEED_VERSION = "v4-client-share";
   if (localStorage.getItem("fuseiq-media-plans-seed") !== MP_SEED_VERSION) {
     set("fuseiq-media-plans", buildSeedMediaPlans(adv));
     localStorage.setItem("fuseiq-media-plans-seed", MP_SEED_VERSION);

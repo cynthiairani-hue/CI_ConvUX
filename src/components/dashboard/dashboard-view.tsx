@@ -10,6 +10,7 @@ import { AgencyPortfolioView } from "./agency-portfolio-view";
 import { getActiveClient, getClientSignals, type ActiveClient, type ClientSignal, type SignalKind } from "@/data/seed-agency";
 import {
   Megaphone,
+  MessageSquare,
   TrendingUp,
   Link,
   DollarSign,
@@ -28,6 +29,7 @@ import { FFERN_SEED_PERFORMANCE } from "@/data/seed-ffern";
 import { SEED_PERFORMANCE } from "@/data/seed-company";
 import type { SeedMonthlyPerformance } from "@/data/seed-company";
 import type { GettingStartedTask } from "@/types/persona";
+import type { MediaPlan } from "@/types/campaign";
 import type { LucideIcon } from "lucide-react";
 import { FocusChatsTabs } from "./focus-chats-tabs";
 
@@ -452,10 +454,94 @@ function getUserInfo(): UserInfo {
    Dashboard view
    ────────────────────────────────────────────── */
 
+/** Client portal home — read-only performance overview + the plans the agency
+ *  has shared. No build tools, priorities, or chat (the client just watches). */
+function ClientPortalHome({
+  userName, perf, brand, sharedPlans, onOpenPlan,
+}: {
+  userName: string;
+  perf: SeedMonthlyPerformance[];
+  brand: BrandProfile | null;
+  sharedPlans: MediaPlan[];
+  onOpenPlan: (plan: MediaPlan) => void;
+}) {
+  const MP_STATUS: Record<string, { label: string; bg: string; text: string }> = {
+    draft: { label: "Draft", bg: "bg-muted", text: "text-muted-foreground" },
+    "pending-approval": { label: "Pending", bg: "bg-amber-50", text: "text-amber-600" },
+    approved: { label: "Approved", bg: "bg-[#EBF5FB]", text: "text-[#2C9FDD]" },
+    active: { label: "Active", bg: "bg-emerald-50", text: "text-emerald-600" },
+    paused: { label: "Paused", bg: "bg-muted", text: "text-muted-foreground" },
+    archived: { label: "Archived", bg: "bg-muted", text: "text-muted-foreground" },
+  };
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-8">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Welcome back, {userName}.</h1>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">Here&apos;s how your campaigns are performing.</p>
+
+        <div className="mt-5 overflow-hidden rounded-xl border border-border">
+          <ReturnVisitHero perf={perf} brand={brand} onAction={() => { /* read-only for clients */ }} />
+        </div>
+
+        <div className="mt-6">
+          <h2 className="mb-2 text-[12px] font-medium uppercase tracking-wider text-muted-foreground">Your plans</h2>
+          {sharedPlans.length === 0 ? (
+            <p className="rounded-xl border border-border bg-white px-4 py-6 text-center text-[13px] text-muted-foreground">
+              No plans have been shared with you yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {sharedPlans.map((p) => {
+                const config = MP_STATUS[p.reviewState] ?? MP_STATUS.draft;
+                const enabled = p.campaigns.filter((c) => c.enabled).length;
+                const open = (p.comments ?? []).filter((c) => !c.resolved).length;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => onOpenPlan(p)}
+                    className="group flex w-full items-center gap-4 rounded-xl border border-border bg-white px-4 py-3.5 text-left transition-all hover:shadow-sm"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EBF5FB]">
+                      <Megaphone className="h-4 w-4 text-[#2C9FDD]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-[13px] font-semibold text-foreground">{p.name}</span>
+                        <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.text)}>{config.label}</span>
+                      </div>
+                      <div className="mt-0.5 text-[12px] text-muted-foreground">
+                        ${p.summary.totalBudget.toLocaleString()} · {enabled} channels · {p.flight}
+                      </div>
+                    </div>
+                    {open > 0 && (
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-[#F3F0FF] px-2 py-0.5 text-[10px] font-semibold text-[#7C5CFC]">
+                        <MessageSquare className="h-2.5 w-2.5" /> {open}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 rounded-xl border border-border bg-white p-4">
+          <div className="text-[12px] font-medium text-foreground">A note from your agency</div>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            These plans are live and pacing to goal. Click any plan to see the detail, and leave a comment on anything — a number, a line, or the whole plan. We&apos;ll see it and follow up.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardView() {
-  const { openFullscreen, startCampaignFlow } = useAICompanion();
-  const { savedStrategies, hydrated } = useCampaign();
+  const { openFullscreen, startCampaignFlow, setState: setChatState } = useAICompanion();
+  const { savedStrategies, savedMediaPlans, setActiveMediaPlan, hydrated } = useCampaign();
   const { activePersona } = usePersona();
+  const isClient = activePersona.role === "client";
   const [userInfo, setUserInfo] = useState<UserInfo>({ name: "there", brand: null });
 
   useEffect(() => {
@@ -509,6 +595,22 @@ export function DashboardView() {
     },
     [startCampaignFlow, openFullscreen]
   );
+
+  // Client portal: a read-only performance overview + the plans the agency has
+  // shared. No internal build tools, priorities, or chat.
+  if (hydrated && isClient) {
+    const clientPerf = getCurrentBrand()?.domain === "ffern.co" ? FFERN_SEED_PERFORMANCE : SEED_PERFORMANCE;
+    const sharedPlans = (savedMediaPlans ?? []).filter((p) => p.sharedWithClient);
+    return (
+      <ClientPortalHome
+        userName={activePersona.name.split(" ")[0]}
+        perf={clientPerf}
+        brand={brand}
+        sharedPlans={sharedPlans}
+        onOpenPlan={(p) => { setActiveMediaPlan(p); setChatState("resting"); }}
+      />
+    );
+  }
 
   // Agency persona gets the portfolio experience — UNLESS a client is selected,
   // in which case it falls through to that client's scoped single-brand dashboard.

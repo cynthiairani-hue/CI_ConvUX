@@ -19,6 +19,7 @@ import type {
   CompetitiveBrief,
   OperatorPlan,
   MediaPlan,
+  MediaPlanComment,
 } from "@/types/campaign";
 import { approvers } from "@/data/approvers";
 import { personas } from "@/data/personas";
@@ -73,6 +74,12 @@ interface CampaignContextValue {
   setActiveMediaPlan: (plan: MediaPlan | null) => void;
   savedMediaPlans: MediaPlan[];
   saveMediaPlan: (plan: MediaPlan) => void;
+  addMediaPlanComment: (
+    planId: string,
+    input: { authorId: PersonaId; authorRole: "agency" | "client"; content: string; anchor?: string; parentId?: string }
+  ) => void;
+  resolveMediaPlanComment: (planId: string, commentId: string, resolved: boolean) => void;
+  shareMediaPlanWithClient: (planId: string, clientId: PersonaId) => void;
   duplicateMediaPlan: (id: string) => void;
   renameMediaPlan: (id: string, name: string) => void;
   archiveMediaPlan: (id: string) => void;
@@ -280,6 +287,55 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
+
+  // Update a plan in the saved list AND the open active plan (so an open canvas
+  // / comments panel reflects the change without a reload). Persists.
+  const mutateMediaPlan = useCallback((planId: string, fn: (p: MediaPlan) => MediaPlan) => {
+    setSavedMediaPlans((prev) => {
+      const next = prev.map((p) => (p.id === planId ? fn(p) : p));
+      persistMediaPlans(next);
+      return next;
+    });
+    setActiveMediaPlan((cur) => (cur && cur.id === planId ? fn(cur) : cur));
+  }, []);
+
+  const addMediaPlanComment = useCallback(
+    (
+      planId: string,
+      input: { authorId: PersonaId; authorRole: "agency" | "client"; content: string; anchor?: string; parentId?: string }
+    ) => {
+      const author = personas.find((p) => p.id === input.authorId);
+      const comment: MediaPlanComment = {
+        id: `mpc-${++commentId}`,
+        authorId: input.authorId,
+        authorName: author?.name || "Unknown",
+        authorRole: input.authorRole,
+        content: input.content,
+        timestamp: new Date().toLocaleString(),
+        anchor: input.anchor,
+        parentId: input.parentId,
+      };
+      mutateMediaPlan(planId, (p) => ({ ...p, comments: [...(p.comments ?? []), comment] }));
+    },
+    [mutateMediaPlan]
+  );
+
+  const resolveMediaPlanComment = useCallback(
+    (planId: string, commentIdToResolve: string, resolved: boolean) => {
+      mutateMediaPlan(planId, (p) => ({
+        ...p,
+        comments: (p.comments ?? []).map((c) => (c.id === commentIdToResolve ? { ...c, resolved } : c)),
+      }));
+    },
+    [mutateMediaPlan]
+  );
+
+  const shareMediaPlanWithClient = useCallback(
+    (planId: string, clientId: PersonaId) => {
+      mutateMediaPlan(planId, (p) => ({ ...p, sharedWithClient: true, sharedClientId: clientId }));
+    },
+    [mutateMediaPlan]
+  );
 
   const duplicateMediaPlan = useCallback((id: string) => {
     setSavedMediaPlans((prev) => {
@@ -693,6 +749,9 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setActiveMediaPlan,
         savedMediaPlans,
         saveMediaPlan,
+        addMediaPlanComment,
+        resolveMediaPlanComment,
+        shareMediaPlanWithClient,
         duplicateMediaPlan,
         renameMediaPlan,
         archiveMediaPlan,
