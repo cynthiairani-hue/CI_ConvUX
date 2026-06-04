@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import {
   Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, Copy, ChevronDown, ChevronRight, Trash2, Pause, Play, Pencil,
 } from "lucide-react";
@@ -17,6 +17,35 @@ import type {
 } from "@/types/campaign";
 import { editCampaignBudget, toggleCampaign, setTotalBudget, addCampaignLine, removeCampaign, editCampaignFields, addBlankLine, CHANNEL_OPTIONS, getPlanInflight, type PlanInflight } from "@/data/media-plan-flow";
 import { cn } from "@/lib/utils";
+
+/**
+ * Point-and-chat wrapper. In select mode any container can be picked to ask the
+ * AI about just that piece. Uses a <div> so the hover/cursor target promotes to
+ * the wrapper (table <tr>s don't promote, so rows are handled inline instead).
+ */
+function SelectWrap({
+  active,
+  onSelect,
+  className,
+  children,
+}: {
+  active: boolean;
+  onSelect: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      onClick={active ? onSelect : undefined}
+      className={cn(
+        className,
+        active && "cursor-pointer rounded-xl hover:outline-dashed hover:outline-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none"
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
 interface MediaPlanCardProps {
   plan: MediaPlan;
@@ -504,6 +533,10 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
       {/* Client evidence — where they spend today (evidence before persuasion).
           Compact: small bar + inline legend, neutral colors (reference data). */}
       {plan.evidence && (
+        <SelectWrap
+          active={selectMode}
+          onSelect={() => selectFromCanvas(plan.evidence!.label, `${plan.evidence!.label} — blended ROAS ${plan.evidence!.blendedRoas.toFixed(1)}× over the last 90 days, ${plan.evidence!.basis}`)}
+        >
         <div className="rounded-xl border border-border bg-white p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -534,26 +567,39 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
             Blended ROAS <span className="font-medium text-foreground">{plan.evidence.blendedRoas.toFixed(1)}×</span> over the last 90 days — this plan is anchored to it, not generic benchmarks.
           </p>
         </div>
+        </SelectWrap>
       )}
 
       {/* Summary KPIs — total budget + goals, always present & editable */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={{ amount: summary.totalBudget, onCommit: handleTotal }} aiHighlight={aiTouched.includes("total")} />
-        <KpiTile
-          label="Est. conversions"
-          value={fmtNum(summary.estConversions)}
-          editTarget={{ amount: summary.targets.conversions, up: convDelta >= 0, prefix: " ", onCommit: (n) => handleTarget("conversions", n) }}
-        />
-        <KpiTile
-          label="Est. ROAS"
-          value={`${summary.estRoas}×`}
-          editTarget={{ amount: summary.targets.roas, up: roasDelta >= 0, prefix: " ", suffix: "×", onCommit: (n) => handleTarget("roas", n) }}
-        />
-        <KpiTile label="Est. impressions" value={fmtImpr(summary.estImpressions)} />
+        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("Total budget", `Total budget — ${fmtMoney(summary.totalBudget)} across the plan`)}>
+          <KpiTile label="Total budget" value={fmtMoney(summary.totalBudget)} edit={{ amount: summary.totalBudget, onCommit: handleTotal }} aiHighlight={aiTouched.includes("total")} />
+        </SelectWrap>
+        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("Est. conversions", `Est. conversions — ${fmtNum(summary.estConversions)} vs goal ${fmtNum(summary.targets.conversions)}`)}>
+          <KpiTile
+            label="Est. conversions"
+            value={fmtNum(summary.estConversions)}
+            editTarget={{ amount: summary.targets.conversions, up: convDelta >= 0, prefix: " ", onCommit: (n) => handleTarget("conversions", n) }}
+          />
+        </SelectWrap>
+        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("Est. ROAS", `Est. ROAS — ${summary.estRoas}× vs goal ${summary.targets.roas}×`)}>
+          <KpiTile
+            label="Est. ROAS"
+            value={`${summary.estRoas}×`}
+            editTarget={{ amount: summary.targets.roas, up: roasDelta >= 0, prefix: " ", suffix: "×", onCommit: (n) => handleTarget("roas", n) }}
+          />
+        </SelectWrap>
+        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("Est. impressions", `Est. impressions — ${fmtImpr(summary.estImpressions)} across the plan`)}>
+          <KpiTile label="Est. impressions" value={fmtImpr(summary.estImpressions)} />
+        </SelectWrap>
       </div>
 
       {/* In-flight view — only once the plan is live */}
-      {plan.reviewState === "active" && <InflightPanel plan={plan} />}
+      {plan.reviewState === "active" && (
+        <SelectWrap active={selectMode} onSelect={() => selectFromCanvas("In-flight pacing", `${plan.name} in-flight — ${(() => { const i = getPlanInflight(plan); return `day ${i.elapsedDays} of ${i.totalDays}, ${i.status.toLowerCase()}`; })()}`)}>
+          <InflightPanel plan={plan} />
+        </SelectWrap>
+      )}
 
       {/* Line-item editor — grouped by funnel stage (Airtable-style). The row
           stays quiet: core columns + an overflow menu. Secondary attributes
@@ -588,7 +634,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                 {/* Funnel group header (Airtable-style, collapsible) */}
                 <tr
                   onClick={selectMode ? () => selectFromCanvas(`${meta.label} funnel`, `the ${meta.label} funnel — ${fmtMoney(st.budget)} (${st.pct}% of plan), ${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}`) : undefined}
-                  className={cn("bg-muted/40", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none")}
+                  className={cn("bg-muted/40", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none")}
                 >
                   <td colSpan={6} className="px-2 py-2.5">
                     <div className="flex items-center gap-2.5">
@@ -614,7 +660,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     <Fragment key={c.id}>
                       <tr
                         onClick={selectMode ? () => selectFromCanvas(`Line ${li + 1} · ${c.label.replace(/\s*\(.+\)\s*$/, "")}`, `${meta.label} · Line ${li + 1}: ${c.label}${c.location ? ` (${c.location})` : ""} — ${c.enabled ? fmtMoney(c.budget) : "off"}, ${est}`) : undefined}
-                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_*]:pointer-events-none")}
+                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectMode && "cursor-pointer hover:outline-dashed hover:outline-2 hover:-outline-offset-2 hover:outline-[#7C5CFC] [&_input]:pointer-events-none [&_button]:pointer-events-none")}
                       >
                         <td className="py-2.5 pl-4 pr-2">
                           <div className="flex min-w-0 items-center gap-2">
