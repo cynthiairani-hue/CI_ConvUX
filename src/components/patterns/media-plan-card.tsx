@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import {
-  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, Copy, ChevronDown, ChevronRight, Trash2, Pause, Play,
+  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, Copy, ChevronDown, ChevronRight, Trash2, Pause, Play, Pencil,
 } from "lucide-react";
 import { Store, Plug } from "lucide-react";
 import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
@@ -15,7 +15,7 @@ import { AUDIENCE_LIBRARY, MARKETS, KEYWORD_SUGGESTIONS } from "@/data/planner-o
 import type {
   FunnelStage, MediaCampaign, MediaChannelKey, MediaPlan,
 } from "@/types/campaign";
-import { editCampaignBudget, toggleCampaign, setTotalBudget, addCampaignLine, removeCampaign, editCampaignFields, addBlankLine, CHANNEL_OPTIONS } from "@/data/media-plan-flow";
+import { editCampaignBudget, toggleCampaign, setTotalBudget, addCampaignLine, removeCampaign, editCampaignFields, addBlankLine, CHANNEL_OPTIONS, getPlanInflight, type PlanInflight } from "@/data/media-plan-flow";
 import { cn } from "@/lib/utils";
 
 interface MediaPlanCardProps {
@@ -149,16 +149,20 @@ function AddLinePicker({ onAdd, label = "Add line", block = false }: { onAdd: (c
 
 
 function KpiTile({
-  label, value, delta, edit, aiHighlight,
+  label, value, delta, edit, editTarget, aiHighlight,
 }: {
   label: string;
   value: string;
   delta?: { up: boolean; text: string };
   /** When provided, the value becomes an editable budget field. */
   edit?: { amount: number; onCommit: (n: number) => void };
+  /** When provided, the "vs <goal>" target is editable (planner sets the bar). */
+  editTarget?: { amount: number; up: boolean; prefix?: string; suffix?: string; onCommit: (n: number) => void };
   aiHighlight?: boolean;
 }) {
   const [draft, setDraft] = useState((edit?.amount ?? 0).toLocaleString());
+  const [tDraft, setTDraft] = useState(String(editTarget?.amount ?? ""));
+  useEffect(() => { if (editTarget) setTDraft(editTarget.amount.toLocaleString()); }, [editTarget?.amount]); // eslint-disable-line react-hooks/exhaustive-deps
   const [focused, setFocused] = useState(false);
   useEffect(() => {
     if (edit) setDraft(edit.amount.toLocaleString());
@@ -181,7 +185,7 @@ function KpiTile({
       <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-baseline gap-2">
         {edit ? (
-          <div className="flex items-baseline">
+          <label className="group/edit -ml-1.5 flex cursor-text items-baseline rounded-md border border-transparent px-1.5 py-0.5 transition-colors hover:border-border hover:bg-muted/40 focus-within:border-[#2C9FDD] focus-within:bg-white" title="Click to edit total budget">
             <span className="text-[18px] font-semibold tracking-tight text-foreground">$</span>
             <input
               inputMode="numeric"
@@ -193,17 +197,35 @@ function KpiTile({
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                 if (e.key === "Escape") setDraft(edit.amount.toLocaleString());
               }}
-              className="w-[100px] bg-transparent text-[18px] font-semibold tracking-tight text-foreground outline-none"
+              className="w-[92px] cursor-text bg-transparent text-[18px] font-semibold tracking-tight text-foreground outline-none"
               aria-label="Total budget"
             />
-          </div>
+            <Pencil className="h-3 w-3 self-center text-transparent transition-colors group-hover/edit:text-muted-foreground/60" />
+          </label>
         ) : (
           <span className="text-[18px] font-semibold tracking-tight text-foreground">{value}</span>
         )}
-        {delta && (
+        {delta && !editTarget && (
           <span className={cn("inline-flex items-center gap-0.5 text-[11px] font-medium", delta.up ? "text-emerald-600" : "text-rose-500")}>
             {delta.up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
             {delta.text}
+          </span>
+        )}
+        {editTarget && (
+          <span className={cn("inline-flex items-center gap-0.5 text-[11px] font-medium", editTarget.up ? "text-emerald-600" : "text-rose-500")}>
+            {editTarget.up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            <span className="text-muted-foreground">goal</span>
+            {editTarget.prefix}
+            <input
+              inputMode="numeric"
+              value={tDraft}
+              onChange={(e) => setTDraft(e.target.value)}
+              onBlur={() => { const n = Number(tDraft.replace(/[^0-9.]/g, "")); if (Number.isFinite(n) && n !== editTarget.amount) editTarget.onCommit(n); else setTDraft(editTarget.amount.toLocaleString()); }}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setTDraft(editTarget.amount.toLocaleString()); }}
+              className="w-[52px] rounded border border-transparent bg-transparent px-0.5 text-[11px] font-medium text-foreground outline-none transition-colors hover:border-border focus:border-[#2C9FDD]"
+              aria-label={`${label} goal`}
+            />
+            {editTarget.suffix}
           </span>
         )}
       </div>
@@ -234,13 +256,102 @@ function DetailField({ label, value, placeholder, onCommit }: { label: string; v
   );
 }
 
-/** Active / Paused status pill for a line. */
-function StatusPill({ active }: { active: boolean }) {
+/**
+ * Line inclusion status — click to toggle. "In plan" = counted in budget +
+ * forecast; "Paused" = kept in the plan but excluded from the math. (Not
+ * "Active" — the plan isn't live at draft stage.)
+ */
+function StatusPill({ active, onToggle }: { active: boolean; onToggle: () => void }) {
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium", active ? "bg-emerald-50 text-emerald-600" : "bg-muted text-muted-foreground")}>
+    <button
+      type="button"
+      onClick={onToggle}
+      title={active ? "In plan — click to pause (exclude from budget & forecast)" : "Paused — click to include in the plan"}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
+        active ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100" : "bg-muted text-muted-foreground hover:bg-accent"
+      )}
+    >
       <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-emerald-500" : "bg-muted-foreground/40")} />
-      {active ? "Active" : "Paused"}
-    </span>
+      {active ? "In plan" : "Paused"}
+    </button>
+  );
+}
+
+/** In-flight view for an ACTIVE plan: delivered vs planned (with an expected-
+ *  by-now marker), pacing status, and one approvable optimization suggestion. */
+function InflightPanel({ plan, onChange }: { plan: MediaPlan; onChange: (p: MediaPlan) => void }) {
+  const [dismissed, setDismissed] = useState(false);
+  const inflight: PlanInflight = getPlanInflight(plan);
+  const fmtVal = (n: number, kind: string) => (kind === "money" ? fmtMoney(n) : kind === "impr" ? fmtImpr(n) : fmtNum(n));
+  const cleanName = (s: string) => s.replace(/\s*\(.+\)\s*$/, "");
+  const statusTone = inflight.status === "On track" ? "bg-emerald-50 text-emerald-600" : inflight.status === "Slightly behind" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600";
+
+  function applySuggestion() {
+    const s = inflight.suggestion;
+    if (!s) return;
+    const from = plan.campaigns.find((c) => c.id === s.fromId);
+    const to = plan.campaigns.find((c) => c.id === s.toId);
+    const move = Math.min(s.amount, from?.budget ?? 0);
+    let p = editCampaignBudget(plan, s.toId, (to?.budget ?? 0) + move);
+    p = editCampaignBudget(p, s.fromId, (from?.budget ?? 0) - move);
+    onChange({ ...p, aiTouched: [s.fromId, s.toId] });
+    setDismissed(true);
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-white p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Zap className="h-4 w-4 text-foreground" />
+          <span className="text-[14px] font-semibold tracking-tight text-foreground">In flight</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-muted-foreground">Day {inflight.elapsedDays} of {inflight.totalDays} · {inflight.elapsedPct}% elapsed</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", statusTone)}>{inflight.status}</span>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-5 sm:grid-cols-3">
+        {inflight.metrics.map((m) => {
+          const fillPct = Math.min(100, m.pct);
+          const expPct = m.planned > 0 ? Math.min(100, Math.round((m.expectedByNow / m.planned) * 100)) : 0;
+          const ahead = m.delivered >= m.expectedByNow;
+          return (
+            <div key={m.label}>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{m.label}</span>
+                <span className={cn("text-[10px] font-medium", ahead ? "text-emerald-600" : "text-rose-500")}>{ahead ? "ahead of pace" : "behind pace"}</span>
+              </div>
+              <div className="mt-1 text-[15px] font-semibold tracking-tight text-foreground">
+                {fmtVal(m.delivered, m.kind)} <span className="text-[12px] font-normal text-muted-foreground">/ {fmtVal(m.planned, m.kind)} planned</span>
+              </div>
+              <div className="relative mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div className="absolute inset-y-0 left-0 rounded-full bg-foreground/80" style={{ width: `${fillPct}%` }} />
+                <div className="absolute inset-y-[-2px] w-0.5 bg-[#7C5CFC]" style={{ left: `${expPct}%` }} title={`Expected by now: ${expPct}%`} />
+              </div>
+              <div className="mt-1 text-[10px] text-muted-foreground">{m.pct}% delivered · {expPct}% expected by today</div>
+            </div>
+          );
+        })}
+      </div>
+      {inflight.suggestion && !dismissed && (
+        <div className="mt-4 rounded-lg border border-[#7C5CFC]/30 bg-[#F7F4FE] p-3.5">
+          <div className="flex items-start gap-2.5">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#5B43D6]" />
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-semibold text-foreground">AI suggestion — review & approve</div>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                <span className="font-medium text-foreground">{cleanName(inflight.suggestion.fromLabel)}</span> is the weakest performer at {inflight.suggestion.fromRoas.toFixed(1)}× ROAS; <span className="font-medium text-foreground">{cleanName(inflight.suggestion.toLabel)}</span> is delivering {inflight.suggestion.toRoas.toFixed(1)}×. Shift <span className="font-medium text-foreground">{fmtMoney(inflight.suggestion.amount)}</span> to lift blended return.
+              </p>
+              <div className="mt-2.5 flex items-center gap-2">
+                <button type="button" onClick={applySuggestion} className="rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">Apply change</button>
+                <button type="button" onClick={() => setDismissed(true)} className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">Dismiss</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -265,7 +376,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   function lineActions(c: MediaCampaign): OverflowAction[] {
     return [
       { id: "duplicate", label: "Duplicate line", icon: <Copy className="h-3.5 w-3.5" />, onClick: () => handleAddLine(c.id) },
-      { id: "pause", label: c.enabled ? "Pause line" : "Resume line", icon: c.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />, onClick: () => handleToggle(c.id) },
+      { id: c.enabled ? "pause" : "resume", label: c.enabled ? "Pause line" : "Resume line", icon: c.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />, onClick: () => handleToggle(c.id) },
       { id: "delete", label: "Delete line", icon: <Trash2 className="h-3.5 w-3.5" />, destructive: true, onClick: () => setDeletingLineId(c.id) },
     ];
   }
@@ -296,6 +407,9 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   }
   function handleConnectPixel() {
     onChange({ ...plan, pixelReady: true, aiTouched: undefined });
+  }
+  function handleTarget(field: "conversions" | "roas", value: number) {
+    onChange({ ...plan, summary: { ...plan.summary, targets: { ...plan.summary.targets, [field]: Math.max(0, value) } } });
   }
   function handleAddLine(sourceId: string) {
     const { plan: next } = addCampaignLine(plan, sourceId);
@@ -351,8 +465,6 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
     const pct = summary.totalBudget > 0 ? Math.round((budget / summary.totalBudget) * 100) : 0;
     return { budget, impressions, conversions, roas, pct };
   }
-  const linePct = (budget: number) =>
-    summary.totalBudget > 0 ? Math.round((budget / summary.totalBudget) * 100) : 0;
 
 
   return (
@@ -468,21 +580,32 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
         <KpiTile
           label="Est. conversions"
           value={fmtNum(summary.estConversions)}
-          delta={{ up: convDelta >= 0, text: `vs ${fmtNum(summary.targets.conversions)}` }}
+          editTarget={{ amount: summary.targets.conversions, up: convDelta >= 0, prefix: " ", onCommit: (n) => handleTarget("conversions", n) }}
         />
         <KpiTile
           label="Est. ROAS"
           value={`${summary.estRoas}×`}
-          delta={{ up: roasDelta >= 0, text: `vs ${summary.targets.roas}×` }}
+          editTarget={{ amount: summary.targets.roas, up: roasDelta >= 0, prefix: " ", suffix: "×", onCommit: (n) => handleTarget("roas", n) }}
         />
         <KpiTile label="Est. impressions" value={fmtImpr(summary.estImpressions)} />
       </div>
+
+      {/* In-flight view — only once the plan is live */}
+      {plan.reviewState === "active" && <InflightPanel plan={plan} onChange={onChange} />}
 
       {/* Line-item editor — grouped by funnel stage (Airtable-style). The row
           stays quiet: core columns + an overflow menu. Secondary attributes
           (geo, creative, keywords, flight dates) live in an expandable detail. */}
       <div className="overflow-hidden rounded-xl border border-border bg-white">
-        <table className="w-full border-collapse text-left">
+        <table className="w-full table-fixed border-collapse text-left">
+          <colgroup>
+            <col />
+            <col style={{ width: "104px" }} />
+            <col style={{ width: "208px" }} />
+            <col style={{ width: "120px" }} />
+            <col style={{ width: "168px" }} />
+            <col style={{ width: "132px" }} />
+          </colgroup>
           <thead>
             <tr className="border-b border-border text-[10px] uppercase tracking-wide text-muted-foreground">
               <th className="py-2.5 pl-4 pr-2 font-medium">Line</th>
@@ -503,7 +626,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                 {/* Funnel group header (Airtable-style, collapsible) */}
                 <tr
                   onClick={selectMode ? () => selectFromCanvas(`${meta.label} funnel`, `the ${meta.label} funnel — ${fmtMoney(st.budget)} (${st.pct}% of plan), ${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}`) : undefined}
-                  className={cn("bg-muted/40", selectMode && "cursor-pointer [&_*]:pointer-events-none hover:bg-[#F3F0FF]")}
+                  className={cn("bg-muted/40", selectMode && "cursor-pointer bg-[#EDE7FD] [&_*]:pointer-events-none hover:bg-[#E2D9FB] [&>td:first-child]:shadow-[inset_3px_0_0_#7C5CFC]")}
                 >
                   <td colSpan={6} className="px-2 py-2.5">
                     <div className="flex items-center gap-2.5">
@@ -515,17 +638,11 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                       <div className="ml-auto flex items-center gap-4">
                         <span className="text-[11px] text-muted-foreground">{stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}</span>
                         <span className="text-[12px] font-semibold text-foreground">{fmtMoney(st.budget)} <span className="font-normal text-muted-foreground">· {st.pct}%</span></span>
-                        <AddLinePicker label="Add line" onAdd={(channel) => handleAddBlankLine(stage, channel)} />
                       </div>
                     </div>
                   </td>
                 </tr>
                 {/* Line rows */}
-                {!isCollapsed && lines.length === 0 && (
-                  <tr className="border-t border-border">
-                    <td colSpan={6} className="px-4 py-3 text-[12px] text-muted-foreground">No lines yet — use “Add line” to add one.</td>
-                  </tr>
-                )}
                 {!isCollapsed && lines.map((c, li) => {
                   const est = c.funnelStage === "awareness"
                     ? `${fmtImpr(c.forecast.impressions)} impr${c.forecast.cpm ? ` · $${c.forecast.cpm} CPM` : ""}`
@@ -535,7 +652,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     <Fragment key={c.id}>
                       <tr
                         onClick={selectMode ? () => selectFromCanvas(`Line ${li + 1} · ${c.label.replace(/\s*\(.+\)\s*$/, "")}`, `${meta.label} · Line ${li + 1}: ${c.label}${c.location ? ` (${c.location})` : ""} — ${c.enabled ? fmtMoney(c.budget) : "off"}, ${est}`) : undefined}
-                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectMode && "cursor-pointer [&_*]:pointer-events-none hover:bg-[#F3F0FF]")}
+                        className={cn("border-t border-border align-middle", !c.enabled && "opacity-60", aiTouched.includes(c.id) && "bg-[#F3F0FF]", selectMode && "cursor-pointer bg-[#F7F4FE] [&_*]:pointer-events-none hover:bg-[#EBE4FC] [&>td:first-child]:shadow-[inset_3px_0_0_#7C5CFC]")}
                       >
                         <td className="py-2.5 pl-4 pr-2">
                           <div className="flex items-center gap-2">
@@ -564,7 +681,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                         <td className="whitespace-nowrap px-2 py-2.5 text-[11px] text-muted-foreground">{est}</td>
                         <td className="py-2.5 pl-2 pr-4">
                           <div className="flex items-center justify-end gap-1.5">
-                            <StatusPill active={c.enabled} />
+                            <StatusPill active={c.enabled} onToggle={() => handleToggle(c.id)} />
                             <CardOverflowMenu actions={lineActions(c)} />
                           </div>
                         </td>
@@ -614,6 +731,14 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     </Fragment>
                   );
                 })}
+                {/* Add line — last row of the group (Airtable pattern) */}
+                {!isCollapsed && (
+                  <tr className="border-t border-border">
+                    <td colSpan={6} className="py-2 pl-[52px] pr-4">
+                      <AddLinePicker label="Add line" onAdd={(channel) => handleAddBlankLine(stage, channel)} />
+                    </td>
+                  </tr>
+                )}
               </tbody>
             );
           })}

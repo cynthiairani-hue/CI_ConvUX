@@ -286,6 +286,51 @@ function hashStr(s: string): number {
   return h;
 }
 
+export interface InflightMetric { label: string; delivered: number; planned: number; expectedByNow: number; pct: number; kind: "money" | "impr" | "num"; }
+export interface InflightSuggestion { fromId: string; toId: string; amount: number; fromLabel: string; toLabel: string; fromRoas: number; toRoas: number; }
+export interface PlanInflight {
+  elapsedDays: number; totalDays: number; elapsedPct: number; pace: number;
+  status: "On track" | "Slightly behind" | "Behind pace";
+  metrics: InflightMetric[];
+  suggestion: InflightSuggestion | null;
+}
+
+/**
+ * Synthetic in-flight actuals for an ACTIVE plan — deterministic per plan id so
+ * the demo is stable. Models delivered-vs-planned and an expected-by-now marker
+ * (even pacing), plus one optimization suggestion (shift from the weakest to the
+ * strongest ROAS channel) for the Notice → Propose → Authorize loop.
+ */
+export function getPlanInflight(plan: MediaPlan): PlanInflight {
+  const h = Math.abs(hashStr(plan.id));
+  const elapsedPct = 0.45 + (h % 36) / 100;          // 45–80% through flight
+  const pace = 0.82 + ((h >> 3) % 38) / 100;          // 0.82–1.19 delivery vs expected
+  const elapsedDays = Math.round(plan.durationDays * elapsedPct);
+  const mk = (planned: number, kind: InflightMetric["kind"], label: string): InflightMetric => {
+    const expectedByNow = Math.round(planned * elapsedPct);
+    const delivered = Math.round(expectedByNow * pace);
+    return { label, planned, expectedByNow, delivered, pct: planned > 0 ? Math.round((delivered / planned) * 100) : 0, kind };
+  };
+  const status: PlanInflight["status"] = pace >= 1.0 ? "On track" : pace >= 0.9 ? "Slightly behind" : "Behind pace";
+  const metrics = [
+    mk(plan.summary.totalBudget, "money", "Spend"),
+    mk(plan.summary.estImpressions, "impr", "Impressions"),
+    mk(plan.summary.estConversions, "num", "Conversions"),
+  ];
+  // Optimization suggestion: shift ~15% from the weakest to the strongest ROAS channel.
+  let suggestion: InflightSuggestion | null = null;
+  const enabled = plan.campaigns.filter((c) => c.enabled && c.forecast.roas != null);
+  if (enabled.length >= 2) {
+    const sorted = [...enabled].sort((a, b) => (a.forecast.roas as number) - (b.forecast.roas as number));
+    const worst = sorted[0], best = sorted[sorted.length - 1];
+    if (worst.id !== best.id && worst.budget > 2000) {
+      const amount = Math.max(500, Math.round((worst.budget * 0.15) / 500) * 500);
+      suggestion = { fromId: worst.id, toId: best.id, amount, fromLabel: worst.label, toLabel: best.label, fromRoas: worst.forecast.roas as number, toRoas: best.forecast.roas as number };
+    }
+  }
+  return { elapsedDays, totalDays: plan.durationDays, elapsedPct: Math.round(elapsedPct * 100), pace, status, metrics, suggestion };
+}
+
 /* ── Natural-language plan editing ─────────────────────────────────────────
    Makes typed/spoken commands work the same as the refine chips: "change CTV
    budget to 11,458", "shift $10k from DOOH to social", "turn off DOOH",

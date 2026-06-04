@@ -74,7 +74,7 @@ const BRIEF_BY_DOMAIN: Record<string, BriefData> = {
   },
 };
 
-function genericBrief(name: string): BriefData {
+function genericBrief(): BriefData {
   return {
     competitors: [
       { name: "Market leader", trafficShare: "26%", trend: "flat", primaryChannel: "Search + brand" },
@@ -95,7 +95,7 @@ export function buildCompetitiveBrief(advertiser: Advertiser): CompetitiveBrief 
   const now = new Date().toISOString();
   const name = advertiser.companyName;
   const domain = advertiser.websiteUrl || "your site";
-  const d = BRIEF_BY_DOMAIN[domain] || genericBrief(name);
+  const d = BRIEF_BY_DOMAIN[domain] || genericBrief();
   const competitorList = d.competitors.map((c) => c.name).join(", ");
 
   return {

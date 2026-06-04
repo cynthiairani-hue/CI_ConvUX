@@ -834,29 +834,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           : "";
         const narrationText = `${headline}Here's the plan for **${clientName}** — ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}, anchored to their real performance. **DOOH is in closed beta** — say the word and we'll activate it manually.${budgetNote}${goalNote}${gapLine}${assumptionLine}`;
 
-        const refineCard: ChatMessage = {
-          id: nextId(),
-          role: "assistant",
-          content: "",
-          toolCall: {
-            type: "choices",
-            field: "media-plan-refine",
-            question: "Want to refine it?",
-            step: 1,
-            totalSteps: 1,
-            multiSelect: false,
-            options: [
-              { id: "activate", label: "Looks great — send for approval" },
-              { id: "shift-dooh-social", label: "Shift $10k from DOOH to social" },
-              { id: "why-ctv", label: "Why CTV for a DTC brand?" },
-              { id: "change-budget", label: "Change the budget" },
-            ],
-          },
-        };
-        setMessages((prev) => {
-          const updated = prev.map((m) => (m.id === thinkingId ? { ...m, content: narrationText } : m));
-          return [...updated, refineCard];
-        });
+        setMessages((prev) => prev.map((m) => (m.id === thinkingId ? { ...m, content: narrationText } : m)));
         setState("split");
         collapseLeftRail();
       };
@@ -2187,60 +2165,6 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           },
           sampleBriefCard(),
         ]);
-        return;
-      }
-
-      // The post-plan refine chips (Kirby's content, our pattern).
-      const makeRefineCard = (): ChatMessage => ({
-        id: nextId(),
-        role: "assistant",
-        content: "",
-        toolCall: {
-          type: "choices",
-          field: "media-plan-refine",
-          question: "Want to refine it?",
-          step: 1,
-          totalSteps: 1,
-          multiSelect: false,
-          options: [
-            { id: "activate", label: "Looks great — send for approval" },
-            { id: "shift-dooh-social", label: "Shift $10k from DOOH to social" },
-            { id: "why-ctv", label: "Why CTV for a DTC brand?" },
-            { id: "change-budget", label: "Change the budget" },
-          ],
-        },
-      });
-
-      if (field === "media-plan-refine") {
-        const sel = selected[0];
-        setMessages((prev) => [...prev, userMsg]);
-        const plan = activeMediaPlanRef.current;
-        let reply = "";
-        let repostChips = true;
-        if (sel === "activate") {
-          if (plan) { const np = { ...plan, reviewState: "pending-approval" as const, lastModifiedAt: new Date().toISOString() }; setActiveMediaPlan(np); saveMediaPlan(np); }
-          reply = "Sent to Marcus Patel for approval — you'll get the nod before anything goes live. Track it in Approvals.";
-          repostChips = false;
-        } else if (sel === "shift-dooh-social" && plan) {
-          const dooh = plan.campaigns.find((c) => c.channel === "dooh");
-          const social = plan.campaigns.find((c) => c.channel === "social");
-          let p = plan;
-          let move = 0;
-          if (dooh && social) {
-            move = Math.min(10_000, dooh.budget);
-            p = editCampaignBudget(p, social.id, social.budget + move);
-            p = editCampaignBudget(p, dooh.id, dooh.budget - move);
-            const np = { ...p, aiTouched: [dooh.id, social.id] }; setActiveMediaPlan(np); saveMediaPlan(np);
-          }
-          const moveLabel = `$${(move / 1000).toLocaleString()}k`;
-          reply = `Done — moved ${moveLabel} from DOOH to Social. Plan now forecasts **${p.summary.estConversions.toLocaleString()} conversions** at **${p.summary.estRoas}× ROAS**. Heads up: you lose DOOH's geo-fenced reach, and re-adding it (closed beta) is a manual step.`;
-        } else if (sel === "why-ctv") {
-          reply = "CTV is a brand play, not a direct-response channel — expect 3–5× better recall and a ~15–20% lift on your co-running retargeting over the flight, but few last-click conversions. That's why it sits in Awareness and reports VTR + brand-lift instead of ROAS. Want me to drop it and move the budget to lookalike prospecting?";
-        } else {
-          reply = "Sure — edit any channel's budget inline on the card, or change the total at the top and I'll rescale the mix. You can also tell me a number (e.g. “$90k”) and I'll apply it.";
-        }
-        const replyMsg: ChatMessage = { id: nextId(), role: "assistant", content: reply };
-        setMessages((prev) => [...prev, replyMsg, ...(repostChips ? [makeRefineCard()] : [])]);
         return;
       }
 
