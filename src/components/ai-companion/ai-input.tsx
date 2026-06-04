@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, type FormEvent, type DragEvent, type KeyboardEvent } from "react";
-import { ArrowUp, Paperclip, Mic, X, FileText, SlidersHorizontal, Check, Zap, ListChecks, Lightbulb, Search, Plus, Upload, Plug, Wand2, Bot, Database } from "lucide-react";
+import { ArrowUp, Paperclip, Mic, X, FileText, SlidersHorizontal, Check, Zap, ListChecks, Lightbulb, Search, Plus, Upload, Plug, Wand2, Bot, Database, AtSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useAICompanion } from "@/contexts/ai-companion-context";
@@ -176,6 +176,7 @@ export function AIInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { isListening, hasSpeechAPI, toggleVoice } = useVoiceInput(value, setValue);
+  const { pendingContext, setPendingContext } = useAICompanion();
 
   // Auto-resize textarea
   useEffect(() => {
@@ -190,12 +191,17 @@ export function AIInput({
   function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
     const trimmed = value.trim();
-    if (!trimmed && files.length === 0) return;
+    if (!trimmed && files.length === 0 && !pendingContext) return;
 
-    const message = trimmed || (files.length > 0 ? `[Attached ${files.length} file${files.length > 1 ? "s" : ""}]` : "");
+    const base = trimmed || (files.length > 0 ? `[Attached ${files.length} file${files.length > 1 ? "s" : ""}]` : "");
+    // Point-and-chat: prepend the selected canvas element so the AI answers about it.
+    const message = pendingContext
+      ? `Re: ${pendingContext.label} (${pendingContext.detail})${base ? `\n\n${base}` : " — tell me about this."}`
+      : base;
     onSend(message, files.length > 0 ? files : undefined);
     setValue("");
     setFiles([]);
+    if (pendingContext) setPendingContext(null);
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -319,6 +325,24 @@ export function AIInput({
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Point-and-chat context chip — the canvas element the user selected */}
+      {pendingContext && (
+        <div className="flex items-center pb-2">
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[#2C9FDD]/40 bg-[#EBF5FB] px-2 py-1 text-[11px] font-medium text-[#1A7BB5]">
+            <AtSign className="h-3 w-3 shrink-0" />
+            <span className="truncate">{pendingContext.label}</span>
+            <button
+              type="button"
+              onClick={() => setPendingContext(null)}
+              className="ml-0.5 shrink-0 rounded text-[#1A7BB5]/60 transition-colors hover:text-[#1A7BB5]"
+              aria-label="Remove context"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
         </div>
       )}
 

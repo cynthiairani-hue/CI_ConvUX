@@ -143,6 +143,12 @@ export interface ChatMessage {
   tokenCount?: number;
 }
 
+/** A canvas element the user selected to talk about in chat (point-and-chat). */
+export interface ChatContextRef {
+  label: string;  // short chip label, e.g. "Line 3 · Lookalike Prospecting"
+  detail: string; // fuller context handed to the LLM
+}
+
 interface AICompanionContextValue {
   state: AICompanionState;
   setState: (state: AICompanionState) => void;
@@ -174,6 +180,9 @@ interface AICompanionContextValue {
   }) => void;
   submitKeywords: (messageId: string, selectedKeywordIds: string[], allKeywords: KeywordChip[]) => void;
   submitPlatformConnection: (messageId: string, connectedIds: string[], intentTag: string) => void;
+  /** Point-and-chat: the canvas element currently attached to the chat input. */
+  pendingContext: ChatContextRef | null;
+  setPendingContext: (ctx: ChatContextRef | null) => void;
   /** Chat session management */
   currentSessionId: string | null;
   chatSessions: ChatSessionMeta[];
@@ -289,6 +298,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [pendingContext, setPendingContext] = useState<ChatContextRef | null>(null);
   const [campaignIntent, setCampaignIntent] = useState<CampaignIntent | null>(null);
   const [strategyIntent, setStrategyIntent] = useState<StrategyIntent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -972,6 +982,26 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           setActiveMediaPlan(np);
           saveMediaPlan(np);
           setMessages((prev) => [...prev, { id: nextId(), role: "assistant", content: `${turnOn ? "Re-enabled" : "Disabled"} the ${stage} stage (${ids.length} channel${ids.length === 1 ? "" : "s"}). Now forecasting **${f(np.summary.estConversions)} conversions** at **${np.summary.estRoas}× ROAS** on $${f(np.summary.totalBudget)} total.` }]);
+          return;
+        }
+
+        // A question (incl. point-and-chat "Re: …") — answer it conversationally
+        // with the LLM (grounded in brand + the selected element), NOT as an edit.
+        // Checked before the edit fallback so "what would you change?" isn't
+        // mistaken for an edit command just because it contains "change".
+        const isQuestionLike =
+          /\?\s*$/.test(content.trim()) ||
+          /^(re:|why\b|what\b|which\b|how\b|is\b|are\b|should\b|does\b|do\b|can you|could you|explain|tell me|walk me|where\b|when\b|who\b)/i.test(content.trim());
+        if (isQuestionLike) {
+          setMessages((prev) => [...prev, userMsg]);
+          setIsLoading(true);
+          const updated = [...messagesRef.current, userMsg];
+          callAPI(updated).then(
+            (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
+              setIsLoading(false);
+              setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
+            }
+          );
           return;
         }
 
@@ -2817,6 +2847,8 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         setDockSide,
         toggleDockSide,
         sendMessage,
+        pendingContext,
+        setPendingContext,
         submitChoice,
         skipChoice,
         submitAdvertiserSetup,

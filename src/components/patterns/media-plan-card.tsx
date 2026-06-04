@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import {
-  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, X, Copy, ChevronDown, ChevronRight,
+  Check, Megaphone, Target, Zap, TrendingUp, TrendingDown, Sparkles, AlertTriangle, BarChart3, Plus, X, Copy, ChevronDown, ChevronRight, AtSign,
 } from "lucide-react";
+import { useAICompanion } from "@/contexts/ai-companion-context";
 import type {
   FunnelStage, MediaCampaign, MediaChannelKey, MediaPlan,
 } from "@/types/campaign";
@@ -247,6 +248,12 @@ function CellInput({ value, placeholder, onCommit }: { value: string; placeholde
 export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
   const [flash, setFlash] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<FunnelStage>>(() => new Set());
+  const { setPendingContext, state: chatState, setState: setChatState } = useAICompanion();
+  // Point-and-chat: attach a canvas element to the chat input and reveal the chat.
+  function selectForChat(label: string, detail: string) {
+    setPendingContext({ label, detail });
+    if (chatState === "resting") setChatState("split");
+  }
   function toggleGroup(stage: FunnelStage) {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -471,9 +478,17 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                       <span className="text-[13px] font-semibold text-foreground">{meta.label}</span>
                       <span className="rounded-full bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{lines.length} {lines.length === 1 ? "line" : "lines"}</span>
                       <span className="ml-1 text-[11px] text-muted-foreground">{meta.tagline}</span>
-                      <div className="ml-auto flex items-center gap-4">
+                      <div className="ml-auto flex items-center gap-3">
                         <span className="text-[11px] text-muted-foreground">{stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}</span>
                         <span className="text-[12px] font-semibold text-foreground">{fmtMoney(st.budget)} <span className="font-normal text-muted-foreground">· {st.pct}%</span></span>
+                        <button
+                          type="button"
+                          onClick={() => selectForChat(`${meta.label} funnel`, `the ${meta.label} funnel — ${fmtMoney(st.budget)} (${st.pct}% of plan), ${lines.length} ${lines.length === 1 ? "line" : "lines"}, ${stage === "awareness" ? `${fmtImpr(st.impressions)} reach` : `${fmtNum(st.conversions)} conv · ${st.roas}× ROAS`}`)}
+                          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#EBF5FB] hover:text-[#1A7BB5]"
+                          title={`Ask the AI about the ${meta.label} funnel`}
+                        >
+                          <AtSign className="h-3.5 w-3.5" />
+                        </button>
                         <AddLinePicker label="Add line" onAdd={(channel) => handleAddBlankLine(stage, channel)} />
                       </div>
                     </div>
@@ -490,7 +505,7 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                     ? `${fmtImpr(c.forecast.impressions)} impr${c.forecast.cpm ? ` · $${c.forecast.cpm} CPM` : ""}`
                     : `${fmtNum(c.forecast.conversions)} conv${c.forecast.roas != null ? ` · ${c.forecast.roas}×` : ""}`;
                   return (
-                    <tr key={c.id} className={cn("border-t border-border align-middle", !c.enabled && "opacity-50", aiTouched.includes(c.id) && "bg-[#F3F0FF]")}>
+                    <tr key={c.id} className={cn("group border-t border-border align-middle", !c.enabled && "opacity-50", aiTouched.includes(c.id) && "bg-[#F3F0FF]")}>
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-1.5 pl-5">
                           <span className="text-[10px] font-medium text-muted-foreground">{li + 1}</span>
@@ -510,6 +525,14 @@ export function MediaPlanCard({ plan, onChange }: MediaPlanCardProps) {
                       <td className="whitespace-nowrap px-2 py-1.5 text-[11px] text-muted-foreground">{est}</td>
                       <td className="px-2 py-1.5">
                         <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => selectForChat(`Line ${li + 1} · ${c.label.replace(/\s*\(.+\)\s*$/, "")}`, `${meta.label} · Line ${li + 1}: ${c.label}${c.location ? ` (${c.location})` : ""} — ${c.enabled ? fmtMoney(c.budget) : "off"}, ${est}`)}
+                            className="rounded-md p-1 text-muted-foreground opacity-0 transition-all hover:bg-[#EBF5FB] hover:text-[#1A7BB5] group-hover:opacity-100"
+                            title="Ask the AI about this line"
+                          >
+                            <AtSign className="h-3.5 w-3.5" />
+                          </button>
                           <Toggle checked={c.enabled} onChange={() => handleToggle(c.id)} label="Toggle line" />
                           <button type="button" onClick={() => handleAddLine(c.id)} className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-[#EBF5FB] hover:text-[#1A7BB5]" title="Duplicate line"><Copy className="h-3.5 w-3.5" /></button>
                           <button type="button" onClick={() => handleRemoveLine(c.id)} className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-600" title="Remove line"><X className="h-3.5 w-3.5" /></button>
