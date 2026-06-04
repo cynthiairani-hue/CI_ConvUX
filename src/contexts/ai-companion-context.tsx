@@ -2398,6 +2398,20 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         )
       );
 
+      // Contextual / informational cards are NOT part of the campaign or
+      // strategy flow — skipping them should just dismiss, never kick off the
+      // "What's the goal?" objective flow.
+      const NON_FLOW_FIELDS = ["inflight-suggestion", "next-step", "media-plan-sample"];
+      if (NON_FLOW_FIELDS.includes(field)) {
+        if (field === "inflight-suggestion") {
+          setMessages((prev) => [
+            ...prev,
+            { id: nextId(), role: "assistant", content: "No problem — I'll keep watching pacing and flag it again if the gap widens." },
+          ]);
+        }
+        return;
+      }
+
       const userMsg: ChatMessage = {
         id: nextId(),
         role: "user",

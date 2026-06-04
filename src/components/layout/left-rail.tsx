@@ -35,10 +35,12 @@ export function LeftRail() {
   useEffect(() => {
     if (prevPathname.current !== pathname) {
       // Always clear artifacts on navigation — otherwise hasArtifact keeps
-      // rendering the artifact canvas instead of the page content
+      // rendering the artifact canvas instead of the page content. Media plans
+      // were missing here, which made the nav rail appear "stuck" inside a plan.
       setActiveStrategy(null);
       setActiveNarrative(null);
       setActiveAudience(null);
+      setActiveMediaPlan(null);
 
       // Leaving a surface closes the chat overlay (split/fullscreen) — the user
       // exited, so the chat exits with them (per stakeholder feedback). Floating
@@ -48,7 +50,7 @@ export function LeftRail() {
       }
     }
     prevPathname.current = pathname;
-  }, [pathname, state, setAIState, setActiveStrategy, setActiveNarrative, setActiveAudience]);
+  }, [pathname, state, setAIState, setActiveStrategy, setActiveNarrative, setActiveAudience, setActiveMediaPlan]);
 
   const pendingCount = hydrated ? getPendingForPersona(activePersona.id).length : 0;
   const narrativeCount = hydrated ? savedNarratives.length : 0;
