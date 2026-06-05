@@ -1,7 +1,7 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
-import { ClipboardList, Forward, Zap, Check } from "lucide-react";
+import { type ReactNode, useState, useEffect } from "react";
+import { ClipboardList, Forward, Zap, Check, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 // Legacy PlanCard removed — all campaigns now use StrategyCard
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -127,6 +127,31 @@ function ThinkingBlock({ steps, isComplete }: { steps: string[]; isComplete: boo
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Collapsible extended-thinking trace (streams first, auto-collapses when the answer starts). */
+function ReasoningTrace({ text, streaming, hasAnswer }: { text: string; streaming?: boolean; hasAnswer: boolean }) {
+  const [open, setOpen] = useState(true);
+  useEffect(() => { if (hasAnswer) setOpen(false); }, [hasAnswer]);
+  return (
+    <div className="mb-2.5 overflow-hidden rounded-lg border border-border bg-muted/30">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <Sparkles className="h-3 w-3" />
+        {streaming && !hasAnswer ? "Thinking…" : "Thought process"}
+      </button>
+      {open && (
+        <div className="whitespace-pre-wrap px-3 pb-2.5 pt-0.5 text-[12px] leading-relaxed text-muted-foreground">
+          {text}
+          {streaming && !hasAnswer && <span className="ml-0.5 inline-block h-3 w-1 translate-y-0.5 animate-pulse bg-muted-foreground/60" />}
+        </div>
+      )}
     </div>
   );
 }
@@ -339,7 +364,7 @@ export function AIMessage({ message }: { message: ChatMessage }) {
   const { activeStrategy } = useCampaign();
 
   if (message.toolCall) return null;
-  if (!message.content && !message.artifact && !message.performanceSnapshot && !message.thinkingSteps?.length) return null;
+  if (!message.content && !message.artifact && !message.performanceSnapshot && !message.thinkingSteps?.length && !message.streaming && !message.reasoning) return null;
 
   const artifact = message.artifact;
   const isStrategy = artifact && isStrategyPlan(artifact);
@@ -384,8 +409,14 @@ export function AIMessage({ message }: { message: ChatMessage }) {
         {!isUser && message.thinkingSteps && message.thinkingSteps.length > 0 && (
           <ThinkingBlock steps={message.thinkingSteps} isComplete={!!message.content} />
         )}
+        {!isUser && message.reasoning && (
+          <ReasoningTrace text={message.reasoning} streaming={message.streaming} hasAnswer={!!message.content} />
+        )}
         {message.content && (isUser ? message.content : renderMarkdown(message.content))}
-        {!isUser && message.content && <MessageActions content={message.content} tokenCount={estimateTokens(message)} />}
+        {!isUser && message.streaming && (
+          <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-foreground/70 align-middle" />
+        )}
+        {!isUser && message.content && !message.streaming && <MessageActions content={message.content} tokenCount={estimateTokens(message)} />}
         {strategyPlan && (
           <div className="mt-3">
             <StrategyCard plan={strategyPlan} />

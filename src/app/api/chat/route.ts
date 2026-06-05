@@ -222,48 +222,87 @@ interface ContentBlock {
 
 export async function POST(request: Request) {
   try {
-    const { messages, brandContext, detailLevel, chatMode } = (await request.json()) as {
+    const { messages, brandContext, detailLevel, chatMode, stream } = (await request.json()) as {
       messages: ChatRequestMessage[];
       brandContext?: BrandContext;
       detailLevel?: string;
       chatMode?: string;
+      stream?: boolean;
     };
 
     // Advise/Research recommend and analyze — they must not build artifacts,
     // so the build_campaign_plan tool is withheld in those modes.
     const allowBuildTool = chatMode !== "advise" && chatMode !== "research";
+    // Thinking detail level → stream the model's extended reasoning as a trace.
+    const thinkingMode = detailLevel === "thinking";
 
     const client = getClient();
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: buildSystemPrompt(brandContext, detailLevel, chatMode),
-      ...(allowBuildTool ? { tools } : {}),
-      messages: messages.map((m) => {
-        // If content is a string, pass as-is. If it's an array (multimodal), pass the blocks.
-        if (typeof m.content === "string") {
-          return { role: m.role, content: m.content };
-        }
-        // Multimodal: array of content blocks (text + image)
-        return {
-          role: m.role,
-          content: m.content.map((block) => {
-            if (block.type === "image" && block.source) {
-              return {
-                type: "image" as const,
-                source: {
-                  type: "base64" as const,
-                  media_type: block.source.media_type as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-                  data: block.source.data,
-                },
-              };
-            }
-            return { type: "text" as const, text: block.text || "" };
-          }),
-        };
-      }),
+
+    const apiMessages: Anthropic.MessageParam[] = messages.map((m) => {
+      // If content is a string, pass as-is. If it's an array (multimodal), pass the blocks.
+      if (typeof m.content === "string") {
+        return { role: m.role, content: m.content };
+      }
+      // Multimodal: array of content blocks (text + image)
+      return {
+        role: m.role,
+        content: m.content.map((block) => {
+          if (block.type === "image" && block.source) {
+            return {
+              type: "image" as const,
+              source: {
+                type: "base64" as const,
+                media_type: block.source.media_type as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+                data: block.source.data,
+              },
+            };
+          }
+          return { type: "text" as const, text: block.text || "" };
+        }),
+      };
     });
 
+    const baseParams = {
+      model: "claude-sonnet-4-20250514",
+      max_tokens: thinkingMode ? 2048 : 1024,
+      system: buildSystemPrompt(brandContext, detailLevel, chatMode),
+      ...(allowBuildTool ? { tools } : {}),
+      ...(thinkingMode ? { thinking: { type: "enabled" as const, budget_tokens: 1024 } } : {}),
+      messages: apiMessages,
+    };
+
+    // ── Streaming branch (SSE) — real token streaming for the main chat reply ──
+    if (stream) {
+      const anthropicStream = client.messages.stream(baseParams);
+      const encoder = new TextEncoder();
+      const sse = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+          try {
+            for await (const event of anthropicStream) {
+              if (event.type === "content_block_delta") {
+                const d = event.delta;
+                if (d.type === "text_delta") send({ type: "text", delta: d.text });
+                else if (d.type === "thinking_delta") send({ type: "reasoning", delta: d.thinking });
+              }
+            }
+            const finalMsg = await anthropicStream.finalMessage();
+            const tb = finalMsg.content.find((b) => b.type === "tool_use") as Anthropic.ToolUseBlock | undefined;
+            send({ type: "done", toolCall: tb ? { name: tb.name, input: tb.input } : null });
+          } catch {
+            send({ type: "error" });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new Response(sse, {
+        headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" },
+      });
+    }
+
+    // ── Whole-response branch (JSON) — fallback / non-streaming callers ──
+    const response = await client.messages.create(baseParams);
     const textBlock = response.content.find((b) => b.type === "text");
     const toolBlock = response.content.find((b) => b.type === "tool_use");
 

@@ -141,6 +141,10 @@ export interface ChatMessage {
   thinkingSteps?: string[];
   /** Estimated token count for this message */
   tokenCount?: number;
+  /** True while the reply is streaming in (renders a typing caret). */
+  streaming?: boolean;
+  /** Streamed extended-thinking trace (Thinking detail mode) — collapsible. */
+  reasoning?: string;
 }
 
 /** A canvas element selected for contextual edit (Figma-Make-style select mode). */
@@ -619,8 +623,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     activeMediaPlanRef.current = activeMediaPlan;
   }, [activeMediaPlan]);
 
-  const callAPI = useCallback(
-    async (allMessages: ChatMessage[]) => {
+  // Shared payload builder — message mapping + brand context — used by both the
+  // whole-response (callAPI) and streaming (callAPIStreaming) transports.
+  const buildChatPayload = useCallback((allMessages: ChatMessage[]) => {
       const apiMessages = allMessages
         .filter((m) => m.role === "user" || m.role === "assistant")
         .filter((m) => m.content || m.performanceSnapshot || m.images?.length)
@@ -676,26 +681,87 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           }
         : undefined;
 
+      return { apiMessages, brandContext };
+  }, []);
+
+  const FALLBACK_REPLY = "I can't process that right now. Try asking about performance, campaigns, budgets, or optimization — those work best.";
+
+  const callAPI = useCallback(
+    async (allMessages: ChatMessage[]) => {
+      const { apiMessages, brandContext } = buildChatPayload(allMessages);
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: apiMessages, brandContext, detailLevel: detailLevelRef.current, chatMode: chatModeRef.current }),
         });
-
-        if (!res.ok) {
-          return { text: "I can't process that right now. Try asking about performance, campaigns, budgets, or optimization — those work best.", toolCall: null };
-        }
-
+        if (!res.ok) return { text: FALLBACK_REPLY, toolCall: null };
         return await res.json();
       } catch {
-        return {
-          text: "I can't process that right now. Try asking about performance, campaigns, budgets, or optimization — those work best.",
-          toolCall: null,
-        };
+        return { text: FALLBACK_REPLY, toolCall: null };
       }
     },
-    []
+    [buildChatPayload]
+  );
+
+  // Real SSE token streaming for the main chat reply. Fires onText/onReasoning
+  // as deltas arrive; falls back to the whole-response callAPI on any failure.
+  const callAPIStreaming = useCallback(
+    async (
+      allMessages: ChatMessage[],
+      handlers: { onText?: (delta: string) => void; onReasoning?: (delta: string) => void }
+    ): Promise<{ text: string; toolCall: { name: string; input: Record<string, unknown> } | null; reasoning: string }> => {
+      const { apiMessages, brandContext } = buildChatPayload(allMessages);
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: apiMessages, brandContext, detailLevel: detailLevelRef.current, chatMode: chatModeRef.current, stream: true }),
+        });
+        if (!res.ok || !res.body) {
+          const whole = await callAPI(allMessages);
+          if (whole.text) handlers.onText?.(whole.text);
+          return { text: whole.text, toolCall: whole.toolCall, reasoning: "" };
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let text = "";
+        let reasoning = "";
+        let toolCall: { name: string; input: Record<string, unknown> } | null = null;
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (!payload) continue;
+            try {
+              const evt = JSON.parse(payload) as { type: string; delta?: string; toolCall?: { name: string; input: Record<string, unknown> } | null };
+              if (evt.type === "text" && evt.delta) { text += evt.delta; handlers.onText?.(evt.delta); }
+              else if (evt.type === "reasoning" && evt.delta) { reasoning += evt.delta; handlers.onReasoning?.(evt.delta); }
+              else if (evt.type === "done") { toolCall = evt.toolCall ?? null; }
+            } catch { /* skip malformed chunk */ }
+          }
+        }
+        // Nothing came through (stream errored mid-flight) → whole-response fallback.
+        if (!text && !toolCall) {
+          const whole = await callAPI(allMessages);
+          if (whole.text) handlers.onText?.(whole.text);
+          return { text: whole.text, toolCall: whole.toolCall, reasoning };
+        }
+        return { text, toolCall, reasoning };
+      } catch {
+        const whole = await callAPI(allMessages);
+        if (whole.text) handlers.onText?.(whole.text);
+        return { text: whole.text, toolCall: whole.toolCall, reasoning: "" };
+      }
+    },
+    [buildChatPayload, callAPI]
   );
 
   const sendMessage = useCallback(
@@ -752,6 +818,24 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           },
         };
         return [aiMsg, card];
+      };
+
+      // Stream the conversational reply into a placeholder bubble (typing caret +
+      // optional Thinking trace), then append the next-step menu once complete.
+      const streamReply = (updatedMessages: ChatMessage[], userContent: string) => {
+        const replyId = nextId();
+        setMessages((prev) => [...prev, { id: replyId, role: "assistant", content: "", streaming: true }]);
+        setIsLoading(false);
+        callAPIStreaming(updatedMessages, {
+          onText: (delta) => setMessages((prev) => prev.map((m) => (m.id === replyId ? { ...m, content: m.content + delta } : m))),
+          onReasoning: (delta) => setMessages((prev) => prev.map((m) => (m.id === replyId ? { ...m, reasoning: (m.reasoning || "") + delta } : m))),
+        }).then((res) => {
+          setMessages((prev) => {
+            const finalized = prev.map((m) => (m.id === replyId ? { ...m, content: res.text || m.content, streaming: false } : m));
+            const extras = answerWithNextSteps(res.text, userContent).slice(1); // menu card only — reply is already streamed
+            return [...finalized, ...extras];
+          });
+        });
       };
 
       // LLM-driven media-plan build from a brief: Claude READS the brief and
@@ -978,14 +1062,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           /^(re:|why\b|what\b|which\b|how\b|is\b|are\b|should\b|does\b|do\b|can you|could you|explain|tell me|walk me|where\b|when\b|who\b)/i.test(content.trim());
         if (isQuestionLike) {
           setMessages((prev) => [...prev, userMsg]);
-          setIsLoading(true);
-          const updated = [...messagesRef.current, userMsg];
-          callAPI(updated).then(
-            (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
-              setIsLoading(false);
-              setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
-            }
-          );
+          streamReply([...messagesRef.current, userMsg], content);
           return;
         }
 
@@ -1031,14 +1108,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // caught by keyword-based intent detection (e.g. "spend" triggering budget flow).
       if (options?.skipIntentRouting) {
         setMessages((prev) => [...prev, userMsg]);
-        setIsLoading(true);
-        const updatedMessages = [...messagesRef.current, userMsg];
-        callAPI(updatedMessages).then(
-          (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
-            setIsLoading(false);
-            setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
-          }
-        );
+        streamReply([...messagesRef.current, userMsg], content);
         return;
       }
 
@@ -1047,14 +1117,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // (the API disables the build_campaign_plan tool for these modes).
       if (chatMode === "advise" || chatMode === "research") {
         setMessages((prev) => [...prev, userMsg]);
-        setIsLoading(true);
-        const updatedMessages = [...messagesRef.current, userMsg];
-        callAPI(updatedMessages).then(
-          (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
-            setIsLoading(false);
-            setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
-          }
-        );
+        streamReply([...messagesRef.current, userMsg], content);
         return;
       }
 
@@ -1077,14 +1140,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         /\b(build|create|launch|set up|set-up|make me|draft|plan a|plan me|put together|spin up|generate a)\b/i.test(lower);
       if (isQuestion && mentionsData && !isBuildVerb) {
         setMessages((prev) => [...prev, userMsg]);
-        setIsLoading(true);
-        const updatedMessages = [...messagesRef.current, userMsg];
-        callAPI(updatedMessages).then(
-          (response: { text: string; toolCall: { name: string; input: Record<string, string> } | null }) => {
-            setIsLoading(false);
-            setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
-          }
-        );
+        streamReply([...messagesRef.current, userMsg], content);
         return;
       }
 
