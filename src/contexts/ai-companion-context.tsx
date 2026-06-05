@@ -710,7 +710,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     async (
       allMessages: ChatMessage[],
       handlers: { onText?: (delta: string) => void; onReasoning?: (delta: string) => void }
-    ): Promise<{ text: string; toolCall: { name: string; input: Record<string, unknown> } | null; reasoning: string }> => {
+    ): Promise<{ text: string; toolCall: { name: string; input: Record<string, unknown> } | null; reasoning: string; followups?: string[] }> => {
       const { apiMessages, brandContext } = buildChatPayload(allMessages);
       try {
         const res = await fetch("/api/chat", {
@@ -726,9 +726,25 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
-        let text = "";
         let reasoning = "";
         let toolCall: { name: string; input: Record<string, unknown> } | null = null;
+
+        // The reply ends with a machine-readable "FOLLOWUPS: a | b | c" line we
+        // must never show. Buffer the raw text, only emit the part before the
+        // marker, and hold back a short tail so a half-arrived marker never flashes.
+        const MARK = /FOLLOWUPS:/i;
+        const HOLD = 12;
+        let raw = "";
+        let emitted = 0;
+        const flush = (final: boolean) => {
+          const mi = raw.search(MARK);
+          const visibleEnd = mi >= 0 ? mi : final ? raw.length : Math.max(0, raw.length - HOLD);
+          if (visibleEnd > emitted) {
+            handlers.onText?.(raw.slice(emitted, visibleEnd));
+            emitted = visibleEnd;
+          }
+        };
+
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
@@ -742,19 +758,30 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             if (!payload) continue;
             try {
               const evt = JSON.parse(payload) as { type: string; delta?: string; toolCall?: { name: string; input: Record<string, unknown> } | null };
-              if (evt.type === "text" && evt.delta) { text += evt.delta; handlers.onText?.(evt.delta); }
+              if (evt.type === "text" && evt.delta) { raw += evt.delta; flush(false); }
               else if (evt.type === "reasoning" && evt.delta) { reasoning += evt.delta; handlers.onReasoning?.(evt.delta); }
               else if (evt.type === "done") { toolCall = evt.toolCall ?? null; }
             } catch { /* skip malformed chunk */ }
           }
         }
+        flush(true);
+
+        const mi = raw.search(MARK);
+        const text = (mi >= 0 ? raw.slice(0, mi) : raw).replace(/\s+$/, "");
+        let followups: string[] | undefined;
+        if (mi >= 0) {
+          const parsed = raw.slice(mi).replace(/^[\s\S]*?FOLLOWUPS:/i, "").split("\n")[0]
+            .split("|").map((s) => s.trim()).filter(Boolean).slice(0, 3);
+          if (parsed.length) followups = parsed;
+        }
+
         // Nothing came through (stream errored mid-flight) → whole-response fallback.
         if (!text && !toolCall) {
           const whole = await callAPI(allMessages);
           if (whole.text) handlers.onText?.(whole.text);
           return { text: whole.text, toolCall: whole.toolCall, reasoning };
         }
-        return { text, toolCall, reasoning };
+        return { text, toolCall, reasoning, followups };
       } catch {
         const whole = await callAPI(allMessages);
         if (whole.text) handlers.onText?.(whole.text);
@@ -792,16 +819,23 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       // analytical questions → grounded LLM answer; competitor ask → brief
       // artifact). Never offer an action the system can't perform. Returns the
       // answer message plus an optional choices card to append after it.
-      const answerWithNextSteps = (text: string, userContent: string): ChatMessage[] => {
+      const answerWithNextSteps = (text: string, userContent: string, followups?: string[]): ChatMessage[] => {
         const aiMsg: ChatMessage = { id: nextId(), role: "assistant", content: text };
-        if (!brandRef.current && !getActiveClient()) return [aiMsg];
-        const pool: ChoiceOption[] = [
-          { id: "shift-budget", label: "Where should I shift budget to improve ROAS?" },
-          { id: "trend", label: "Break down my monthly performance trend" },
-          { id: "competitors", label: "See where competitors are winning" },
-        ];
-        const u = userContent.trim().toLowerCase();
-        const options = pool.filter((o) => o.label.toLowerCase() !== u).slice(0, 3);
+        let options: ChoiceOption[];
+        if (followups && followups.length > 0) {
+          // Contextual follow-ups the model generated from THIS answer.
+          options = followups.slice(0, 3).map((q, i) => ({ id: `fu-${i}`, label: q }));
+        } else {
+          // Fallback: a generic pool (only when the model didn't emit follow-ups).
+          if (!brandRef.current && !getActiveClient()) return [aiMsg];
+          const pool: ChoiceOption[] = [
+            { id: "shift-budget", label: "Where should I shift budget to improve ROAS?" },
+            { id: "trend", label: "Break down my monthly performance trend" },
+            { id: "competitors", label: "See where competitors are winning" },
+          ];
+          const u = userContent.trim().toLowerCase();
+          options = pool.filter((o) => o.label.toLowerCase() !== u).slice(0, 3);
+        }
         if (options.length === 0) return [aiMsg];
         const card: ChatMessage = {
           id: nextId(),
@@ -832,7 +866,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         }).then((res) => {
           setMessages((prev) => {
             const finalized = prev.map((m) => (m.id === replyId ? { ...m, content: res.text || m.content, streaming: false } : m));
-            const extras = answerWithNextSteps(res.text, userContent).slice(1); // menu card only — reply is already streamed
+            const extras = answerWithNextSteps(res.text, userContent, res.followups).slice(1); // menu card only — reply is already streamed
             return [...finalized, ...extras];
           });
         });

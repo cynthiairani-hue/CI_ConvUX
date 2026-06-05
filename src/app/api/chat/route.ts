@@ -273,7 +273,17 @@ export async function POST(request: Request) {
 
     // ── Streaming branch (SSE) — real token streaming for the main chat reply ──
     if (stream) {
-      const anthropicStream = client.messages.stream(baseParams);
+      // Ask for contextual follow-ups on a final machine-readable line (stripped
+      // by the client, never shown) so the "next steps" menu advances THIS thread.
+      const FOLLOWUPS_INSTRUCTION = `
+
+FOLLOW-UP SUGGESTIONS:
+After your answer, output one final line in exactly this form:
+FOLLOWUPS: <question 1> | <question 2> | <question 3>
+- 2–3 short questions (max ~8 words each) that naturally advance THIS conversation — grounded in what you just said and the user's data, not generic.
+- Phrase them as the user would ask them next.
+- The UI parses this line and never displays it. Reference nothing about it, and write nothing after it.`;
+      const anthropicStream = client.messages.stream({ ...baseParams, system: baseParams.system + FOLLOWUPS_INSTRUCTION });
       const encoder = new TextEncoder();
       const sse = new ReadableStream<Uint8Array>({
         async start(controller) {
