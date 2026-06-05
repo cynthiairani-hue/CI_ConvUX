@@ -19,6 +19,7 @@ import { CFONarrativeCard } from "@/components/patterns/cfo-narrative-card";
 import { CompetitiveBriefCard } from "@/components/patterns/competitive-brief-card";
 import { OperatorAuthorizationCard } from "@/components/patterns/operator-authorization-card";
 import { MediaPlanComments } from "@/components/patterns/comment-thread";
+import { CardOverflowMenu, type OverflowAction } from "@/components/patterns/card-overflow-menu";
 import { MediaPlanCard } from "@/components/patterns/media-plan-card";
 import { AudienceCard } from "@/components/patterns/audience-card";
 import { getCurrentBrand } from "@/data/brand-profiles";
@@ -501,6 +502,14 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
     setDraftText("");
   }
 
+  // Share is the primary CTA; everything else (Comments, Export, Preview) lives
+  // in the overflow so the bar stays calm.
+  const headerActions: OverflowAction[] = [
+    { id: "comments", label: `Comments${unresolved > 0 ? ` (${unresolved})` : ""}`, icon: <MessageSquare className="h-3.5 w-3.5" />, onClick: () => setCommentsOpen(true) },
+    { id: "export", label: "Export PDF", icon: <FileDown className="h-3.5 w-3.5" />, onClick: () => showToast("Plan exported to PDF") },
+    ...(plan.sharedWithClient ? [{ id: "preview", label: "Preview as client", icon: <Eye className="h-3.5 w-3.5" />, onClick: () => setPreviewAsClient(true) }] : []),
+  ];
+
   const review = MP_REVIEW_STYLE[plan.reviewState] ?? MP_REVIEW_STYLE.draft;
 
   return (
@@ -534,56 +543,46 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { setCommentsOpen((v) => !v); }}
-            className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors", commentsOpen ? "border-[#7C5CFC] bg-[#F3F0FF] text-[#7C5CFC]" : "border-border text-foreground hover:bg-accent")}
-          >
-            <MessageSquare className="h-3.5 w-3.5" /> Comments{unresolved > 0 ? ` (${unresolved})` : ""}
-          </button>
+          {/* Client keeps Comments as a visible button (their main collaboration tool) */}
+          {isClientView && (
+            <button
+              type="button"
+              onClick={() => { setCommentsOpen((v) => !v); }}
+              className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors", commentsOpen ? "border-[#7C5CFC] bg-[#F3F0FF] text-[#7C5CFC]" : "border-border text-foreground hover:bg-accent")}
+            >
+              <MessageSquare className="h-3.5 w-3.5" /> Comments{unresolved > 0 ? ` (${unresolved})` : ""}
+            </button>
+          )}
 
           {!isClientView && (
             <>
-              <button
-                type="button"
-                onClick={() => showToast("Plan exported to PDF")}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
-              >
-                <FileDown className="h-3.5 w-3.5" /> Export
+              {/* Primary CTA — get the plan in front of the client */}
+              <button type="button" onClick={() => setShareOpen(true)} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+                <Share2 className="h-3.5 w-3.5" /> Share with client
               </button>
-              <button
-                type="button"
-                onClick={() => setShareOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
-              >
-                <Share2 className="h-3.5 w-3.5" /> Share
-              </button>
-              {plan.sharedWithClient && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewAsClient(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
-                >
-                  <Eye className="h-3.5 w-3.5" /> Preview as client
-                </button>
-              )}
 
-              {/* Lifecycle primary action — advances the gate */}
+              {/* Lifecycle gate — kept visible (secondary) so Approve/Activate isn't buried */}
               {plan.reviewState === "draft" && (
-                <button type="button" onClick={sendForApproval} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+                <button type="button" onClick={sendForApproval} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent">
                   <Send className="h-3.5 w-3.5" /> Send for approval
                 </button>
               )}
               {plan.reviewState === "pending-approval" && (
-                <button type="button" onClick={approve} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+                <button type="button" onClick={approve} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Approve
                 </button>
               )}
               {plan.reviewState === "approved" && (
-                <button type="button" onClick={activate} className="flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-foreground/90">
+                <button type="button" onClick={activate} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent">
                   <Zap className="h-3.5 w-3.5" /> Activate
                 </button>
               )}
+
+              {/* Comments, Export, Preview — overflow, with an unread dot so comments aren't hidden */}
+              <span className="relative">
+                <CardOverflowMenu actions={headerActions} />
+                {unresolved > 0 && <span className="pointer-events-none absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-[#7C5CFC] ring-2 ring-white" />}
+              </span>
             </>
           )}
 
@@ -618,9 +617,10 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           <button
             type="button"
             onClick={() => { setActiveMediaPlan(null); setState("resting"); }}
-            className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Close"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
-            Close
+            <X className="h-4 w-4" />
           </button>
         </div>
       </header>
