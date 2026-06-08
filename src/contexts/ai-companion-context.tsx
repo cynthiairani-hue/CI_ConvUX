@@ -260,7 +260,7 @@ function looksLikeBriefText(text: string): boolean {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
-  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, saveMediaPlan, activeMediaPlan } = useCampaign();
+  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, saveMediaPlan, activeMediaPlan, savedMediaPlans, clearAllArtifacts } = useCampaign();
   const { collapseLeftRail } = useLayout();
   // Defer localStorage reads to useEffect to prevent hydration mismatches
   // Always boots to "resting" — the chat opens deliberately (a CTA, the bubble,
@@ -275,6 +275,12 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     // must never overwrite that deliberate choice, so setState persists nothing.
     setStateRaw(s);
   }, []);
+  // Remember the last VISIBLE layout so the bubble restores the chat to exactly
+  // how it was before it was minimized — not a generic floating default.
+  const lastVisibleLayoutRef = useRef<AICompanionState>("split");
+  useEffect(() => {
+    if (state !== "resting") lastVisibleLayoutRef.current = state;
+  }, [state]);
   // Explicit default layout for launching chat from an input bar. Only the
   // ChatLayoutPicker calls this — automatic splits never touch it.
   const setEntryLayout = useCallback((layout: AICompanionState) => {
@@ -2989,17 +2995,13 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     setState("resting");
   }, [setState]);
   const expand = useCallback(() => setState("fullscreen"), [setState]);
-  // Reopen the chat from the bubble (an artifact is on the canvas). Keep the
-  // artifact visible: honor a "split" preference, otherwise float over it —
-  // never fullscreen, which would hide the artifact the user is looking at.
+  // Reopen the chat from the bubble — restore it to EXACTLY how it was before it
+  // was minimized (split → split, floating → floating, fullscreen → fullscreen),
+  // not a generic floating default.
   const reopenChat = useCallback(() => {
-    const pref = typeof window !== "undefined" ? localStorage.getItem(ENTRY_LAYOUT_KEY) : null;
-    if (pref === "split") {
-      setState(autoArtifactLayout());
-      collapseLeftRail();
-    } else {
-      setState("floating");
-    }
+    const prev = lastVisibleLayoutRef.current;
+    setState(prev);
+    if (prev === "split") collapseLeftRail();
   }, [setState, collapseLeftRail]);
   const toggleDockSide = useCallback(
     () => {
@@ -3013,10 +3015,19 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   );
 
   // --- Chat session management ---
+  // Switching conversations keeps the user in their CURRENT layout
+  // (floating / split / fullscreen). Only when the chat is closed (resting) does
+  // it open in their preferred entry layout — you can't "stay" in a mode you're
+  // not in.
+  const layoutForConversationSwitch = useCallback(
+    () => (state === "resting" ? readEntryLayout() : state),
+    [state]
+  );
+
   const startNewChat = useCallback(() => {
     initNewSession();
-    setState("fullscreen");
-  }, [initNewSession]);
+    setState(layoutForConversationSwitch());
+  }, [initNewSession, layoutForConversationSwitch, setState]);
 
   const loadChatSessionById = useCallback(
     (sessionId: string) => {
@@ -3034,12 +3045,15 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
       );
       setCampaignIntent(null);
       setStrategyIntent(null);
-      setActiveStrategy(null);
-      setActiveNarrative(null);
-      setActiveAudience(null);
-      setState("fullscreen");
+      // Clean canvas for the new conversation, then reopen the plan it built (if
+      // any) — so the artifact returns consistently from every entry point, not
+      // just the left rail.
+      clearAllArtifacts();
+      const plan = savedMediaPlans?.find((p) => p.chatSessionId === sessionId);
+      if (plan) setActiveMediaPlan(plan);
+      setState(layoutForConversationSwitch());
     },
-    [setActiveStrategy, setActiveNarrative, setActiveAudience]
+    [clearAllArtifacts, savedMediaPlans, setActiveMediaPlan, layoutForConversationSwitch, setState]
   );
 
   const handleRenameChatSession = useCallback(
