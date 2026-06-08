@@ -63,12 +63,31 @@ export type DockSide = "right" | "left";
  * splits (e.g. auto-split on artifact). This keeps "type in the bar → fullscreen"
  * the default everywhere unless the user deliberately changes it.
  */
-const ENTRY_LAYOUT_KEY = "fuseiq-entry-layout";
+export const ENTRY_LAYOUT_KEY = "fuseiq-entry-layout";
 function readEntryLayout(): AICompanionState {
-  // APP-WIDE RULE: every conversational launch (any CTA, any profile, any demo
-  // mode) opens in FULLSCREEN. The user can re-dock afterward via the
-  // ChatLayoutPicker, but launches are always fullscreen.
+  // The chat opens in the layout the user explicitly chose in the ChatLayoutPicker
+  // (persisted to ENTRY_LAYOUT_KEY); fullscreen for anyone who hasn't picked.
+  // Automatic transitions never write this key, so a deliberate choice (e.g.
+  // "always float") actually sticks across launches instead of being a dead setting.
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem(ENTRY_LAYOUT_KEY);
+    if (saved === "fullscreen" || saved === "split" || saved === "floating") return saved;
+  }
   return "fullscreen";
+}
+
+/**
+ * The layout an artifact opens into when a build completes. Honors an explicit
+ * "floating" preference; otherwise auto-splits (the documented default). This
+ * keeps every build path consistent with the bubble / minimize / auto-open,
+ * which all honor floating — so a floating-preference user is never yanked into
+ * split mid-flow.
+ */
+function autoArtifactLayout(): AICompanionState {
+  if (typeof window !== "undefined" && localStorage.getItem(ENTRY_LAYOUT_KEY) === "floating") {
+    return "floating";
+  }
+  return "split";
 }
 
 export interface ToolCallChoices {
@@ -173,6 +192,8 @@ interface AICompanionContextValue {
   minimize: () => void;
   close: () => void;
   expand: () => void;
+  /** Reopen the chat from the bubble while keeping the on-canvas artifact visible. */
+  reopenChat: () => void;
   setDockSide: (side: DockSide) => void;
   toggleDockSide: () => void;
   sendMessage: (content: string, files?: { name: string; type: string; size: number; preview?: string }[], options?: { skipIntentRouting?: boolean }) => void;
@@ -242,19 +263,17 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, saveMediaPlan, activeMediaPlan } = useCampaign();
   const { collapseLeftRail } = useLayout();
   // Defer localStorage reads to useEffect to prevent hydration mismatches
+  // Always boots to "resting" — the chat opens deliberately (a CTA, the bubble,
+  // or typing in an input bar), never auto-opened on load. (A prior "restore
+  // docked layout on mount" effect was dead code: the persona-mount effect below
+  // unconditionally resets to resting, so it never took effect.)
   const [state, setStateRaw] = useState<AICompanionState>("resting");
-  useEffect(() => {
-    const saved = localStorage.getItem("fuseiq-layout-state") as AICompanionState | null;
-    if (saved === "split" || saved === "floating") setStateRaw(saved);
-  }, []);
   const setState = useCallback((s: AICompanionState) => {
+    // Runtime state ONLY. The user's preferred layout lives in ENTRY_LAYOUT_KEY,
+    // written exclusively by setEntryLayout (the ChatLayoutPicker). Automatic
+    // transitions — auto-split on a build, the bubble, minimize, navigation —
+    // must never overwrite that deliberate choice, so setState persists nothing.
     setStateRaw(s);
-    // Only persist active layout modes — "resting" is transient (chat closed),
-    // not a layout preference. This way closing chat doesn't erase the user's
-    // preferred layout (floating, split, fullscreen).
-    if (typeof window !== "undefined" && s !== "resting") {
-      localStorage.setItem("fuseiq-layout-state", s);
-    }
   }, []);
   // Explicit default layout for launching chat from an input bar. Only the
   // ChatLayoutPicker calls this — automatic splits never touch it.
@@ -486,7 +505,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
 
           setIsLoading(false);
           // Auto-split: chat moves to left panel, canvas shows the strategy
-          setState("split");
+          setState(autoArtifactLayout());
           collapseLeftRail();
         }, thinkingSteps.length * stepDelay + 600);
       }
@@ -825,9 +844,17 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         if (followups && followups.length > 0) {
           // Contextual follow-ups the model generated from THIS answer.
           options = followups.slice(0, 3).map((q, i) => ({ id: `fu-${i}`, label: q }));
+        } else if (!brandRef.current && !getActiveClient()) {
+          // COLD START (no brand/client yet) — the user the principles target most.
+          // Offer real first steps instead of a dead-end paragraph; each label
+          // routes to a working flow via sendMessage (connect / campaign / budget).
+          options = [
+            { id: "cs-connect", label: "Connect my ad accounts" },
+            { id: "cs-campaign", label: "Build a campaign" },
+            { id: "cs-budget", label: "Plan my monthly budget" },
+          ];
         } else {
           // Fallback: a generic pool (only when the model didn't emit follow-ups).
-          if (!brandRef.current && !getActiveClient()) return [aiMsg];
           const pool: ChoiceOption[] = [
             { id: "shift-budget", label: "Where should I shift budget to improve ROAS?" },
             { id: "trend", label: "Break down my monthly performance trend" },
@@ -955,7 +982,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const narrationText = `${headline}Here's the plan for **${clientName}** — ${plan.campaigns.length} campaigns across $${plan.summary.totalBudget.toLocaleString()}, anchored to their real performance. **DOOH is in closed beta** — say the word and we'll activate it manually.${budgetNote}${goalNote}${gapLine}${assumptionLine}`;
 
         setMessages((prev) => prev.map((m) => (m.id === thinkingId ? { ...m, content: narrationText } : m)));
-        setState("split");
+        setState(autoArtifactLayout());
         collapseLeftRail();
       };
 
@@ -1208,7 +1235,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           };
           setMessages((prev) => [...prev, ack]);
           setIsLoading(false);
-          setState("split");
+          setState(autoArtifactLayout());
           collapseLeftRail();
         }, 600);
         return;
@@ -1256,7 +1283,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           };
           setMessages((prev) => [...prev, ack]);
           setIsLoading(false);
-          setState("split");
+          setState(autoArtifactLayout());
           collapseLeftRail();
         }, 500);
         return;
@@ -1390,7 +1417,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             };
             setMessages((prev) => [...prev, ackMsg]);
             setIsLoading(false);
-            setState("split");
+            setState(autoArtifactLayout());
             collapseLeftRail();
           }, 600);
           return;
@@ -1553,7 +1580,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
               )
             );
             setIsLoading(false);
-            setState("split");
+            setState(autoArtifactLayout());
             collapseLeftRail();
           }, thinkingSteps.length * stepDelay + 500);
           return;
@@ -1673,8 +1700,33 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
               )
             );
 
-            setState("split");
+            setState(autoArtifactLayout());
             collapseLeftRail();
+
+            // Notice → Propose → Authorize: offer real next moves so performance
+            // isn't a dead end (it used to stop at a bubble + canvas). Each label
+            // routes through sendMessage to a working flow.
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: nextId(),
+                role: "assistant",
+                content: "",
+                toolCall: {
+                  type: "choices",
+                  field: "next-step",
+                  question: "What would you like to do next?",
+                  step: 1,
+                  totalSteps: 1,
+                  multiSelect: false,
+                  options: [
+                    { id: "pp-shift", label: "Where should I shift budget to improve ROAS?" },
+                    { id: "pp-narrative", label: "Draft the CFO narrative from this" },
+                    { id: "pp-optimize", label: "Show me the top optimization moves" },
+                  ],
+                },
+              },
+            ]);
           } catch {
             setMessages((prev) =>
               prev.map((m) =>
@@ -1863,7 +1915,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
               )
             );
 
-            setState("split");
+            setState(autoArtifactLayout());
             collapseLeftRail();
           } catch {
             setMessages((prev) =>
@@ -2017,12 +2069,9 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             };
             setMessages((prev) => [...prev, textMsg, planMsg]);
           } else {
-            const aiMsg: ChatMessage = {
-              id: nextId(),
-              role: "assistant",
-              content: response.text,
-            };
-            setMessages((prev) => [...prev, aiMsg]);
+            // Keep the conversation moving — append a next-step menu so a generic
+            // reply (incl. one reached from a prior next-step pick) isn't a dead end.
+            setMessages((prev) => [...prev, ...answerWithNextSteps(response.text, content)]);
           }
         }
       );
@@ -2131,7 +2180,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           )
         );
         setIsLoading(false);
-        setState("split");
+        setState(autoArtifactLayout());
         collapseLeftRail();
       }, thinkingSteps.length * stepDelay + 500);
       return;
@@ -2289,27 +2338,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (field.startsWith("platforms")) {
-        // Platform selection → show connection card (OAuth-style)
-        const intentTag = field.split(":")[1] || "performance";
-
-        setMessages((prev) => [...prev, userMsg]);
-
-        // Show the platform connection card
-        const connectMsg: ChatMessage = {
-          id: nextId(),
-          role: "assistant",
-          content: "",
-          toolCall: {
-            type: "platform-connect",
-            field: `connect:${intentTag}`,
-            platformIds: selected,
-            intentTag,
-          },
-        };
-        setMessages((prev) => [...prev, connectMsg]);
-        return;
-      } else if (field === "post-performance" || field === "post-connect") {
+      if (field === "post-performance" || field === "post-connect") {
         // Follow-up action cards → route to the right flow
         const selectedId = selected[0];
         setMessages((prev) => [...prev, userMsg]);
@@ -2319,6 +2348,10 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           setTimeout(() => sendMessage("Build me a campaign"), 100);
         } else if (selectedId === "view-performance") {
           setTimeout(() => sendMessage("Show me how my marketing is performing"), 100);
+        } else if (selectedId === "build-audiences") {
+          // Open the audience builder the label promises (was falling through to
+          // a generic reply that opened nothing).
+          setTimeout(() => sendMessage("Build me an audience"), 100);
         } else {
           // Generic — send through API for natural response
           setIsLoading(true);
@@ -2335,6 +2368,58 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             }
           );
         }
+        return;
+      } else if (field === "budget-direct") {
+        // Budget picked directly (the spend-planning flow). Resolve the amount —
+        // a preset label, or the custom dollar value routed in via onCustomValue —
+        // and show the allocation. Without this the pick fell through to the legacy
+        // objective flow and the chosen budget was silently lost.
+        const brand = brandRef.current;
+        setMessages((prev) => [...prev, userMsg]);
+        setIsLoading(true);
+        setTimeout(() => {
+          setIsLoading(false);
+          const aiMsg: ChatMessage = brand
+            ? {
+                id: nextId(),
+                role: "assistant",
+                content: `Got it — ${label} for ${brand.name}. Here's a starting allocation across the best channels. It's a draft pacing plan — I'll tune it as performance data comes in.`,
+                performanceSnapshot: {
+                  title: `${brand.name} — Monthly Allocation`,
+                  period: label,
+                  metrics: [
+                    { label: "Google Shopping", value: "45% of budget", context: "Highest-ROAS channel for DTC" },
+                    { label: "Meta retargeting", value: "30%", context: "Re-engage site visitors and past purchasers" },
+                    { label: "Meta prospecting", value: "20%", context: "Lookalike audiences from your customer list" },
+                    { label: "Brand search", value: "5%", context: "Protect branded terms, low CPC" },
+                  ],
+                },
+              }
+            : {
+                id: nextId(),
+                role: "assistant",
+                content: `Got it — ${label}. I'll set up a pacing plan across your channels.`,
+              };
+          const nextMsg: ChatMessage = {
+            id: nextId(),
+            role: "assistant",
+            content: "",
+            toolCall: {
+              type: "choices",
+              field: "post-connect",
+              question: "What's next?",
+              step: 1,
+              totalSteps: 1,
+              multiSelect: false,
+              options: [
+                { id: "build-campaign", label: "Build a campaign", detail: "Create a campaign around this allocation" },
+                { id: "view-performance", label: "View performance first", detail: "See current metrics before planning" },
+              ],
+            },
+          };
+          setMessages((prev) => [...prev, aiMsg]);
+          setTimeout(() => setMessages((prev) => [...prev, nextMsg]), 400);
+        }, 600);
         return;
       } else if (field === "budget-range") {
         // Budget selected → show allocation plan
@@ -2463,7 +2548,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
           };
           setMessages((prev) => [...prev, ackMsg]);
 
-          setState("split");
+          setState(autoArtifactLayout());
           collapseLeftRail();
         }, 800);
         return;
@@ -2488,15 +2573,53 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         )
       );
 
-      // Contextual / informational cards are NOT part of the campaign or
-      // strategy flow — skipping them should just dismiss, never kick off the
-      // "What's the goal?" objective flow.
-      const NON_FLOW_FIELDS = ["inflight-suggestion", "next-step", "media-plan-sample"];
+      // Real strategy-flow steps are skippable by ADVANCING with a sensible
+      // default — never by re-rendering the same card forever (the old
+      // keyword-skip loop, where Skip set nothing so getNextStrategyTool kept
+      // re-asking). objective/advertiser had the same latent loop.
+      if (strategyIntent && (field === "selectedKeywords" || field === "objective" || field === "advertiserSetup")) {
+        const advance: StrategyIntent = { ...strategyIntent };
+        let what = field;
+        if (field === "selectedKeywords") { advance.selectedKeywords = []; advance.allKeywords = []; what = "keywords"; }
+        if (field === "objective") { advance.objective = strategyIntent.objective || "sales"; what = "objective"; }
+        if (field === "advertiserSetup" && !advance.advertiserSetup?.companyName) {
+          const brand = brandRef.current || getCurrentBrand();
+          advance.advertiserSetup = brand
+            ? { companyName: brand.name, websiteUrl: brand.domain, industry: mapBrandIndustryToIAB(brand.industry), restrictedCategories: [] }
+            : { companyName: "Company", websiteUrl: "example.com", industry: "other", restrictedCategories: [] };
+          what = "advertiser setup";
+        }
+        const userMsg: ChatMessage = { id: nextId(), role: "user", content: `Skipped ${what}` };
+        evaluateStrategyFlow(advance, userMsg);
+        return;
+      }
+
+      // Contextual / informational cards are NOT part of any build flow — skipping
+      // them dismisses with a short acknowledgment and never kicks off the legacy
+      // "What's the goal?" objective flow (the old "Skip launches the wrong builder").
+      const NON_FLOW_FIELDS = [
+        "inflight-suggestion", "next-step", "media-plan-sample",
+        "audience-type", "budget-direct", "budget-range",
+        "media-plan-mode", "setup-mode", "post-connect", "post-performance",
+      ];
       if (NON_FLOW_FIELDS.includes(field)) {
         if (field === "inflight-suggestion") {
           setMessages((prev) => [
             ...prev,
             { id: nextId(), role: "assistant", content: "No problem — I'll keep watching pacing and flag it again if the gap widens." },
+          ]);
+        } else if (field === "media-plan-sample") {
+          // Stop waiting for a brief so a later casual message isn't silently
+          // swallowed as the brief.
+          mediaPlanFlowRef.current = { stage: "idle", brief: "" };
+          setMessages((prev) => [
+            ...prev,
+            { id: nextId(), role: "assistant", content: "No problem — paste the brief whenever you're ready and I'll build the plan." },
+          ]);
+        } else if (field !== "next-step") {
+          setMessages((prev) => [
+            ...prev,
+            { id: nextId(), role: "assistant", content: "No problem — tell me what you'd like to do instead." },
           ]);
         }
         return;
@@ -2683,7 +2806,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
             };
             setMessages((prev) => [...prev, ackMsg]);
 
-            setState("split");
+            setState(autoArtifactLayout());
             collapseLeftRail();
           } catch {
             const errMsg: ChatMessage = {
@@ -2822,7 +2945,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
     initNewSession(true);
     setMessages(msgs);
     setActiveMediaPlan(plan);
-    setState("split");
+    setState(autoArtifactLayout());
     collapseLeftRail();
   }, [initNewSession, setActiveMediaPlan, setState, collapseLeftRail]);
 
@@ -2849,17 +2972,35 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   );
 
   const minimize = useCallback(() => {
-    // If user's preferred layout is floating, go back to floating instead of split
-    const preferred = typeof window !== "undefined" ? localStorage.getItem("fuseiq-layout-state") : null;
+    // Return to the user's preferred docked layout (floating if they chose it).
+    const preferred = typeof window !== "undefined" ? localStorage.getItem(ENTRY_LAYOUT_KEY) : null;
     if (preferred === "floating") {
       setState("floating");
     } else {
-      setState("split");
+      setState(autoArtifactLayout());
       collapseLeftRail();
     }
   }, [collapseLeftRail, setState]);
-  const close = useCallback(() => setState("resting"), [setState]);
+  const close = useCallback(() => {
+    // Closing also disarms point-and-select so the canvas doesn't stay in
+    // "click to attach" mode with no chat surface to receive the selection.
+    setSelectMode(false);
+    setPendingContext(null);
+    setState("resting");
+  }, [setState]);
   const expand = useCallback(() => setState("fullscreen"), [setState]);
+  // Reopen the chat from the bubble (an artifact is on the canvas). Keep the
+  // artifact visible: honor a "split" preference, otherwise float over it —
+  // never fullscreen, which would hide the artifact the user is looking at.
+  const reopenChat = useCallback(() => {
+    const pref = typeof window !== "undefined" ? localStorage.getItem(ENTRY_LAYOUT_KEY) : null;
+    if (pref === "split") {
+      setState(autoArtifactLayout());
+      collapseLeftRail();
+    } else {
+      setState("floating");
+    }
+  }, [setState, collapseLeftRail]);
   const toggleDockSide = useCallback(
     () => {
       setDockSideRaw((prev) => {
@@ -2949,6 +3090,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         minimize,
         close,
         expand,
+        reopenChat,
         setDockSide,
         toggleDockSide,
         sendMessage,

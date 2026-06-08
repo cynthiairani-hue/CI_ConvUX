@@ -7,16 +7,16 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
 
 export function Toast() {
-  const { toast, dismissToast, setActiveStrategy, setActiveNarrative, setActiveAudience } = useCampaign();
+  const { toast, dismissToast, clearAllArtifacts } = useCampaign();
   const { setState } = useAICompanion();
 
   if (!toast.visible) return null;
 
   function handleActionClick() {
-    // Clear artifacts so the destination page renders (not the artifact canvas)
-    setActiveStrategy(null);
-    setActiveNarrative(null);
-    setActiveAudience(null);
+    // Clear EVERY artifact (incl. media-plan / brief / operator) so the toast's
+    // destination page renders instead of a stale artifact canvas, and close the
+    // chat overlay so navigation isn't hidden behind it.
+    clearAllArtifacts();
     setState("resting");
     dismissToast();
   }

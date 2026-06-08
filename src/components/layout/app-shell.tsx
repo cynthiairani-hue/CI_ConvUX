@@ -10,7 +10,7 @@ import { MainCanvas } from "./main-canvas";
 import { AIFullscreen } from "@/components/ai-companion/ai-fullscreen";
 import { AISplitPanel } from "@/components/ai-companion/ai-split-panel";
 import { AIFloatingPanel } from "@/components/ai-companion/ai-floating-panel";
-import { useAICompanion, type AICompanionState } from "@/contexts/ai-companion-context";
+import { useAICompanion, type AICompanionState, ENTRY_LAYOUT_KEY } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useLayout } from "@/contexts/layout-context";
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -191,7 +191,6 @@ function ReturnVisitBanner({ strategy, onDismiss }: { strategy: StrategyPlan; on
 
 function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<typeof useCampaign>["activeStrategy"]> }) {
   const { saveStrategy, setActiveStrategy, showToast, sendForApproval } = useCampaign();
-  const { setState } = useAICompanion();
   const { activePersona } = usePersona();
   const [showReturnBanner, setShowReturnBanner] = useState(true);
 
@@ -208,9 +207,10 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
   }
 
   function handleDiscard() {
+    // Closing the artifact clears it only — it must NOT change the chat's layout
+    // (Interaction Rule 1). Whatever mode the user was in, they stay in.
     saveStrategy({ ...strategy, status: "draft", lastModifiedAt: new Date().toISOString() });
     setActiveStrategy(null);
-    setState("fullscreen");
     showToast("Strategy saved as draft", { label: "View in Campaigns", href: "/campaigns" });
   }
 
@@ -283,7 +283,6 @@ function SplitStrategyCanvas({ strategy }: { strategy: NonNullable<ReturnType<ty
 
 function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType<typeof useCampaign>["activeNarrative"]> }) {
   const { saveNarrative, setActiveNarrative, showToast } = useCampaign();
-  const { setState: setAIState } = useAICompanion();
   const brand = getCurrentBrand();
 
   function handleShare() {
@@ -302,9 +301,9 @@ function SplitNarrativeCanvas({ narrative }: { narrative: NonNullable<ReturnType
   }
 
   function handleDiscard() {
+    // Clear the artifact only — leave the chat layout as the user set it (Rule 1).
     saveNarrative({ ...narrative, lastModifiedAt: new Date().toISOString() });
     setActiveNarrative(null);
-    setAIState("fullscreen");
     showToast("Report saved as draft", { label: "View in Reports", href: "/reports" });
   }
 
@@ -432,11 +431,13 @@ const COMMENT_CURSOR =
 
 function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof useCampaign>["activeMediaPlan"]> }) {
   const { setActiveMediaPlan, saveMediaPlan, showToast, addMediaPlanComment, resolveMediaPlanComment, shareMediaPlanWithClient, setClientApproval } = useCampaign();
-  const { setState } = useAICompanion();
   const { activePersona } = usePersona();
   const isClient = activePersona.role === "client";
 
   const [commentsOpen, setCommentsOpen] = useState(false);
+  // Pin-drop is an explicit, armed sub-mode of the comments panel. Default OFF so
+  // opening Comments to READ never turns canvas edits into stray pins (3.3).
+  const [pinMode, setPinMode] = useState(false);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [draftPin, setDraftPin] = useState<{ xPct: number; yPct: number } | null>(null);
   const [draftText, setDraftText] = useState("");
@@ -457,6 +458,13 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
     setClientApproval(plan.id, { state: "approved", byName: clientName });
     addMediaPlanComment(plan.id, { authorId: clientApproverId, authorRole: "client", content: "Approved this plan. ✅" });
     showToast("Plan approved — your agency has been notified");
+  }
+  function clientUndoApproval() {
+    // Reconcile the thread: clearing only the badge left a stale "Approved ✅"
+    // comment, so the agency saw a contradictory record. Post a withdrawal note too.
+    setClientApproval(plan.id, null);
+    addMediaPlanComment(plan.id, { authorId: clientApproverId, authorRole: "client", content: "Withdrew my approval — taking another look." });
+    showToast("Approval withdrawn — your agency has been notified");
   }
   function clientRequestChanges(note: string) {
     setClientApproval(plan.id, { state: "changes-requested", byName: clientName, note });
@@ -500,7 +508,24 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
     addMediaPlanComment(plan.id, { authorId: activePersona.id, authorRole, content: t, pin: draftPin });
     setDraftPin(null);
     setDraftText("");
+    // Disarm after one pin so the card becomes editable again — never trap the
+    // user in pin-drop mode (3.3). They re-arm via "Add comment" for the next pin.
+    setPinMode(false);
   }
+  function cancelDraft() {
+    setDraftPin(null);
+    setDraftText("");
+    setPinMode(false);
+  }
+  // Esc disarms pin-drop mode (when not mid-compose) so editing resumes.
+  useEffect(() => {
+    if (!pinMode) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !draftPin) setPinMode(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pinMode, draftPin]);
 
   // Share is the primary CTA; everything else (Comments, Export, Preview) lives
   // in the overflow so the bar stays calm.
@@ -591,7 +616,7 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
             signoff?.state === "approved" ? (
               <span className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-[12px] font-medium text-emerald-600">
                 <CheckCircle2 className="h-3.5 w-3.5" /> You approved this plan
-                <button type="button" onClick={() => setClientApproval(plan.id, null)} className="ml-1 text-[11px] font-medium text-emerald-700 underline underline-offset-2">Undo</button>
+                <button type="button" onClick={clientUndoApproval} className="ml-1 text-[11px] font-medium text-emerald-700 underline underline-offset-2">Undo</button>
               </span>
             ) : (
               <>
@@ -616,7 +641,7 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           <div className="mx-0.5 h-5 w-px bg-border" />
           <button
             type="button"
-            onClick={() => { setActiveMediaPlan(null); setState("resting"); }}
+            onClick={() => setActiveMediaPlan(null)}
             title="Close"
             className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
@@ -633,11 +658,20 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
               readOnly={isClientView}
             />
 
-            {/* Comment-drop capture layer (below the pins) — the cursor becomes the
-                comment pin and a click on empty canvas drops a new pin. Active
-                whenever the panel is open and we're not mid-compose. */}
-            {commentsOpen && !draftPin && (
+            {/* Comment-drop capture layer — ONLY when pin-drop is explicitly armed
+                (and not mid-compose). When the panel is open just to READ comments,
+                no overlay sits over the card, so every edit control stays clickable. */}
+            {commentsOpen && pinMode && !draftPin && (
               <div className="absolute inset-0 z-30" style={{ cursor: COMMENT_CURSOR }} onClick={dropPin} />
+            )}
+
+            {/* Armed-mode cue (Figma/Miro-style) so it's obvious why clicks drop pins. */}
+            {commentsOpen && pinMode && !draftPin && (
+              <div className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center">
+                <span className="rounded-full bg-[#7C5CFC] px-3 py-1 text-[11px] font-medium text-white shadow-md">
+                  Click anywhere on the plan to drop a comment · Esc to cancel
+                </span>
+              </div>
             )}
 
             {/* Comment pins (Figma/Miro) — positioned as % of the canvas box.
@@ -669,13 +703,13 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
                       autoFocus
                       value={draftText}
                       onChange={(e) => setDraftText(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitDraft(); } if (e.key === "Escape") { setDraftPin(null); } }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitDraft(); } if (e.key === "Escape") { cancelDraft(); } }}
                       placeholder="Add a comment…"
                       rows={3}
                       className="w-full resize-none rounded-lg border border-border px-2.5 py-1.5 text-[13px] outline-none focus:border-[#7C5CFC]"
                     />
                     <div className="mt-1.5 flex items-center justify-end gap-2">
-                      <button onClick={() => setDraftPin(null)} className="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted">Cancel</button>
+                      <button onClick={cancelDraft} className="rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted">Cancel</button>
                       <button onClick={submitDraft} disabled={!draftText.trim()} className="flex items-center gap-1 rounded-md bg-foreground px-2.5 py-1 text-[11px] font-medium text-white hover:bg-foreground/90 disabled:opacity-40">
                         <Send className="h-3 w-3" /> Comment
                       </button>
@@ -690,10 +724,12 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
           <MediaPlanComments
             plan={plan}
             activeCommentId={activeCommentId}
+            pinMode={pinMode}
+            onTogglePin={() => setPinMode((v) => !v)}
             onFocusComment={setActiveCommentId}
             onReply={(parentId, content) => addMediaPlanComment(plan.id, { authorId: activePersona.id, authorRole, content, parentId })}
             onResolve={(commentId, resolved) => resolveMediaPlanComment(plan.id, commentId, resolved)}
-            onClose={() => { setCommentsOpen(false); setDraftPin(null); }}
+            onClose={() => { setCommentsOpen(false); setDraftPin(null); setPinMode(false); }}
           />
         )}
       </div>
@@ -788,7 +824,6 @@ function ShareWithClientDialog({ shared, onCopyLink, onShare, onClose }: { share
 
 function SplitOperatorCanvas({ operator }: { operator: NonNullable<ReturnType<typeof useCampaign>["activeOperator"]> }) {
   const { setActiveOperator, showToast } = useCampaign();
-  const { setState } = useAICompanion();
 
   function handleAuthorize(guardrails: typeof operator.guardrails) {
     setActiveOperator({ ...operator, mode: "operator", guardrails, status: "active" });
@@ -796,15 +831,14 @@ function SplitOperatorCanvas({ operator }: { operator: NonNullable<ReturnType<ty
   }
 
   function handleManual() {
+    // Clear the artifact only — chat layout stays as the user set it (Rule 1).
     showToast("Staying manual — I'll keep proposing, you approve every change");
     setActiveOperator(null);
-    setState("fullscreen");
   }
 
   function handleTakeControl() {
     showToast("Control returned to you");
     setActiveOperator(null);
-    setState("fullscreen");
   }
 
   return (
@@ -813,7 +847,7 @@ function SplitOperatorCanvas({ operator }: { operator: NonNullable<ReturnType<ty
         <h1 className="truncate text-[14px] font-semibold text-foreground">Run with AI — {operator.strategyName}</h1>
         <button
           type="button"
-          onClick={() => { setActiveOperator(null); setState("resting"); }}
+          onClick={() => setActiveOperator(null)}
           className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           Close
@@ -835,15 +869,14 @@ function SplitOperatorCanvas({ operator }: { operator: NonNullable<ReturnType<ty
 
 function SplitBriefCanvas({ brief }: { brief: NonNullable<ReturnType<typeof useCampaign>["activeBrief"]> }) {
   const { setActiveBrief, showToast } = useCampaign();
-  const { setState } = useAICompanion();
 
   function handleShare() {
     showToast("Share link copied to clipboard");
   }
 
   function handleDiscard() {
+    // Clear the artifact only — chat layout stays as the user set it (Rule 1).
     setActiveBrief(null);
-    setState("resting");
   }
 
   function handleConnectPixel() {
@@ -886,7 +919,6 @@ function SplitBriefCanvas({ brief }: { brief: NonNullable<ReturnType<typeof useC
 
 function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<typeof useCampaign>["activeAudience"]> }) {
   const { setActiveAudience, saveAudience, showToast } = useCampaign();
-  const { setState: setAIState } = useAICompanion();
 
   function handleUpdate(updated: typeof segment) {
     setActiveAudience(updated);
@@ -900,9 +932,9 @@ function SplitAudienceCanvas({ segment }: { segment: NonNullable<ReturnType<type
   }
 
   function handleDiscard() {
+    // Clear the artifact only — chat layout stays as the user set it (Rule 1).
     saveAudience({ ...segment, lastModifiedAt: new Date().toISOString() });
     setActiveAudience(null);
-    setAIState("fullscreen");
     showToast("Audience saved as draft", { label: "View in Audiences", href: "/audiences" });
   }
 
@@ -988,7 +1020,7 @@ function ChatBubble({ onOpen }: { onOpen: () => void }) {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { state, dockSide, setState } = useAICompanion();
+  const { state, dockSide, setState, reopenChat } = useAICompanion();
   const { activeStrategy, savedStrategies, activeNarrative, activeAudience, activeBrief, activeOperator, activeMediaPlan } = useCampaign();
   const { activePersona } = usePersona();
   // Client portal is read-only — no AI build companion at all (just view + comment).
@@ -1040,9 +1072,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     // Don't auto-open if AI is already showing
     if (state !== "resting") return;
 
-    // Check user's preferred layout from localStorage
+    // Honor the user's explicit layout preference (set via the ChatLayoutPicker).
+    // Auto-split is the documented default for everyone else.
     const preferred = typeof window !== "undefined"
-      ? localStorage.getItem("fuseiq-layout-state") as AICompanionState | null
+      ? localStorage.getItem(ENTRY_LAYOUT_KEY) as AICompanionState | null
       : null;
 
     if (preferred === "floating") {
@@ -1124,7 +1157,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           state === "split";
         const showBubble = hasArtifact && !chatVisible;
         if (!showBubble) return null;
-        return <ChatBubble onOpen={() => setState("floating")} />;
+        // Reopen consistently with the user's preferred docked layout (keeps the
+        // artifact visible) — not always floating, which used to differ from how
+        // auto-open and minimize bring the chat back.
+        return <ChatBubble onOpen={reopenChat} />;
       })()}
 
       <Toast />

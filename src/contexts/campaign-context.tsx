@@ -89,8 +89,11 @@ interface CampaignContextValue {
   archiveMediaPlan: (id: string) => void;
   removeMediaPlan: (id: string) => void;
   removeNarrative: (id: string) => void;
+  archiveNarrative: (id: string) => void;
   duplicateNarrative: (id: string) => void;
   renameNarrative: (id: string, name: string) => void;
+  /** Clear every active artifact at once (used by toast "View in…" links so the destination page renders, not the artifact canvas). */
+  clearAllArtifacts: () => void;
   activeAudience: AudienceSegment | null;
   setActiveAudience: (audience: AudienceSegment | null) => void;
   savedAudiences: AudienceSegment[];
@@ -436,7 +439,26 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   }, [savedBriefs]);
 
   const removeNarrative = useCallback((id: string) => {
-    setSavedNarratives((prev) => prev.filter((n) => n.id !== id));
+    setSavedNarratives((prev) => {
+      const next = prev.filter((n) => n.id !== id);
+      persistNarratives(next);
+      return next;
+    });
+    if (activeNarrative?.id === id) setActiveNarrative(null);
+  }, [activeNarrative]);
+
+  // Archive ≠ delete: set status and keep the record (mirrors strategies/audiences/
+  // media-plans). The saved list filters archived out by default; nothing is destroyed.
+  const archiveNarrative = useCallback((id: string) => {
+    setSavedNarratives((prev) => {
+      const next = prev.map((n) =>
+        n.id === id
+          ? { ...n, status: "archived" as const, lastModifiedAt: new Date().toISOString() }
+          : n
+      );
+      persistNarratives(next);
+      return next;
+    });
     if (activeNarrative?.id === id) setActiveNarrative(null);
   }, [activeNarrative]);
 
@@ -536,6 +558,18 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const showToast = useCallback((message: string, action?: { label: string; href: string }) => {
     setToast({ message, visible: true, action });
     setTimeout(() => setToast({ message: "", visible: false }), action ? 6000 : 4000);
+  }, []);
+
+  // Clear every active artifact in one call. Toast "View in…" links use this so
+  // the destination page renders instead of an artifact canvas staying open
+  // (media-plan / brief / operator were previously missed, stranding the user).
+  const clearAllArtifacts = useCallback(() => {
+    setActiveStrategy(null);
+    setActiveNarrative(null);
+    setActiveAudience(null);
+    setActiveBrief(null);
+    setActiveOperator(null);
+    setActiveMediaPlan(null);
   }, []);
 
   const updateSection = useCallback(
@@ -772,8 +806,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         archiveMediaPlan,
         removeMediaPlan,
         removeNarrative,
+        archiveNarrative,
         duplicateNarrative,
         renameNarrative,
+        clearAllArtifacts,
         hydrated,
       }}
     >

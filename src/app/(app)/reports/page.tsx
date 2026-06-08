@@ -330,6 +330,7 @@ function TemplatesContent({ onGenerate }: { onGenerate: (prompt: string) => void
 const statusDot: Record<string, string> = {
   draft: "bg-muted-foreground/40",
   final: "bg-emerald-500",
+  archived: "bg-muted-foreground/30",
 };
 
 function NarrativeRow({
@@ -353,6 +354,8 @@ function NarrativeRow({
 }) {
   const config = narrative.status === "final"
     ? { label: "Final", bg: "bg-emerald-50", text: "text-emerald-600" }
+    : narrative.status === "archived"
+    ? { label: "Archived", bg: "bg-muted", text: "text-muted-foreground" }
     : { label: "Draft", bg: "bg-muted", text: "text-muted-foreground" };
 
   const renameRef = useRef<HTMLInputElement>(null);
@@ -463,8 +466,10 @@ function SavedReportsContent({
     );
   }
 
+  // "All" hides archived (archive = out of the way, not destroyed); the Archived
+  // pill surfaces them. Other pills filter by exact status.
   const filtered = statusFilter === "all"
-    ? narratives
+    ? narratives.filter((n) => n.status !== "archived")
     : narratives.filter((n) => n.status === statusFilter);
 
   const sorted = [...filtered].sort(
@@ -475,19 +480,19 @@ function SavedReportsContent({
     <div className="space-y-4">
       {/* Status filter pills */}
       <div className="flex items-center gap-1">
-        {(["all", "draft", "final"] as const).map((f) => (
+        {(["all", "draft", "final", "archived"] as const).map((f) => (
           <button
             key={f}
             type="button"
             onClick={() => setStatusFilter(f)}
             className={cn(
-              "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+              "rounded-full px-2.5 py-1 text-xs font-medium transition-colors capitalize",
               statusFilter === f
                 ? "bg-foreground text-background"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
-            {f === "all" ? "All" : f === "draft" ? "Draft" : "Final"}
+            {f}
           </button>
         ))}
       </div>
@@ -700,6 +705,7 @@ export default function ReportsPage() {
     activeStrategy,
     setActiveStrategy,
     removeNarrative,
+    archiveNarrative,
     duplicateNarrative,
     renameNarrative,
     showToast,
@@ -771,8 +777,8 @@ export default function ReportsPage() {
         showToast("Share link copied to clipboard");
         break;
       case "archive":
-        removeNarrative(narrativeId);
-        showToast("Report archived");
+        archiveNarrative(narrativeId);
+        showToast("Report archived", { label: "View archived", href: "/reports" });
         break;
       case "delete":
         setDeletingId(narrativeId);
@@ -789,7 +795,7 @@ export default function ReportsPage() {
     setRenamingId(null);
   }
 
-  const narrativeCount = savedNarratives.length;
+  const narrativeCount = savedNarratives.filter((n) => n.status !== "archived").length;
 
   if (!hydrated) {
     return (

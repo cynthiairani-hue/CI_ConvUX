@@ -283,6 +283,7 @@ export function AIFloatingPanel() {
             submitChoice(activeToolCall.id, tc.field, selected)
           }
           onFreeText={(text) => sendMessage(text)}
+          onCustomValue={(val) => submitChoice(activeToolCall.id, tc.field, [val])}
           onSkip={() => skipChoice(activeToolCall.id, tc.field)}
         />
       );
@@ -380,7 +381,8 @@ export function AIFloatingPanel() {
             {activeToolCall?.toolCall && renderToolCall()}
             <ArtifactPreviewCard />
             <div className="rounded-lg border px-3 py-2">
-              <AIInput onSend={sendMessage} />
+              {/* autoFocus on mount (= on open) so the floating chat is ready to type. */}
+              <AIInput onSend={sendMessage} autoFocus />
             </div>
           </div>
       </>

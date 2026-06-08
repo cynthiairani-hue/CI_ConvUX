@@ -346,10 +346,10 @@ export function CFONarrativeCard({ narrative, seedData, hideHeaderActions, onSen
 
   const monthLabel = MONTH_NAMES[narrative.period.month - 1];
 
-  const statusLabel = narrative.status === "draft" ? "Draft" : "Final";
-  const statusColor = narrative.status === "draft"
-    ? "bg-muted text-muted-foreground"
-    : "bg-emerald-50 text-emerald-600";
+  const statusLabel = narrative.status === "final" ? "Final" : narrative.status === "archived" ? "Archived" : "Draft";
+  const statusColor = narrative.status === "final"
+    ? "bg-emerald-50 text-emerald-600"
+    : "bg-muted text-muted-foreground";
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-white">

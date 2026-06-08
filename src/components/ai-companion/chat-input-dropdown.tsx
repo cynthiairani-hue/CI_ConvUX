@@ -13,6 +13,8 @@ import { SESSION_GROUP_LABELS, type ChatSessionGroup } from "@/lib/storage";
 interface ChatInputDropdownProps {
   onSelectPrompt: (text: string) => void;
   onSelectStrategy: (id: string) => void;
+  /** Open a recent media plan (agency/client modality). */
+  onSelectMediaPlan: (id: string) => void;
   /** Current input value. When non-empty, the dropdown becomes a type-ahead
    *  autocomplete of the suggested prompts (matching the page inputs). */
   query?: string;
@@ -151,14 +153,20 @@ function SessionActions({
   );
 }
 
-export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy, query }: ChatInputDropdownProps) {
+export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy, onSelectMediaPlan, query }: ChatInputDropdownProps) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { chatSessions, loadChatSession, renameChatSession, archiveChatSession, deleteChatSession } = useAICompanion();
-  const { savedStrategies, savedAdvertisers } = useCampaign();
+  const { savedStrategies, savedAdvertisers, savedMediaPlans } = useCampaign();
   const { activePersona } = usePersona();
 
+  // Agency/client work in media plans; SMB works in strategies. Show recents in
+  // the matching modality so a click opens the artifact type they actually use.
+  const isAgency = activePersona.vertical === "agency";
+  const isClient = activePersona.role === "client";
+  const showPlans = isAgency || isClient;
+
   const brand = useBrand();
-  const prompts = getPersonalizedPrompts(brand, savedStrategies?.length || 0, { isAgency: activePersona.vertical === "agency" });
+  const prompts = getPersonalizedPrompts(brand, savedStrategies?.length || 0, { isAgency });
 
   // Type-ahead mode: when the user is typing, filter suggestions and render a
   // compact autocomplete list (consistent with the page inputs). Empty input
@@ -203,10 +211,17 @@ export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy, query }: C
     return acc;
   }, {} as Record<ChatSessionGroup, typeof activeSessions>);
 
-  // Recent strategies (separate section)
+  // Recent strategies (SMB) or recent media plans (agency/client) — same section,
+  // matched to the persona's working modality.
   const recentStrategies = [...(savedStrategies || [])]
     .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
     .slice(0, 3);
+  const recentMediaPlans = showPlans
+    ? [...(savedMediaPlans || [])]
+        .filter((p) => (isClient ? p.sharedWithClient : true))
+        .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
+        .slice(0, 3)
+    : [];
 
   function getAdvertiserName(advertiserId: string): string {
     const adv = (savedAdvertisers || []).find((a) => a.id === advertiserId);
@@ -284,36 +299,66 @@ export function ChatInputDropdown({ onSelectPrompt, onSelectStrategy, query }: C
         </div>
       )}
 
-      {/* Recent strategies */}
-      {recentStrategies.length > 0 && (
-        <div className="border-t border-border px-4 pt-2 pb-2">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            Recent strategies
-          </div>
-          <div className="space-y-0.5">
-            {recentStrategies.map((strategy) => (
-              <button
-                key={strategy.id}
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onSelectStrategy(strategy.id);
-                }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
-              >
-                <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_DOTS[strategy.status] || STATUS_DOTS.draft)} />
-                <div className="flex-1 min-w-0">
-                  <div className="truncate text-[13px] font-medium text-foreground">{strategy.name}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {getAdvertiserName(strategy.advertiserId)} · {timeAgo(strategy.lastModifiedAt)}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Recent — media plans for agency/client, strategies for SMB */}
+      {showPlans
+        ? recentMediaPlans.length > 0 && (
+            <div className="border-t border-border px-4 pt-2 pb-2">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                Recent plans
+              </div>
+              <div className="space-y-0.5">
+                {recentMediaPlans.map((plan) => (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onSelectMediaPlan(plan.id);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                  >
+                    <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_DOTS[plan.reviewState] || STATUS_DOTS.draft)} />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate text-[13px] font-medium text-foreground">{plan.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {plan.flight} · {timeAgo(plan.lastModifiedAt)}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        : recentStrategies.length > 0 && (
+            <div className="border-t border-border px-4 pt-2 pb-2">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                Recent strategies
+              </div>
+              <div className="space-y-0.5">
+                {recentStrategies.map((strategy) => (
+                  <button
+                    key={strategy.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onSelectStrategy(strategy.id);
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                  >
+                    <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_DOTS[strategy.status] || STATUS_DOTS.draft)} />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate text-[13px] font-medium text-foreground">{strategy.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {getAdvertiserName(strategy.advertiserId)} · {timeAgo(strategy.lastModifiedAt)}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
     </div>
   );
 }

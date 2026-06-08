@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, X, Check, Send, CornerDownRight } from "lucide-react";
+import { MessageSquare, X, Check, Send, CornerDownRight, MapPin } from "lucide-react";
 import type { MediaPlan, MediaPlanComment } from "@/types/campaign";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +9,10 @@ interface MediaPlanCommentsProps {
   plan: MediaPlan;
   /** The thread currently focused — its pin is highlighted on the canvas. */
   activeCommentId: string | null;
+  /** Pin-drop armed? When true, clicking the canvas drops a comment pin. */
+  pinMode: boolean;
+  /** Toggle pin-drop mode (the "Add comment" affordance). */
+  onTogglePin: () => void;
   onFocusComment: (id: string | null) => void;
   onReply: (parentId: string, content: string) => void;
   onResolve: (commentId: string, resolved: boolean) => void;
@@ -18,6 +22,8 @@ interface MediaPlanCommentsProps {
 export function MediaPlanComments({
   plan,
   activeCommentId,
+  pinMode,
+  onTogglePin,
   onFocusComment,
   onReply,
   onResolve,
@@ -40,12 +46,28 @@ export function MediaPlanComments({
           <MessageSquare className="h-4 w-4 text-foreground" />
           <span className="text-[13px] font-semibold text-foreground">Comments</span>
         </div>
-        <button
-          onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* The real "Add comment" affordance — arms pin-drop so a click on the
+              plan drops a pin. While off, the plan stays fully editable. */}
+          <button
+            type="button"
+            onClick={onTogglePin}
+            title="Drop a comment pin on the plan"
+            aria-pressed={pinMode}
+            className={cn(
+              "flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors",
+              pinMode ? "bg-[#F3F0FF] text-[#7C5CFC]" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <MapPin className="h-3.5 w-3.5" /> {pinMode ? "Click the plan…" : "Add comment"}
+          </button>
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Thread list */}

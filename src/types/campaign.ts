@@ -238,7 +238,7 @@ export interface ApprovalComment {
 
 // --- CFO Narrative ---
 
-export type CFONarrativeStatus = "draft" | "final";
+export type CFONarrativeStatus = "draft" | "final" | "archived";
 
 export type CFONarrativeSectionKey =
   | "spendByChannel"

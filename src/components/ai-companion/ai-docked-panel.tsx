@@ -109,6 +109,7 @@ export function AIDockedPanel({ side = "right", width }: { side?: "left" | "righ
             submitChoice(activeToolCall.id, tc.field, selected)
           }
           onFreeText={(text) => sendMessage(text)}
+          onCustomValue={(val) => submitChoice(activeToolCall.id, tc.field, [val])}
           onSkip={() => skipChoice(activeToolCall.id, tc.field)}
         />
       );

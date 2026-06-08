@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, type FormEvent, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowUp, Mic, SlidersHorizontal, Check, Zap, ListChecks, Lightbulb, Search, Plus, Upload, Plug, Wand2, Bot, Database } from "lucide-react";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { useCampaign } from "@/contexts/campaign-context";
@@ -26,6 +27,9 @@ const TOOL_OPTIONS = [
 ];
 
 function CanvasToolsPopover() {
+  const router = useRouter();
+  const { showToast } = useCampaign();
+  const { openFullscreen } = useAICompanion();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -36,6 +40,16 @@ function CanvasToolsPopover() {
     if (open) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
+
+  // Every entry does something real or says so — no silent no-ops. Sources/Plugins
+  // open Connectors (the built /settings page, MCP-style); Upload opens the chat
+  // where files attach; Skills/Agents aren't built yet, so they say "coming soon".
+  function handleTool(id: string, label: string) {
+    setOpen(false);
+    if (id === "sources" || id === "plugins") { router.push("/settings"); return; }
+    if (id === "upload") { openFullscreen(); return; }
+    showToast(`${label} — coming soon`);
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -53,21 +67,24 @@ function CanvasToolsPopover() {
           <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Tools
           </div>
-          {TOOL_OPTIONS.map((tool) => (
-            <button
-              key={tool.id}
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
-            >
-              <span className="text-muted-foreground">{tool.icon}</span>
-              <div className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-foreground">{tool.label}</span>
-                <span className="block text-[11px] text-muted-foreground">{tool.description}</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground">Soon</span>
-            </button>
-          ))}
+          {TOOL_OPTIONS.map((tool) => {
+            const soon = tool.id === "skills" || tool.id === "agents";
+            return (
+              <button
+                key={tool.id}
+                type="button"
+                onClick={() => handleTool(tool.id, tool.label)}
+                className={cn("flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent", soon && "opacity-60")}
+              >
+                <span className="text-muted-foreground">{tool.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-foreground">{tool.label}</span>
+                  <span className="block text-[11px] text-muted-foreground">{tool.description}</span>
+                </div>
+                {soon && <span className="text-[10px] text-muted-foreground">Soon</span>}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -133,8 +150,8 @@ function CanvasModePopover() {
 }
 
 export function CanvasChatInput({ placeholder }: { placeholder?: string }) {
-  const { openFullscreen, state } = useAICompanion();
-  const { loadStrategy } = useCampaign();
+  const { openFullscreen, openPlanContext, state } = useAICompanion();
+  const { loadStrategy, savedMediaPlans } = useCampaign();
   const [value, setValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -180,12 +197,19 @@ export function CanvasChatInput({ placeholder }: { placeholder?: string }) {
     setIsFocused(false);
   }
 
+  function handleSelectMediaPlan(id: string) {
+    const plan = savedMediaPlans.find((p) => p.id === id);
+    if (plan) openPlanContext(plan);
+    setIsFocused(false);
+  }
+
   return (
     <div className="relative w-full">
       {showDropdown && (
         <ChatInputDropdown
           onSelectPrompt={handleSelectPrompt}
           onSelectStrategy={handleSelectStrategy}
+          onSelectMediaPlan={handleSelectMediaPlan}
           query={value}
         />
       )}

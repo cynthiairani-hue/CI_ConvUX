@@ -20,6 +20,10 @@ interface ChatChoicesProps {
   multiSelect?: boolean;
   onSubmit: (selected: string[]) => void;
   onFreeText: (text: string) => void;
+  /** Field-aware handler for the custom-amount input (e.g. a budget). When set,
+   *  the typed value routes through the card's flow (submitChoice) instead of
+   *  becoming a context-free chat message. Falls back to onFreeText. */
+  onCustomValue?: (value: string) => void;
   onSkip?: () => void;
 }
 
@@ -32,6 +36,7 @@ export function ChatChoices({
   multiSelect = false,
   onSubmit,
   onFreeText,
+  onCustomValue,
   onSkip,
 }: ChatChoicesProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -91,7 +96,11 @@ export function ChatChoices({
     e.preventDefault();
     const trimmed = customValue.trim().replace(/[^0-9]/g, "");
     if (!trimmed) return;
-    onFreeText(`$${Number(trimmed).toLocaleString()}`);
+    const formatted = `$${Number(trimmed).toLocaleString()}`;
+    // Route the amount through the card's own flow when the host provides a
+    // field-aware handler (keeps budget context); otherwise fall back.
+    if (onCustomValue) onCustomValue(formatted);
+    else onFreeText(formatted);
     setCustomValue("");
     setCustomInputMode(false);
   }

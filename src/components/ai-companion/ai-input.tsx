@@ -2,9 +2,11 @@
 
 import { useState, useRef, useCallback, useEffect, type FormEvent, type DragEvent, type KeyboardEvent } from "react";
 import { ArrowUp, Paperclip, Mic, X, FileText, SlidersHorizontal, Check, Zap, ListChecks, Lightbulb, Search, Plus, Upload, Plug, Wand2, Bot, Database, SquareDashedMousePointer } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useAICompanion } from "@/contexts/ai-companion-context";
+import { useCampaign } from "@/contexts/campaign-context";
 import type { ChatMode } from "@/types/campaign";
 
 interface AttachedFile {
@@ -46,6 +48,8 @@ const TOOL_OPTIONS = [
 ];
 
 function ToolsPopover({ onAttachFile }: { onAttachFile?: () => void }) {
+  const router = useRouter();
+  const { showToast } = useCampaign();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -56,6 +60,16 @@ function ToolsPopover({ onAttachFile }: { onAttachFile?: () => void }) {
     if (open) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
+
+  // Real action or honest "coming soon" — never a silent no-op. Sources/Plugins
+  // open Connectors (/settings, MCP-style); Upload attaches a file; Skills/Agents
+  // aren't built yet.
+  function handleTool(id: string, label: string) {
+    setOpen(false);
+    if (id === "sources" || id === "plugins") { router.push("/settings"); return; }
+    if (id === "upload") { onAttachFile?.(); return; }
+    showToast(`${label} — coming soon`);
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -73,34 +87,26 @@ function ToolsPopover({ onAttachFile }: { onAttachFile?: () => void }) {
           <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Tools
           </div>
-          {onAttachFile && (
-            <button
-              type="button"
-              onClick={() => { onAttachFile(); setOpen(false); }}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
-            >
-              <span className="text-muted-foreground"><Paperclip className="h-3.5 w-3.5" /></span>
-              <div className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-foreground">Attach file</span>
-                <span className="block text-[11px] text-muted-foreground">Upload images, PDFs, docs</span>
-              </div>
-            </button>
-          )}
-          {TOOL_OPTIONS.map((tool) => (
-            <button
-              key={tool.id}
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
-            >
-              <span className="text-muted-foreground">{tool.icon}</span>
-              <div className="min-w-0 flex-1">
-                <span className="block text-[13px] font-medium text-foreground">{tool.label}</span>
-                <span className="block text-[11px] text-muted-foreground">{tool.description}</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground">Soon</span>
-            </button>
-          ))}
+          {/* One attach affordance — the "Upload" tool below routes to onAttachFile
+              (matches the canvas/page popovers; no duplicate standalone button). */}
+          {TOOL_OPTIONS.map((tool) => {
+            const soon = tool.id === "skills" || tool.id === "agents";
+            return (
+              <button
+                key={tool.id}
+                type="button"
+                onClick={() => handleTool(tool.id, tool.label)}
+                className={cn("flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent", soon && "opacity-60")}
+              >
+                <span className="text-muted-foreground">{tool.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium text-foreground">{tool.label}</span>
+                  <span className="block text-[11px] text-muted-foreground">{tool.description}</span>
+                </div>
+                {soon && <span className="text-[10px] text-muted-foreground">Soon</span>}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

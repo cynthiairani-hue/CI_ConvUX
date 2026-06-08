@@ -110,6 +110,7 @@ export function AISplitPanel({ width, side = "left" }: { width?: number; side?: 
             submitChoice(activeToolCall.id, tc.field, selected)
           }
           onFreeText={(text) => sendMessage(text)}
+          onCustomValue={(val) => submitChoice(activeToolCall.id, tc.field, [val])}
           onSkip={() => skipChoice(activeToolCall.id, tc.field)}
         />
       );
@@ -172,7 +173,9 @@ export function AISplitPanel({ width, side = "left" }: { width?: number; side?: 
       <div className="px-4 py-3 space-y-3">
         {activeToolCall?.toolCall && renderToolCall()}
         <div className="rounded-lg border px-3 py-2">
-          <AIInput onSend={sendMessage} />
+          {/* autoFocus fires on mount (= when the panel opens), so docked chat is
+              ready to type immediately — matching fullscreen. */}
+          <AIInput onSend={sendMessage} autoFocus />
         </div>
       </div>
     </aside>

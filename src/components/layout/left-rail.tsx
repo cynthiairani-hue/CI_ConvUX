@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 export function LeftRail() {
   const { leftRailCollapsed, toggleLeftRail } = useLayout();
   const pathname = usePathname();
-  const { getPendingForPersona, savedNarratives, savedMediaPlans, setActiveMediaPlan, setActiveStrategy, setActiveNarrative, setActiveAudience, hydrated } = useCampaign();
+  const { getPendingForPersona, savedNarratives, savedMediaPlans, setActiveMediaPlan, clearAllArtifacts, hydrated } = useCampaign();
   const { state, setState: setAIState, chatSessions, loadChatSession, openFullscreen } = useAICompanion();
   const { activePersona } = usePersona();
 
@@ -30,30 +30,23 @@ export function LeftRail() {
   const prevPathname = useRef(pathname);
 
   // When navigating to a new page:
-  // 1. Always clear active artifacts so the destination page renders (not the artifact canvas)
-  // 2. Convert split view → floating so chat follows the user
+  // 1. Clear EVERY active artifact so the destination page renders (not a stale
+  //    artifact canvas). brief/operator were missed before — covered now.
+  // 2. Let the chat FOLLOW the user: split/fullscreen → floating, so the
+  //    conversation (and any half-typed input) survives the jump instead of
+  //    silently vanishing. Floating already follows; resting stays resting.
   useEffect(() => {
     if (prevPathname.current !== pathname) {
-      // Always clear artifacts on navigation — otherwise hasArtifact keeps
-      // rendering the artifact canvas instead of the page content. Media plans
-      // were missing here, which made the nav rail appear "stuck" inside a plan.
-      setActiveStrategy(null);
-      setActiveNarrative(null);
-      setActiveAudience(null);
-      setActiveMediaPlan(null);
-
-      // Leaving a surface closes the chat overlay (split/fullscreen) — the user
-      // exited, so the chat exits with them (per stakeholder feedback). Floating
-      // is a deliberate "follow me" mode, so it persists.
+      clearAllArtifacts();
       if (state === "split" || state === "fullscreen") {
-        setAIState("resting");
+        setAIState("floating");
       }
     }
     prevPathname.current = pathname;
-  }, [pathname, state, setAIState, setActiveStrategy, setActiveNarrative, setActiveAudience, setActiveMediaPlan]);
+  }, [pathname, state, setAIState, clearAllArtifacts]);
 
   const pendingCount = hydrated ? getPendingForPersona(activePersona.id).length : 0;
-  const narrativeCount = hydrated ? savedNarratives.length : 0;
+  const narrativeCount = hydrated ? savedNarratives.filter((n) => n.status !== "archived").length : 0;
   const isClient = activePersona.role === "client";
   // Client portal: only their performance + shared plans. No internal surfaces.
   const visibleNav = isClient ? navItems.filter((i) => i.id === "home" || i.id === "campaigns") : navItems;
