@@ -293,10 +293,9 @@ type ScenarioId = "smb" | "abm" | "agency";
 type StartState = "net-new" | "returning";
 
 const SCENARIOS: { id: ScenarioId; label: string; role: string; brand: string; persona: string; email: string; comingSoon?: boolean; level: 1 | 2 | 3; maturityLabel: string }[] = [
-  // Agency first — the most complete flow (media planning). In-house is WIP. Enterprise is coming soon.
+  // Agency first — the most complete flow (media planning). In-house is WIP.
   { id: "agency", label: "Agency", role: "Manages a client roster", brand: "Brainlabs · performance agency", persona: "cynthia-agency", email: "cynthia@brainlabs.co.uk", level: 3, maturityLabel: "Most complete" },
   { id: "smb", label: "In-house", role: "Brand-side marketer", brand: "Ffern · luxury fragrance", persona: "cynthia-b2c", email: "cynthia@ffern.co", level: 2, maturityLabel: "Work in progress" },
-  { id: "abm", label: "Enterprise", role: "Account-based (ABM)", brand: "Norwest Analytics · B2B SaaS", persona: "cynthia-b2b", email: "cynthia@norwest.io", comingSoon: true, level: 1, maturityLabel: "Coming soon" },
 ];
 
 /** Battery-style maturity meter — fill conveys "how far along", never "done":
@@ -394,7 +393,7 @@ export default function SignupPage() {
           {/* Profile */}
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Profile</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {SCENARIOS.map((s) => (
                 <button
                   key={s.id}

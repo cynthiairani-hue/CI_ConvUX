@@ -31,15 +31,16 @@ const USER_STATES: { id: DemoUserState; label: string; description: string }[] =
   { id: "first-time", label: "First-time user", description: "Empty state, onboarding flow" },
 ];
 
-// Same maturity order as the demo picker: Agency → In-house → Enterprise,
-// then the collaboration (approver / client) personas.
-const PERSONA_ORDER = ["cynthia-agency", "cynthia-b2c", "cynthia-b2b", "marcus-patel", "jordan-reyes"];
+// Same maturity order as the demo picker: Agency → In-house, then the
+// collaboration (approver / client) personas. The ABM/Enterprise persona is
+// removed from the demo entirely.
+const PERSONA_ORDER = ["cynthia-agency", "cynthia-b2c", "marcus-patel", "jordan-reyes"];
 
 export function PersonaSwitcher({ collapsed = false }: PersonaSwitcherProps) {
   const { activePersona, personas, setActivePersona } = usePersona();
-  const sortedPersonas = [...personas].sort(
-    (a, b) => PERSONA_ORDER.indexOf(a.id) - PERSONA_ORDER.indexOf(b.id)
-  );
+  const sortedPersonas = [...personas]
+    .filter((p) => p.vertical !== "b2b")
+    .sort((a, b) => PERSONA_ORDER.indexOf(a.id) - PERSONA_ORDER.indexOf(b.id));
   const [open, setOpen] = useState(false);
   const [userState, setUserState] = useState<DemoUserState>("returning");
   const ref = useRef<HTMLDivElement>(null);
