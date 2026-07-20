@@ -20,22 +20,40 @@ interface CubeLoadResponse {
   error?: string;
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// How long to keep polling a cold/warming query before giving up (ms).
+const CUBE_MAX_WAIT_MS = 25_000;
+// Delay between polls while Cube returns "Continue wait" (ms).
+const CUBE_POLL_INTERVAL_MS = 2_000;
+
 async function cubeLoad(cfg: CubeConfig, query: unknown): Promise<CubeLoadResponse> {
-  const res = await fetch(`${cfg.apiUrl}/load`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: cfg.apiToken,
-    },
-    body: JSON.stringify({ query }),
-    // Cube can take a moment on a cold pre-aggregation; keep it server-side.
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Cube ${res.status}: ${text.slice(0, 200)}`);
+  // Cube's REST API returns HTTP 200 with { error: "Continue wait" } while a
+  // (cold) query is still computing — it's meant to be re-polled, not treated
+  // as done. We poll until the query resolves or we hit CUBE_MAX_WAIT_MS, then
+  // surface the wait so the caller can fall back to mock data.
+  const deadline = Date.now() + CUBE_MAX_WAIT_MS;
+  while (true) {
+    const res = await fetch(`${cfg.apiUrl}/load`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: cfg.apiToken,
+      },
+      body: JSON.stringify({ query }),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Cube ${res.status}: ${text.slice(0, 200)}`);
+    }
+    const json = (await res.json()) as CubeLoadResponse;
+    if (json.error === "Continue wait" && Date.now() < deadline) {
+      await sleep(CUBE_POLL_INTERVAL_MS);
+      continue;
+    }
+    return json;
   }
-  return (await res.json()) as CubeLoadResponse;
 }
 
 export async function GET(request: Request) {
