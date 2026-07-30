@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, CheckCircle2, Zap, MessageSquare, Eye, Link2, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { approvers } from "@/data/approvers";
@@ -1028,7 +1029,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
 
   const strategy = activeStrategy || savedStrategies[savedStrategies.length - 1];
-  const hasArtifact = !!(activeStrategy || activeNarrative || activeAudience || activeBrief || activeOperator || activeMediaPlan);
+  // On /canvas, artifacts render inside canvas frames — the split-canvas takeover
+  // is suppressed (Operator excepted: it has its own authorization surface).
+  const pathname = usePathname();
+  const onCanvasPage = pathname?.startsWith("/canvas") ?? false;
+  const hasArtifact = onCanvasPage
+    ? !!activeOperator
+    : !!(activeStrategy || activeNarrative || activeAudience || activeBrief || activeOperator || activeMediaPlan);
   const { collapseLeftRail } = useLayout();
   // Track whether the user manually closed the AI panel this session
   const userClosedRef = useRef(false);
@@ -1155,7 +1162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           state === "fullscreen" ||
           state === "floating" ||
           state === "split";
-        const showBubble = hasArtifact && !chatVisible;
+        const showBubble = (hasArtifact || onCanvasPage) && !chatVisible;
         if (!showBubble) return null;
         // Reopen consistently with the user's preferred docked layout (keeps the
         // artifact visible) — not always floating, which used to differ from how
