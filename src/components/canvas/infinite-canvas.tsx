@@ -69,6 +69,29 @@ function frameId(kind: CanvasFrameKind, refId: string): string {
   return `frame-${kind}-${refId}`;
 }
 
+/* Estimated frame heights per kind — used for seeding and free-spot placement
+   when the frame isn't in the DOM yet. */
+const FRAME_EST_H: Record<CanvasFrameKind, number> = {
+  strategy: 2050, "media-plan": 1250, audience: 1200, narrative: 1300, brief: 1050,
+};
+
+type Rect = { x: number; y: number; w: number; h: number };
+
+/* Slide right past every blocker (plus a gap) until the space is clear. */
+function findSpotIn(rects: Rect[], w: number, h: number, startX: number, startY: number): { x: number; y: number } {
+  const GAP = 60;
+  let x = startX;
+  const y = startY;
+  for (let i = 0; i < 60; i++) {
+    const blocker = rects.find((r) =>
+      x < r.x + r.w + GAP && r.x < x + w + GAP && y < r.y + r.h + GAP && r.y < y + h + GAP
+    );
+    if (!blocker) break;
+    x = blocker.x + blocker.w + GAP;
+  }
+  return { x, y };
+}
+
 export function InfiniteCanvas() {
   const {
     savedStrategies, saveStrategy, activeStrategy, setActiveStrategy,
@@ -96,10 +119,18 @@ export function InfiniteCanvas() {
   const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
 
-  /* Live viewport ref so frame placement reads the current camera without
-     re-creating callbacks on every pan tick. */
+  /* Live refs so placement always reads current content, even when several
+     adds land in the same React tick (rapid clicking, chat captures). */
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
+  const flowsRef = useRef(flows);
+  flowsRef.current = flows;
+  const creativesRef = useRef(creatives);
+  creativesRef.current = creatives;
+  const boardsRef = useRef(boards);
+  boardsRef.current = boards;
+  const framesRef = useRef(frames);
+  framesRef.current = frames;
 
   const artifactName = useCallback((kind: CanvasFrameKind, refId: string): string | null => {
     switch (kind) {
@@ -129,16 +160,12 @@ export function InfiniteCanvas() {
       savedAudiences.slice(-1).forEach((a) => picks.push({ kind: "audience", refId: a.id }));
       savedNarratives.slice(-1).forEach((n) => picks.push({ kind: "narrative", refId: n.id }));
       savedBriefs.slice(-1).forEach((b) => picks.push({ kind: "brief", refId: b.id }));
-      // Rough content heights per kind — only used to space the initial layout.
-      const EST_HEIGHT: Record<CanvasFrameKind, number> = {
-        strategy: 2050, "media-plan": 1250, audience: 1000, narrative: 1300, brief: 1050,
-      };
       const colX = [60, 1020];
       const colY = [60, 60];
       setFrames(picks.map((p, i) => {
         const col = i % 2;
         const y = colY[col];
-        colY[col] += EST_HEIGHT[p.kind] + 80;
+        colY[col] += FRAME_EST_H[p.kind] + 80;
         return { id: frameId(p.kind, p.refId), kind: p.kind, refId: p.refId, x: colX[col], y, w: KIND_META[p.kind].width, z: i + 1 };
       }));
     }
@@ -169,9 +196,46 @@ export function InfiniteCanvas() {
     if (creativesLoaded) persistCreatives(creatives);
   }, [creatives, creativesLoaded]);
 
+  /* ── Free-spot placement ──
+     New content lands near the viewport center, but never on top of existing
+     content — it slides sideways past whatever is in the way. */
+
+  const frameRects = useCallback((fs: CanvasFrame[]): Rect[] => {
+    const el = containerRef.current;
+    return fs.map((f) => {
+      const node = el?.querySelector<HTMLElement>(`[data-frame-id="${f.id}"]`);
+      return { x: f.x, y: f.y, w: f.w, h: node?.offsetHeight ?? FRAME_EST_H[f.kind] };
+    });
+  }, []);
+
+  const nonFrameRects = useCallback((): Rect[] => {
+    const rects: Rect[] = [];
+    flowsRef.current.forEach((fl) => fl.nodes.forEach((n) => rects.push({ x: n.x, y: n.y, w: NODE_W, h: NODE_EST_H[n.kind] })));
+    creativesRef.current.forEach((t) => rects.push({ x: t.x, y: t.y, w: TILE_W, h: tileEstHeight(t) }));
+    boardsRef.current.forEach((b) => rects.push({ x: b.x, y: b.y, w: BOARD_W, h: BOARD_EST_H }));
+    return rects;
+  }, []);
+
+  const findFreeSpot = useCallback((w: number, h: number, startX: number, startY: number): { x: number; y: number } => {
+    return findSpotIn([...frameRects(framesRef.current), ...nonFrameRects()], w, h, startX, startY);
+  }, [frameRects, nonFrameRects]);
+
+  /** Canvas-space point at the center of the current view. */
+  const viewCenter = useCallback((): { x: number; y: number } => {
+    const el = containerRef.current;
+    const cw = el?.clientWidth ?? 1200;
+    const ch = el?.clientHeight ?? 800;
+    const v = viewportRef.current;
+    return { x: (cw / 2 - v.x) / v.scale, y: (ch / 2 - v.y) / v.scale };
+  }, []);
+
   /* ── Frame management ── */
 
   const addFrame = useCallback((kind: CanvasFrameKind, refId: string) => {
+    const w = KIND_META[kind].width;
+    const c = viewCenter();
+    // Placement is computed inside the updater from `prev`, so several adds in
+    // the same tick (rapid clicks, chat captures) still see each other.
     setFrames((prev) => {
       const maxZ = prev.reduce((m, f) => Math.max(m, f.z), 0);
       const existing = prev.find((f) => f.kind === kind && f.refId === refId);
@@ -179,18 +243,13 @@ export function InfiniteCanvas() {
         // Already on the board — just bring it to front.
         return prev.map((f) => (f.id === existing.id ? { ...f, z: maxZ + 1 } : f));
       }
-      const el = containerRef.current;
-      const cw = el?.clientWidth ?? 1200;
-      const ch = el?.clientHeight ?? 800;
-      const v = viewportRef.current;
-      const w = KIND_META[kind].width;
-      // Land near the viewport center, cascading slightly so stacks stay visible.
-      const cascade = (prev.length % 5) * 32;
-      const x = (cw / 2 - v.x) / v.scale - w / 2 + cascade;
-      const y = (ch / 2 - v.y) / v.scale - 220 + cascade;
-      return [...prev, { id: frameId(kind, refId), kind, refId, x, y, w, z: maxZ + 1 }];
+      const spot = findSpotIn(
+        [...frameRects(prev), ...nonFrameRects()],
+        w, FRAME_EST_H[kind], c.x - w / 2, c.y - 220
+      );
+      return [...prev, { id: frameId(kind, refId), kind, refId, x: spot.x, y: spot.y, w, z: maxZ + 1 }];
     });
-  }, []);
+  }, [viewCenter, frameRects, nonFrameRects]);
 
   const removeFrame = useCallback((id: string) => {
     setFrames((prev) => prev.filter((f) => f.id !== id));
@@ -214,15 +273,11 @@ export function InfiniteCanvas() {
   const addFlowFromTemplate = useCallback((templateId: string) => {
     const template = FLOW_TEMPLATES.find((t) => t.id === templateId);
     if (!template) return;
-    const el = containerRef.current;
-    const cw = el?.clientWidth ?? 1200;
-    const ch = el?.clientHeight ?? 800;
-    const v = viewportRef.current;
     const totalW = NODE_W + 380 * 2; // trigger → condition → actions, three columns
-    const x = (cw / 2 - v.x) / v.scale - totalW / 2;
-    const y = (ch / 2 - v.y) / v.scale - 200;
-    setFlows((prev) => [...prev, createFlowFromTemplate(template, { x, y })]);
-  }, []);
+    const c = viewCenter();
+    const spot = findFreeSpot(totalW, 440, c.x - totalW / 2, c.y - 200);
+    setFlows((prev) => [...prev, createFlowFromTemplate(template, spot)]);
+  }, [findFreeSpot, viewCenter]);
 
   const moveFlowNode = useCallback((flowId: string, nodeId: string, x: number, y: number) => {
     setFlows((prev) => prev.map((f) =>
@@ -277,12 +332,12 @@ export function InfiniteCanvas() {
       showToast("Nothing to assemble yet — save a report or media plan first");
       return;
     }
-    const el = containerRef.current;
-    const cw = el?.clientWidth ?? 1200;
-    const ch = el?.clientHeight ?? 800;
-    const v = viewportRef.current;
-    const ox = (cw / 2 - v.x) / v.scale - 900;
-    const oy = (ch / 2 - v.y) / v.scale - 250;
+    // The assembled board spans header + narrative + plan; find room for all of it.
+    const blockW = BOARD_W + 60 + KIND_META.narrative.width + 60 + KIND_META["media-plan"].width;
+    const c = viewCenter();
+    const spot = findFreeSpot(blockW, 1300, c.x - blockW / 2, c.y - 250);
+    const ox = spot.x;
+    const oy = spot.y;
     const included: string[] = [];
     let x = ox + BOARD_W + 60;
     if (narrative) {
@@ -306,7 +361,7 @@ export function InfiniteCanvas() {
       x: ox,
       y: oy,
     }]);
-  }, [savedNarratives, savedMediaPlans, creatives.length, placeFrame, showToast]);
+  }, [savedNarratives, savedMediaPlans, creatives.length, placeFrame, showToast, findFreeSpot, viewCenter]);
 
   const moveBoard = useCallback((id: string, x: number, y: number) => {
     setBoards((prev) => prev.map((b) => (b.id === id ? { ...b, x, y } : b)));
@@ -344,15 +399,11 @@ export function InfiniteCanvas() {
   /* ── Creative tiles (images as exhibits in a decision) ── */
 
   const addCreativeBoard = useCallback(() => {
-    const el = containerRef.current;
-    const cw = el?.clientWidth ?? 1200;
-    const ch = el?.clientHeight ?? 800;
-    const v = viewportRef.current;
     const totalW = TILE_W * 3 + 80;
-    const x = (cw / 2 - v.x) / v.scale - totalW / 2;
-    const y = (ch / 2 - v.y) / v.scale - 320;
-    setCreatives((prev) => [...prev, ...buildCreativeReviewBoard({ x, y })]);
-  }, []);
+    const c = viewCenter();
+    const spot = findFreeSpot(totalW, 1000, c.x - totalW / 2, c.y - 320);
+    setCreatives((prev) => [...prev, ...buildCreativeReviewBoard(spot)]);
+  }, [findFreeSpot, viewCenter]);
 
   const moveTile = useCallback((id: string, x: number, y: number) => {
     setCreatives((prev) => prev.map((t) => (t.id === id ? { ...t, x, y } : t)));
@@ -581,6 +632,7 @@ export function InfiniteCanvas() {
   ].filter((a) => !frames.some((f) => f.kind === a.kind && f.refId === a.refId));
 
   return (
+    <>
     <div
       ref={containerRef}
       className={cn("relative h-full w-full flex-1 overflow-hidden bg-[#F7F9FB]", panning ? "cursor-grabbing select-none" : "cursor-grab")}
@@ -806,6 +858,14 @@ export function InfiniteCanvas() {
         </div>
       )}
 
+      {/* Interaction hint */}
+      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur">
+        Drag to pan · ⌘ scroll to zoom · drag cards by their title bar
+      </div>
+    </div>
+
+    {/* Dialogs live OUTSIDE the pannable container — inside it, the canvas's
+        pointer-capture pan would swallow their button clicks. */}
       {/* Delete flow — always behind a confirmation */}
       <ConfirmDialog
         open={deletingFlowId !== null}
@@ -852,12 +912,7 @@ export function InfiniteCanvas() {
         onConfirm={clearCanvas}
         onCancel={() => setConfirmingClear(false)}
       />
-
-      {/* Interaction hint */}
-      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur">
-        Drag to pan · ⌘ scroll to zoom · drag cards by their title bar
-      </div>
-    </div>
+    </>
   );
 }
 
