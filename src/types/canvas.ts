@@ -26,7 +26,26 @@ export interface CanvasViewport {
   scale: number;
 }
 
+/* ── Client review board ──
+   A header card that turns a region of the canvas into the monthly client
+   review: it lists what's assembled (narrative, plan, creative) and carries
+   the one action that converges the board — Share with client, wired to the
+   real media-plan sharing mechanism. */
+export interface ReviewBoardCard {
+  id: string;
+  name: string;
+  /** what the assembly found and placed, e.g. ["Performance narrative", …] */
+  included: string[];
+  /** the media plan this review shares with the client */
+  planRefId: string | null;
+  status: "draft" | "shared";
+  createdAt: string;
+  x: number;
+  y: number;
+}
+
 export interface CanvasWorkspace {
   viewport: CanvasViewport;
   frames: CanvasFrame[];
+  boards?: ReviewBoardCard[];
 }

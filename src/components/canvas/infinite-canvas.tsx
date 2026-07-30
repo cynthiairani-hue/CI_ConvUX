@@ -16,12 +16,15 @@ import {
 } from "react";
 import {
   BarChart3,
+  Check,
+  Eraser,
   Frame,
   LayoutList,
   Maximize2,
   Megaphone,
   Minus,
   Plus,
+  Presentation,
   Sparkles,
   Image as ImageIcon,
   Swords,
@@ -34,14 +37,16 @@ import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
 import { loadCanvas, persistCanvas, loadFlows, persistFlows, loadCreatives, persistCreatives } from "@/lib/storage";
-import type { CanvasFrame, CanvasFrameKind, CanvasViewport } from "@/types/canvas";
+import type { CanvasFrame, CanvasFrameKind, CanvasViewport, ReviewBoardCard as ReviewBoardCardType } from "@/types/canvas";
 import type { OrchestrationFlow } from "@/types/orchestration";
 import type { AdTile } from "@/types/creative";
 import { FLOW_TEMPLATES, createFlowFromTemplate } from "@/data/flow-templates";
 import { buildCreativeReviewBoard } from "@/data/creative-templates";
 import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
 import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
+import { ReviewBoardHeaderCard, BOARD_W, BOARD_EST_H } from "@/components/canvas/review-board-card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { getCurrentBrand } from "@/data/brand-profiles";
 import { StrategyCard } from "@/components/patterns/strategy-card";
 import { MediaPlanCard } from "@/components/patterns/media-plan-card";
 import { AudienceCard } from "@/components/patterns/audience-card";
@@ -71,7 +76,7 @@ export function InfiniteCanvas() {
     savedAudiences, saveAudience, activeAudience, setActiveAudience,
     savedNarratives, saveNarrative, activeNarrative, setActiveNarrative,
     savedBriefs, saveBrief, activeBrief, setActiveBrief,
-    showToast, hydrated,
+    shareMediaPlanWithClient, showToast, hydrated,
   } = useCampaign();
   const { state, setState, setPendingContext } = useAICompanion();
 
@@ -87,6 +92,9 @@ export function InfiniteCanvas() {
   const [creatives, setCreatives] = useState<AdTile[]>([]);
   const [creativesLoaded, setCreativesLoaded] = useState(false);
   const [deletingTileId, setDeletingTileId] = useState<string | null>(null);
+  const [boards, setBoards] = useState<ReviewBoardCardType[]>([]);
+  const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   /* Live viewport ref so frame placement reads the current camera without
      re-creating callbacks on every pan tick. */
@@ -112,6 +120,7 @@ export function InfiniteCanvas() {
       setViewport(stored.viewport);
       // Drop frames whose artifact was deleted since last visit.
       setFrames(stored.frames.filter((f) => artifactName(f.kind, f.refId) !== null));
+      setBoards(stored.boards ?? []);
     } else {
       // First visit: seed the board from the most recent saved artifacts.
       const picks: { kind: CanvasFrameKind; refId: string }[] = [];
@@ -137,8 +146,8 @@ export function InfiniteCanvas() {
   }, [hydrated, loaded, artifactName, savedStrategies, savedMediaPlans, savedAudiences, savedNarratives, savedBriefs]);
 
   useEffect(() => {
-    if (loaded) persistCanvas({ viewport, frames });
-  }, [viewport, frames, loaded]);
+    if (loaded) persistCanvas({ viewport, frames, boards });
+  }, [viewport, frames, boards, loaded]);
 
   useEffect(() => {
     if (!hydrated || flowsLoaded) return;
@@ -247,6 +256,89 @@ export function InfiniteCanvas() {
       f.id === flowId ? { ...f, status: "paused" as const, lastModifiedAt: new Date().toISOString() } : f
     ));
     showToast("Flow paused — no actions will run");
+  }, [showToast]);
+
+  /* Upsert a frame at an explicit position (used by board assembly). */
+  const placeFrame = useCallback((kind: CanvasFrameKind, refId: string, x: number, y: number) => {
+    setFrames((prev) => {
+      const maxZ = prev.reduce((m, f) => Math.max(m, f.z), 0);
+      const existing = prev.find((f) => f.kind === kind && f.refId === refId);
+      if (existing) return prev.map((f) => (f.id === existing.id ? { ...f, x, y, z: maxZ + 1 } : f));
+      return [...prev, { id: frameId(kind, refId), kind, refId, x, y, w: KIND_META[kind].width, z: maxZ + 1 }];
+    });
+  }, []);
+
+  /* ── Client review board (the canvas as the meeting) ── */
+
+  const addClientReviewBoard = useCallback(() => {
+    const narrative = savedNarratives[savedNarratives.length - 1] ?? null;
+    const plan = savedMediaPlans[savedMediaPlans.length - 1] ?? null;
+    if (!narrative && !plan) {
+      showToast("Nothing to assemble yet — save a report or media plan first");
+      return;
+    }
+    const el = containerRef.current;
+    const cw = el?.clientWidth ?? 1200;
+    const ch = el?.clientHeight ?? 800;
+    const v = viewportRef.current;
+    const ox = (cw / 2 - v.x) / v.scale - 900;
+    const oy = (ch / 2 - v.y) / v.scale - 250;
+    const included: string[] = [];
+    let x = ox + BOARD_W + 60;
+    if (narrative) {
+      placeFrame("narrative", narrative.id, x, oy);
+      included.push("Performance narrative");
+      x += KIND_META.narrative.width + 60;
+    }
+    if (plan) {
+      placeFrame("media-plan", plan.id, x, oy);
+      included.push(`Media plan — ${plan.name}`);
+    }
+    if (creatives.length > 0) included.push(`${creatives.length} creative tiles on canvas`);
+    const brand = getCurrentBrand();
+    setBoards((prev) => [...prev, {
+      id: `board-${Date.now().toString(36)}`,
+      name: `${brand?.name ?? "Client"} — monthly review`,
+      included,
+      planRefId: plan?.id ?? null,
+      status: "draft",
+      createdAt: new Date().toISOString(),
+      x: ox,
+      y: oy,
+    }]);
+  }, [savedNarratives, savedMediaPlans, creatives.length, placeFrame, showToast]);
+
+  const moveBoard = useCallback((id: string, x: number, y: number) => {
+    setBoards((prev) => prev.map((b) => (b.id === id ? { ...b, x, y } : b)));
+  }, []);
+
+  const shareBoard = useCallback((boardId: string) => {
+    const board = boards.find((b) => b.id === boardId);
+    if (!board) return;
+    // Real mechanism: the shared plan shows up in the client persona's portal.
+    if (board.planRefId) shareMediaPlanWithClient(board.planRefId, "jordan-reyes");
+    setBoards((prev) => prev.map((b) => (b.id === boardId ? { ...b, status: "shared" as const } : b)));
+    showToast("Shared with Jordan Reyes — client notified (simulated)");
+  }, [boards, shareMediaPlanWithClient, showToast]);
+
+  const askAboutBoard = useCallback((board: ReviewBoardCardType) => {
+    setPendingContext({
+      label: `Review · ${board.name}`,
+      detail: `The user selected the client review board "${board.name}" (${board.status}) containing: ${board.included.join(", ")}. Ground your answer in this review.`,
+    });
+    if (state === "resting" || state === "fullscreen") setState("floating");
+  }, [setPendingContext, setState, state]);
+
+  /* ── Clear canvas (frames and boards only reference artifacts; flows and
+        creatives live on the canvas, so clearing deletes those) ── */
+
+  const clearCanvas = useCallback(() => {
+    setFrames([]);
+    setFlows([]);
+    setCreatives([]);
+    setBoards([]);
+    setConfirmingClear(false);
+    showToast("Canvas cleared — saved artifacts are still in your workspace");
   }, [showToast]);
 
   /* ── Creative tiles (images as exhibits in a decision) ── */
@@ -416,6 +508,12 @@ export function InfiniteCanvas() {
       maxX = Math.max(maxX, t.x + TILE_W);
       maxY = Math.max(maxY, t.y + tileEstHeight(t));
     });
+    boards.forEach((b) => {
+      minX = Math.min(minX, b.x);
+      minY = Math.min(minY, b.y);
+      maxX = Math.max(maxX, b.x + BOARD_W);
+      maxY = Math.max(maxY, b.y + BOARD_EST_H);
+    });
     const pad = 60;
     const cw = el.clientWidth, ch = el.clientHeight;
     const scale = Math.min(1, Math.max(MIN_SCALE, Math.min((cw - pad * 2) / (maxX - minX), (ch - pad * 2) / (maxY - minY))));
@@ -424,7 +522,7 @@ export function InfiniteCanvas() {
       x: (cw - (maxX - minX) * scale) / 2 - minX * scale,
       y: (ch - (maxY - minY) * scale) / 2 - minY * scale,
     });
-  }, [frames, flows, creatives]);
+  }, [frames, flows, creatives, boards]);
 
   /* ── Frame → chat context (Notice → Propose → Authorize entry point) ── */
 
@@ -502,6 +600,17 @@ export function InfiniteCanvas() {
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`, transformOrigin: "0 0" }}
       >
         <FlowWires flows={flows} />
+        {boards.map((board) => (
+          <ReviewBoardHeaderCard
+            key={board.id}
+            board={board}
+            scale={viewport.scale}
+            onMove={moveBoard}
+            onShare={shareBoard}
+            onDelete={setDeletingBoardId}
+            onAsk={askAboutBoard}
+          />
+        ))}
         {creatives.map((tile) => (
           <AdTileCard
             key={tile.id}
@@ -623,6 +732,17 @@ export function InfiniteCanvas() {
                   <span className="block truncate text-[11px] text-muted-foreground">Live ads vs proposed variants — approve the refresh</span>
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => { addClientReviewBoard(); setAddOpen(false); }}
+                className="flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
+              >
+                <Presentation className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] text-foreground">Client review board</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">Assemble narrative + plan, share with the client</span>
+                </span>
+              </button>
               <div className="mt-1 border-t border-border pt-1.5 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Saved artifacts
               </div>
@@ -650,10 +770,29 @@ export function InfiniteCanvas() {
             </div>
           )}
         </div>
+        <div className="mx-1 h-5 w-px bg-border" />
+        <button
+          type="button"
+          onClick={() => setConfirmingClear(true)}
+          disabled={frames.length === 0 && flows.length === 0 && creatives.length === 0 && boards.length === 0}
+          className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+          title="Clear the canvas"
+        >
+          <Eraser className="h-3.5 w-3.5" />
+          Clear
+        </button>
+        <div className="mx-1 h-5 w-px bg-border" />
+        <span
+          className="flex h-8 items-center gap-1 px-1.5 text-[11px] text-muted-foreground"
+          title="The canvas auto-saves — layout, flows, creatives, and boards survive refresh"
+        >
+          <Check className="h-3 w-3 text-emerald-600" />
+          Saved
+        </span>
       </div>
 
       {/* Empty state */}
-      {loaded && frames.length === 0 && flows.length === 0 && creatives.length === 0 && (
+      {loaded && frames.length === 0 && flows.length === 0 && creatives.length === 0 && boards.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="max-w-sm text-center">
             <Frame className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
@@ -691,6 +830,27 @@ export function InfiniteCanvas() {
           setDeletingTileId(null);
         }}
         onCancel={() => setDeletingTileId(null)}
+      />
+      <ConfirmDialog
+        open={deletingBoardId !== null}
+        title="Remove this review board?"
+        description={`"${boards.find((b) => b.id === deletingBoardId)?.name ?? "Review"}" will be removed. The artifacts on the board stay on the canvas, and anything already shared stays shared.`}
+        confirmLabel="Remove board"
+        destructive
+        onConfirm={() => {
+          setBoards((prev) => prev.filter((b) => b.id !== deletingBoardId));
+          setDeletingBoardId(null);
+        }}
+        onCancel={() => setDeletingBoardId(null)}
+      />
+      <ConfirmDialog
+        open={confirmingClear}
+        title="Clear the canvas?"
+        description="All frames, flows, creative tiles, and review boards will be removed from this canvas. Saved artifacts (campaigns, plans, audiences, reports) are not deleted — you can re-add them from the Add menu. Flows and creatives live only on the canvas and will be deleted."
+        confirmLabel="Clear canvas"
+        destructive
+        onConfirm={clearCanvas}
+        onCancel={() => setConfirmingClear(false)}
       />
 
       {/* Interaction hint */}
