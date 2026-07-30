@@ -18,6 +18,8 @@ export interface CanvasFrame {
   w: number;
   /** stacking order — click/drag brings to front */
   z: number;
+  /** media plans only: line/campaign nodes unfurled beside the frame */
+  expandedLines?: boolean;
 }
 
 export interface CanvasViewport {

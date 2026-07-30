@@ -27,6 +27,7 @@ import {
   Presentation,
   Sparkles,
   Image as ImageIcon,
+  ListTree,
   Swords,
   Users,
   X,
@@ -38,6 +39,7 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
 import { loadCanvas, persistCanvas, loadFlows, persistFlows, loadCreatives, persistCreatives } from "@/lib/storage";
 import type { CanvasFrame, CanvasFrameKind, CanvasViewport, ReviewBoardCard as ReviewBoardCardType } from "@/types/canvas";
+import type { MediaPlan } from "@/types/campaign";
 import type { OrchestrationFlow } from "@/types/orchestration";
 import type { AdTile } from "@/types/creative";
 import { FLOW_TEMPLATES, createFlowFromTemplate } from "@/data/flow-templates";
@@ -56,6 +58,10 @@ import { CompetitiveBriefCard } from "@/components/patterns/competitive-brief-ca
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 1.75;
 const GRID_SIZE = 24;
+
+/* Below this zoom, frames render as legible covers (semantic zoom) instead of
+   shrunken forms — the canvas becomes a portfolio map, not a wall of stamps. */
+const LOD_THRESHOLD = 0.55;
 
 const KIND_META: Record<CanvasFrameKind, { label: string; width: number; icon: LucideIcon }> = {
   strategy: { label: "Campaign", width: 620, icon: Megaphone },
@@ -141,6 +147,31 @@ export function InfiniteCanvas() {
       case "brief": return savedBriefs.find((a) => a.id === refId)?.name ?? null;
     }
   }, [savedStrategies, savedMediaPlans, savedAudiences, savedNarratives, savedBriefs]);
+
+  /** One-line summary for the frame's low-zoom cover. */
+  const artifactSummary = useCallback((kind: CanvasFrameKind, refId: string): string | null => {
+    switch (kind) {
+      case "strategy":
+        return savedStrategies.find((a) => a.id === refId)?.objective?.value ?? null;
+      case "media-plan": {
+        const p = savedMediaPlans.find((a) => a.id === refId);
+        if (!p) return null;
+        return `$${p.summary.totalBudget.toLocaleString()} · ${p.flight} · ${p.campaigns.filter((c) => c.enabled).length} lines`;
+      }
+      case "audience": {
+        const a = savedAudiences.find((x) => x.id === refId);
+        return a ? `Est. size ${a.estimatedSize}` : null;
+      }
+      case "narrative": {
+        const n = savedNarratives.find((x) => x.id === refId);
+        if (!n) return null;
+        const month = new Date(n.period.year, n.period.month - 1).toLocaleDateString("en-US", { month: "long" });
+        return `${month} ${n.period.year} performance review`;
+      }
+      case "brief":
+        return "Market position, competitors, where to win";
+    }
+  }, [savedStrategies, savedMediaPlans, savedAudiences, savedNarratives]);
 
   /** Live/paused state for the frame's status chip (null = no chip). */
   const artifactLiveState = useCallback((kind: CanvasFrameKind, refId: string): "active" | "paused" | null => {
@@ -278,6 +309,14 @@ export function InfiniteCanvas() {
 
   const moveFrame = useCallback((id: string, x: number, y: number) => {
     setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, x, y } : f)));
+  }, []);
+
+  const toggleExpandLines = useCallback((id: string) => {
+    setFrames((prev) => {
+      const maxZ = prev.reduce((m, f) => Math.max(m, f.z), 0);
+      // Expanding is an act of focus — the plan and its line nodes come to front.
+      return prev.map((f) => (f.id === id ? { ...f, expandedLines: !f.expandedLines, z: maxZ + 1 } : f));
+    });
   }, []);
 
   /* ── Flow management (the orchestration layer) ── */
@@ -577,6 +616,12 @@ export function InfiniteCanvas() {
       maxX = Math.max(maxX, b.x + BOARD_W);
       maxY = Math.max(maxY, b.y + BOARD_EST_H);
     });
+    frames.filter((f) => f.kind === "media-plan" && f.expandedLines).forEach((f) => {
+      const plan = savedMediaPlans.find((p) => p.id === f.refId);
+      if (!plan) return;
+      maxX = Math.max(maxX, f.x + f.w + LINE_NODE_OFFSET_X + LINE_NODE_W);
+      maxY = Math.max(maxY, f.y + plan.campaigns.length * (LINE_NODE_H + LINE_NODE_GAP));
+    });
     const pad = 60;
     const cw = el.clientWidth, ch = el.clientHeight;
     const scale = Math.min(1, Math.max(MIN_SCALE, Math.min((cw - pad * 2) / (maxX - minX), (ch - pad * 2) / (maxY - minY))));
@@ -585,7 +630,7 @@ export function InfiniteCanvas() {
       x: (cw - (maxX - minX) * scale) / 2 - minX * scale,
       y: (ch - (maxY - minY) * scale) / 2 - minY * scale,
     });
-  }, [frames, flows, creatives, boards]);
+  }, [frames, flows, creatives, boards, savedMediaPlans]);
 
   /* ── Frame → chat context (Notice → Propose → Authorize entry point) ── */
 
@@ -664,6 +709,12 @@ export function InfiniteCanvas() {
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`, transformOrigin: "0 0" }}
       >
         <FlowWires flows={flows} />
+        {frames.filter((f) => f.kind === "media-plan" && f.expandedLines).map((f) => {
+          const plan = savedMediaPlans.find((p) => p.id === f.refId);
+          return plan ? (
+            <PlanLineNodes key={`lines-${f.id}`} frame={f} plan={plan} planLive={plan.reviewState === "active"} />
+          ) : null;
+        })}
         {boards.map((board) => (
           <ReviewBoardHeaderCard
             key={board.id}
@@ -708,6 +759,10 @@ export function InfiniteCanvas() {
             frame={frame}
             name={artifactName(frame.kind, frame.refId) ?? "Untitled"}
             liveState={artifactLiveState(frame.kind, frame.refId)}
+            summary={artifactSummary(frame.kind, frame.refId)}
+            lod={viewport.scale < LOD_THRESHOLD}
+            expandable={frame.kind === "media-plan"}
+            onToggleExpand={toggleExpandLines}
             scale={viewport.scale}
             onMove={moveFrame}
             onFocus={bringToFront}
@@ -935,6 +990,10 @@ function FrameShell({
   frame,
   name,
   liveState,
+  summary,
+  lod,
+  expandable,
+  onToggleExpand,
   scale,
   onMove,
   onFocus,
@@ -945,6 +1004,10 @@ function FrameShell({
   frame: CanvasFrame;
   name: string;
   liveState: "active" | "paused" | null;
+  summary: string | null;
+  lod: boolean;
+  expandable: boolean;
+  onToggleExpand: (id: string) => void;
   scale: number;
   onMove: (id: string, x: number, y: number) => void;
   onFocus: (id: string) => void;
@@ -1018,6 +1081,19 @@ function FrameShell({
             Paused
           </span>
         )}
+        {expandable && (
+          <button
+            type="button"
+            onClick={() => onToggleExpand(frame.id)}
+            className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-accent",
+              frame.expandedLines ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+            title={frame.expandedLines ? "Collapse lines" : "Show lines beside the plan"}
+          >
+            <ListTree className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onAsk(frame)}
@@ -1035,7 +1111,113 @@ function FrameShell({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="cursor-auto p-3">{children}</div>
+      {lod ? (
+        /* Low-zoom cover — big type that stays legible when scaled down.
+           Zooming past the threshold dissolves it into the real editable card. */
+        <div className="p-7">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Icon className="h-5 w-5" />
+            <span className="text-[13px] font-medium uppercase tracking-wider">{meta.label}</span>
+            {liveState === "active" && (
+              <span className="ml-auto flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[13px] font-medium text-emerald-600">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Live
+              </span>
+            )}
+            {liveState === "paused" && (
+              <span className="ml-auto flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[13px] font-medium text-amber-700">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                Paused
+              </span>
+            )}
+          </div>
+          <p className="mt-4 text-[28px] font-semibold leading-9 text-foreground">{name}</p>
+          {summary && <p className="mt-2 text-[17px] leading-7 text-muted-foreground">{summary}</p>}
+          <p className="mt-6 text-[13px] text-muted-foreground/60">Zoom in to edit</p>
+        </div>
+      ) : (
+        <div className="cursor-auto p-3">{children}</div>
+      )}
     </div>
+  );
+}
+
+/* ── Line/campaign nodes unfurled beside a media-plan frame ──
+   Derived from the plan itself (no separate state): they follow the frame,
+   collapse cleanly, and read as compact status cards wired to their plan. */
+
+const LINE_NODE_W = 300;
+const LINE_NODE_H = 92;
+const LINE_NODE_GAP = 14;
+const LINE_NODE_OFFSET_X = 90;
+
+const STAGE_DOT: Record<string, string> = {
+  awareness: "bg-violet-500",
+  consideration: "bg-blue-500",
+  conversion: "bg-emerald-500",
+};
+
+function PlanLineNodes({ frame, plan, planLive }: {
+  frame: CanvasFrame;
+  plan: MediaPlan;
+  planLive: boolean;
+}) {
+  const nx = frame.x + frame.w + LINE_NODE_OFFSET_X;
+  const px = frame.x + frame.w; // fan-out port on the plan frame
+  const py = frame.y + 56;
+  return (
+    <>
+      <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: frame.z }} aria-hidden>
+        {plan.campaigns.map((c, i) => {
+          const ny = frame.y + i * (LINE_NODE_H + LINE_NODE_GAP) + LINE_NODE_H / 2;
+          const live = planLive && c.enabled;
+          return (
+            <path
+              key={c.id}
+              d={`M ${px} ${py} C ${px + 45} ${py}, ${nx - 45} ${ny}, ${nx} ${ny}`}
+              fill="none"
+              stroke={live ? "#10B981" : "hsl(var(--muted-foreground) / 0.35)"}
+              strokeWidth={1.5}
+              strokeDasharray={live ? undefined : "6 4"}
+            />
+          );
+        })}
+      </svg>
+      {plan.campaigns.map((c, i) => {
+        const live = planLive && c.enabled;
+        return (
+          <div
+            key={c.id}
+            data-canvas-frame
+            className={cn(
+              "absolute rounded-xl border border-border bg-white px-3 py-2.5 shadow-[0px_2px_8px_rgba(71,88,114,0.06)]",
+              !c.enabled && "opacity-60"
+            )}
+            style={{ left: nx, top: frame.y + i * (LINE_NODE_H + LINE_NODE_GAP), width: LINE_NODE_W, height: LINE_NODE_H, zIndex: frame.z }}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STAGE_DOT[c.funnelStage] ?? "bg-muted-foreground/50")} />
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{c.funnelStage}</span>
+              {live ? (
+                <span className="ml-auto flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                  <span className="h-1 w-1 rounded-full bg-emerald-500" />
+                  Live
+                </span>
+              ) : (
+                <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {c.enabled ? "In plan" : "Off"}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 truncate text-[13px] font-medium text-foreground">{c.label}</p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              ${c.budget.toLocaleString()}
+              {c.forecast.impressions > 0 && ` · ${(c.forecast.impressions / 1_000_000).toFixed(1)}M impr`}
+              {c.forecast.conversions > 0 && ` · ${c.forecast.conversions.toLocaleString()} conv`}
+            </p>
+          </div>
+        );
+      })}
+    </>
   );
 }
