@@ -28,7 +28,10 @@ import {
   Sparkles,
   Image as ImageIcon,
   ListTree,
+  Pause,
+  Play,
   Swords,
+  Trash2,
   Users,
   X,
   Zap,
@@ -46,8 +49,9 @@ import { buildCreativeReviewBoard } from "@/data/creative-templates";
 import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
 import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
 import { ReviewBoardHeaderCard, BOARD_W, BOARD_EST_H } from "@/components/canvas/review-board-card";
-import { PlanGraph, PlanComposedBody, planGraphExtent } from "@/components/canvas/plan-graph";
+import { PlanGraph, PlanComposedBody, planGraphExtent, type InspectTarget } from "@/components/canvas/plan-graph";
 import { recalcMediaPlan } from "@/data/media-plan-flow";
+import { CHANNEL_CREATIVE, FALLBACK_CREATIVE } from "@/data/creative-templates";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -347,6 +351,8 @@ export function InfiniteCanvas() {
   /* Line selection for bulk actions (launch / pause / remove across lines). */
   const [selectedLines, setSelectedLines] = useState<Set<string>>(new Set());
   const [pendingLineRemoval, setPendingLineRemoval] = useState<{ planId: string; ids: string[] } | null>(null);
+  /* Click-to-inspect (Flora-style right panel for the selected node). */
+  const [inspected, setInspected] = useState<InspectTarget | null>(null);
 
   const toggleLineSelection = useCallback((lineId: string) => {
     setSelectedLines((prev) => {
@@ -767,6 +773,8 @@ export function InfiniteCanvas() {
               onSelectAll={selectLines}
               onClearSelection={clearLineSelection}
               onRequestRemove={(ids) => setPendingLineRemoval({ planId: plan.id, ids })}
+              inspected={inspected}
+              onInspect={setInspected}
             />
           ) : null;
         })}
@@ -838,7 +846,7 @@ export function InfiniteCanvas() {
       </div>
 
       {/* Toolbar */}
-      <div data-canvas-ui className="absolute left-4 top-4 z-40 flex items-center gap-0.5 rounded-xl border border-border bg-white p-1 shadow-sm">
+      <div data-canvas-ui className="absolute left-4 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-xl border border-border bg-white p-1 shadow-md">
         <button
           type="button"
           onClick={() => zoomBy(1 / 1.25)}
@@ -863,30 +871,31 @@ export function InfiniteCanvas() {
         >
           <Plus className="h-4 w-4" />
         </button>
-        <div className="mx-1 h-5 w-px bg-border" />
+        <div className="my-0.5 h-px w-5 bg-border" />
         <button
           type="button"
           onClick={fitToContent}
           disabled={frames.length === 0}
-          className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-          title="Fit all frames in view"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+          title="Fit everything in view"
         >
           <Maximize2 className="h-3.5 w-3.5" />
-          Fit
         </button>
-        <div className="mx-1 h-5 w-px bg-border" />
+        <div className="my-0.5 h-px w-5 bg-border" />
         <div className="relative">
           <button
             type="button"
             onClick={() => setAddOpen((o) => !o)}
-            className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+              addOpen ? "bg-foreground text-background" : "bg-foreground/90 text-background hover:bg-foreground"
+            )}
             title="Add a saved artifact to the canvas"
           >
-            <Plus className="h-3.5 w-3.5" />
-            Add
+            <Plus className="h-4 w-4" />
           </button>
           {addOpen && (
-            <div className="absolute left-0 top-full z-50 mt-1.5 max-h-96 w-72 overflow-y-auto rounded-xl border border-border bg-white py-1.5 shadow-lg">
+            <div className="absolute left-full top-0 z-50 ml-2 max-h-96 w-72 overflow-y-auto rounded-xl border border-border bg-white py-1.5 shadow-lg">
               <div className="px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Board templates
               </div>
@@ -953,26 +962,104 @@ export function InfiniteCanvas() {
             </div>
           )}
         </div>
-        <div className="mx-1 h-5 w-px bg-border" />
+        <div className="my-0.5 h-px w-5 bg-border" />
         <button
           type="button"
           onClick={() => setConfirmingClear(true)}
           disabled={frames.length === 0 && flows.length === 0 && creatives.length === 0 && boards.length === 0}
-          className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
           title="Clear the canvas"
         >
           <Eraser className="h-3.5 w-3.5" />
-          Clear
         </button>
-        <div className="mx-1 h-5 w-px bg-border" />
         <span
-          className="flex h-8 items-center gap-1 px-1.5 text-[11px] text-muted-foreground"
+          className="flex h-8 w-8 items-center justify-center text-muted-foreground"
           title="The canvas auto-saves — layout, flows, creatives, and boards survive refresh"
         >
-          <Check className="h-3 w-3 text-emerald-600" />
-          Saved
+          <Check className="h-3.5 w-3.5 text-emerald-600" />
         </span>
       </div>
+
+      {/* Inspector — click a graph node to see and act on it (Flora-style) */}
+      {(() => {
+        if (!inspected) return null;
+        const plan = savedMediaPlans.find((p) => p.id === inspected.planId);
+        const line = plan?.campaigns.find((c) => c.id === inspected.lineId);
+        if (!plan || !line) return null;
+        const planLive = plan.reviewState === "active";
+        const lineLive = planLive && line.enabled;
+        const cre = CHANNEL_CREATIVE[line.channel] ?? FALLBACK_CREATIVE;
+        const stageMeta = { awareness: "Awareness", consideration: "Consideration", conversion: "Conversion" }[line.funnelStage];
+        const row = (label: string, value: React.ReactNode) => (
+          <div className="flex items-baseline justify-between gap-3 py-1">
+            <span className="text-[11px] text-muted-foreground">{label}</span>
+            <span className="text-right text-[12px] font-medium text-foreground">{value}</span>
+          </div>
+        );
+        return (
+          <div data-canvas-ui className="absolute right-4 top-4 z-40 w-72 rounded-xl border border-border bg-white shadow-lg">
+            <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
+              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+                {inspected.kind === "creative" ? cre.headline : line.label}
+              </span>
+              {lineLive ? (
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                  <span className="h-1 w-1 rounded-full bg-emerald-500" /> Live
+                </span>
+              ) : (
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {line.enabled ? "In plan" : "Off"}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setInspected(null)}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="Close"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {inspected.kind === "creative" && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={cre.imageUrl} alt={cre.headline} className="h-36 w-full bg-muted object-cover" />
+            )}
+            <div className="px-3.5 py-2">
+              {inspected.kind === "creative" && row("Format", cre.format)}
+              {row("Plan", plan.name)}
+              {row("Stage", stageMeta)}
+              {row("Channel", line.channel.toUpperCase())}
+              {row("Budget", `$${line.budget.toLocaleString()}`)}
+              {line.forecast.impressions > 0 && row("Est. impressions", `${(line.forecast.impressions / 1_000_000).toFixed(1)}M`)}
+              {line.forecast.conversions > 0 && row("Est. conversions", line.forecast.conversions.toLocaleString())}
+              {line.forecast.roas != null && row("Est. ROAS", `${line.forecast.roas}x`)}
+              {line.forecast.cpa != null && row("Est. CPA", `$${line.forecast.cpa}`)}
+              {line.flightDates && row("Flight", line.flightDates)}
+            </div>
+            <div className="flex items-center gap-1.5 border-t border-border px-3.5 py-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const campaigns = plan.campaigns.map((x) => (x.id === line.id ? { ...x, enabled: !x.enabled } : x));
+                  updatePlanFromGraph(recalcMediaPlan({ ...plan, campaigns }), line.enabled ? `${line.label} ${planLive ? "paused" : "excluded"}` : `${line.label} ${planLive ? "is live" : "back in the plan"}`);
+                }}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                {line.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {line.enabled ? (planLive ? "Pause" : "Exclude") : (planLive ? "Launch" : "Include")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingLineRemoval({ planId: plan.id, ids: [line.id] })}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-red-600"
+                title="Remove this line from the plan"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Empty state */}
       {loaded && frames.length === 0 && flows.length === 0 && creatives.length === 0 && boards.length === 0 && (

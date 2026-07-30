@@ -1,27 +1,32 @@
 "use client";
 
-/* ── The media plan as a live node graph ──
-   Plan → funnel-stage groups → line nodes, wired. Every action that exists in
-   the media planner is alive on the nodes and mutates the SAME artifact
-   through the same recalc engine (recalcMediaPlan) the card and the chat use:
-   launch/pause a single line, duplicate a line, edit its budget inline,
-   activate or pause the whole plan. One artifact, three modalities. */
+/* ── The media plan as a live node graph (Flora-style) ──
+   Plan → funnel-stage groups → line nodes → creative nodes, wired with
+   visible ports. Node names float ABOVE the cards (Flora's signature), the
+   cards stay clean content. Every action that exists in the media planner is
+   alive on the nodes and mutates the SAME artifact through the same recalc
+   engine (recalcMediaPlan) the card and the chat use. Clicking a node opens
+   the inspector. One artifact, three modalities. */
 
 import { useState } from "react";
-import { Check, ChevronDown, ChevronRight, Copy, Pause, Play, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Image as ImageIcon, Layers, Pause, Play, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CanvasFrame } from "@/types/canvas";
 import type { FunnelStage, MediaCampaign, MediaPlan } from "@/types/campaign";
 import { recalcMediaPlan, editCampaignBudget } from "@/data/media-plan-flow";
+import { CHANNEL_CREATIVE, FALLBACK_CREATIVE } from "@/data/creative-templates";
 
-const STAGE_W = 280;
-const STAGE_H = 104;
-const STAGE_GAP = 18;
+const STAGE_W = 260;
+const STAGE_H = 96;
+const STAGE_GAP = 26;
 const LINE_W = 310;
 const LINE_H = 118;
-const LINE_GAP = 14;
-const COL_GAP_1 = 90; // frame → stage column
-const COL_GAP_2 = 70; // stage → line column
+const LINE_GAP = 24;
+const CRE_W = 200;
+const CRE_H = 112; // 16:9 thumb at 200w
+const COL_GAP_1 = 100; // frame → stages
+const COL_GAP_2 = 80;  // stage → lines
+const COL_GAP_3 = 80;  // line → creative
 
 const STAGE_ORDER: FunnelStage[] = ["awareness", "consideration", "conversion"];
 
@@ -30,6 +35,12 @@ const STAGE_META: Record<FunnelStage, { label: string; dot: string }> = {
   consideration: { label: "Consideration", dot: "bg-blue-500" },
   conversion: { label: "Conversion", dot: "bg-emerald-500" },
 };
+
+export interface InspectTarget {
+  planId: string;
+  lineId: string;
+  kind: "line" | "creative";
+}
 
 interface StageLayout {
   stage: FunnelStage;
@@ -61,8 +72,22 @@ export function planGraphExtent(frame: CanvasFrame, plan: MediaPlan): { maxX: nu
   const maxY = last
     ? last.y + (last.expanded ? Math.max(STAGE_H, last.lines.length * (LINE_H + LINE_GAP) - LINE_GAP) : STAGE_H)
     : frame.y;
-  const maxX = frame.x + frame.w + COL_GAP_1 + STAGE_W + (anyExpanded ? COL_GAP_2 + LINE_W : 0);
+  const maxX = frame.x + frame.w + COL_GAP_1 + STAGE_W + (anyExpanded ? COL_GAP_2 + LINE_W + COL_GAP_3 + CRE_W : 0);
   return { maxX, maxY };
+}
+
+function creativeFor(line: MediaCampaign) {
+  return CHANNEL_CREATIVE[line.channel] ?? FALLBACK_CREATIVE;
+}
+
+/* Flora-style floating label above a node */
+function NodeLabel({ children, meta }: { children: React.ReactNode; meta?: string }) {
+  return (
+    <div className="pointer-events-none absolute -top-[22px] left-0.5 flex w-full items-center gap-1.5 text-[11px] text-muted-foreground">
+      {children}
+      {meta && <span className="ml-auto truncate pr-1 text-muted-foreground/60">{meta}</span>}
+    </div>
+  );
 }
 
 /* ── Compact plan body shown while the plan is decomposed ── */
@@ -125,9 +150,9 @@ export function PlanComposedBody({ plan, onUpdate }: {
   );
 }
 
-/* ── The graph: stage groups + line nodes + wires ── */
+/* ── The graph ── */
 
-export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onToggleSelect, onSelectAll, onClearSelection, onRequestRemove }: {
+export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onToggleSelect, onSelectAll, onClearSelection, onRequestRemove, inspected, onInspect }: {
   frame: CanvasFrame;
   plan: MediaPlan;
   onUpdate: (updated: MediaPlan, toast?: string) => void;
@@ -137,11 +162,14 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
   onSelectAll: (ids: string[]) => void;
   onClearSelection: () => void;
   onRequestRemove: (ids: string[]) => void;
+  inspected: InspectTarget | null;
+  onInspect: (target: InspectTarget | null) => void;
 }) {
   const live = plan.reviewState === "active";
   const stages = layoutStages(frame, plan);
   const stageX = frame.x + frame.w + COL_GAP_1;
   const lineX = stageX + STAGE_W + COL_GAP_2;
+  const creX = lineX + LINE_W + COL_GAP_3;
   const planPort = { x: frame.x + frame.w, y: frame.y + 48 };
 
   function toggleLine(c: MediaCampaign) {
@@ -169,13 +197,15 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
     onUpdate(recalcMediaPlan({ ...plan, campaigns }), `${ids.size} ${ids.size === 1 ? "line" : "lines"} ${verb}`);
   }
 
+  const wireStroke = (isLive: boolean) => (isLive ? "#10B981" : "hsl(var(--muted-foreground) / 0.35)");
+
   return (
     <>
       {/* Selection bar — the bulk verbs, above the stage column */}
       <div
         data-canvas-frame
         className="absolute flex items-center gap-1 rounded-lg border border-border bg-white px-2 py-1.5 shadow-sm"
-        style={{ left: stageX, top: frame.y - 52, zIndex: frame.z }}
+        style={{ left: stageX, top: frame.y - 64, zIndex: frame.z }}
       >
         {selectedHere.length === 0 ? (
           <button
@@ -226,31 +256,46 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
         )}
       </div>
 
+      {/* Wires + ports */}
       <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: frame.z }} aria-hidden>
+        {/* plan output port */}
+        <circle cx={planPort.x} cy={planPort.y} r={4} fill="white" stroke="hsl(var(--muted-foreground) / 0.6)" strokeWidth={1.5} />
         {stages.map((s) => {
           const sy = s.y + STAGE_H / 2;
           const stageLive = live && s.lines.some((c) => c.enabled);
           return (
             <g key={s.stage}>
               <path
-                d={`M ${planPort.x} ${planPort.y} C ${planPort.x + 45} ${planPort.y}, ${stageX - 45} ${sy}, ${stageX} ${sy}`}
+                d={`M ${planPort.x} ${planPort.y} C ${planPort.x + 50} ${planPort.y}, ${stageX - 50} ${sy}, ${stageX} ${sy}`}
                 fill="none"
-                stroke={stageLive ? "#10B981" : "hsl(var(--muted-foreground) / 0.35)"}
-                strokeWidth={1.5}
-                strokeDasharray={stageLive ? undefined : "6 4"}
+                stroke={wireStroke(stageLive)}
+                strokeWidth={1.25}
               />
+              <circle cx={stageX} cy={sy} r={3.5} fill="white" stroke={wireStroke(stageLive)} strokeWidth={1.5} />
+              {s.expanded && <circle cx={stageX + STAGE_W} cy={sy} r={3.5} fill="white" stroke={wireStroke(stageLive)} strokeWidth={1.5} />}
               {s.expanded && s.lines.map((c, i) => {
                 const ly = s.y + i * (LINE_H + LINE_GAP) + LINE_H / 2;
                 const lineLive = live && c.enabled;
+                const cy = s.y + i * (LINE_H + LINE_GAP) + CRE_H / 2;
                 return (
-                  <path
-                    key={c.id}
-                    d={`M ${stageX + STAGE_W} ${sy} C ${stageX + STAGE_W + 35} ${sy}, ${lineX - 35} ${ly}, ${lineX} ${ly}`}
-                    fill="none"
-                    stroke={lineLive ? "#10B981" : "hsl(var(--muted-foreground) / 0.35)"}
-                    strokeWidth={1.5}
-                    strokeDasharray={lineLive ? undefined : "6 4"}
-                  />
+                  <g key={c.id}>
+                    <path
+                      d={`M ${stageX + STAGE_W} ${sy} C ${stageX + STAGE_W + 40} ${sy}, ${lineX - 40} ${ly}, ${lineX} ${ly}`}
+                      fill="none"
+                      stroke={wireStroke(lineLive)}
+                      strokeWidth={1.25}
+                    />
+                    <circle cx={lineX} cy={ly} r={3.5} fill="white" stroke={wireStroke(lineLive)} strokeWidth={1.5} />
+                    {/* line → creative */}
+                    <path
+                      d={`M ${lineX + LINE_W} ${ly} C ${lineX + LINE_W + 40} ${ly}, ${creX - 40} ${cy}, ${creX} ${cy}`}
+                      fill="none"
+                      stroke={wireStroke(lineLive)}
+                      strokeWidth={1.25}
+                    />
+                    <circle cx={lineX + LINE_W} cy={ly} r={3.5} fill="white" stroke={wireStroke(lineLive)} strokeWidth={1.5} />
+                    <circle cx={creX} cy={cy} r={3.5} fill="white" stroke={wireStroke(lineLive)} strokeWidth={1.5} />
+                  </g>
                 );
               })}
             </g>
@@ -258,6 +303,7 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
         })}
       </svg>
 
+      {/* Stage nodes */}
       {stages.map((s) => {
         const meta = STAGE_META[s.stage];
         const budget = s.lines.filter((c) => c.enabled).reduce((sum, c) => sum + c.budget, 0);
@@ -269,18 +315,16 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
             className="absolute rounded-xl border border-border bg-white px-3.5 py-3 shadow-[0px_2px_8px_rgba(71,88,114,0.06)]"
             style={{ left: stageX, top: s.y, width: STAGE_W, height: STAGE_H, zIndex: frame.z }}
           >
-            <div className="flex items-center gap-1.5">
-              <span className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)} />
-              <span className="text-[12px] font-medium text-foreground">{meta.label}</span>
-              <span className="ml-auto text-[11px] text-muted-foreground">
-                {liveCount}/{s.lines.length} {live ? "live" : "in plan"}
-              </span>
-            </div>
-            <p className="mt-1.5 text-[15px] font-semibold text-foreground">${budget.toLocaleString()}</p>
+            <NodeLabel meta={`${liveCount}/${s.lines.length} ${live ? "live" : "in plan"}`}>
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", meta.dot)} />
+              <Layers className="h-3 w-3" />
+              {meta.label}
+            </NodeLabel>
+            <p className="text-[17px] font-semibold text-foreground">${budget.toLocaleString()}</p>
             <button
               type="button"
               onClick={() => onToggleStage(frame.id, s.stage)}
-              className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="mt-2 flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {s.expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
               {s.expanded ? "Hide lines" : `Show ${s.lines.length} ${s.lines.length === 1 ? "line" : "lines"}`}
@@ -289,36 +333,72 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
         );
       })}
 
+      {/* Line nodes + creative nodes */}
       {stages.filter((s) => s.expanded).map((s) =>
-        s.lines.map((c, i) => (
-          <LineNode
-            key={c.id}
-            line={c}
-            planLive={live}
-            x={lineX}
-            y={s.y + i * (LINE_H + LINE_GAP)}
-            z={frame.z}
-            isSelected={selected.has(c.id)}
-            onSelect={() => onToggleSelect(c.id)}
-            onToggle={() => toggleLine(c)}
-            onDuplicate={() => duplicateLine(c)}
-            onRemove={() => onRequestRemove([c.id])}
-            onBudget={(v) => onUpdate(editCampaignBudget(plan, c.id, v))}
-          />
-        ))
+        s.lines.map((c, i) => {
+          const y = s.y + i * (LINE_H + LINE_GAP);
+          const lineLive = live && c.enabled;
+          const cre = creativeFor(c);
+          const isInspected = inspected?.lineId === c.id;
+          return (
+            <div key={c.id}>
+              <LineNode
+                line={c}
+                planLive={live}
+                x={lineX}
+                y={y}
+                z={frame.z}
+                isSelected={selected.has(c.id)}
+                isInspected={isInspected && inspected?.kind === "line"}
+                onSelect={() => onToggleSelect(c.id)}
+                onInspect={() => onInspect({ planId: plan.id, lineId: c.id, kind: "line" })}
+                onToggle={() => toggleLine(c)}
+                onDuplicate={() => duplicateLine(c)}
+                onRemove={() => onRequestRemove([c.id])}
+                onBudget={(v) => onUpdate(editCampaignBudget(plan, c.id, v))}
+              />
+              {/* Creative node — how the ads show up, linked */}
+              <div
+                data-canvas-frame
+                onClick={() => onInspect({ planId: plan.id, lineId: c.id, kind: "creative" })}
+                className={cn(
+                  "absolute cursor-pointer overflow-hidden rounded-xl border bg-white shadow-[0px_2px_8px_rgba(71,88,114,0.06)] transition-shadow hover:shadow-[0px_4px_14px_rgba(71,88,114,0.14)]",
+                  isInspected && inspected?.kind === "creative" ? "border-foreground/50 ring-1 ring-foreground/20" : "border-border",
+                  !c.enabled && "opacity-60"
+                )}
+                style={{ left: creX, top: y, width: CRE_W, height: CRE_H, zIndex: frame.z }}
+              >
+                <NodeLabel meta={cre.format}>
+                  <ImageIcon className="h-3 w-3" />
+                  Creative
+                </NodeLabel>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={cre.imageUrl} alt={cre.headline} draggable={false} className="h-full w-full bg-muted object-cover" />
+                {lineLive && (
+                  <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-foreground backdrop-blur">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Live
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })
       )}
     </>
   );
 }
 
-function LineNode({ line, planLive, x, y, z, isSelected, onSelect, onToggle, onDuplicate, onRemove, onBudget }: {
+function LineNode({ line, planLive, x, y, z, isSelected, isInspected, onSelect, onInspect, onToggle, onDuplicate, onRemove, onBudget }: {
   line: MediaCampaign;
   planLive: boolean;
   x: number;
   y: number;
   z: number;
   isSelected: boolean;
+  isInspected: boolean;
   onSelect: () => void;
+  onInspect: () => void;
   onToggle: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -337,13 +417,20 @@ function LineNode({ line, planLive, x, y, z, isSelected, onSelect, onToggle, onD
   return (
     <div
       data-canvas-frame
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("button, input")) return;
+        onInspect();
+      }}
       className={cn(
-        "absolute rounded-xl border bg-white px-3 py-2.5 shadow-[0px_2px_8px_rgba(71,88,114,0.06)]",
-        isSelected ? "border-foreground/50 ring-1 ring-foreground/20" : "border-border",
+        "absolute cursor-pointer rounded-xl border bg-white px-3 py-2.5 shadow-[0px_2px_8px_rgba(71,88,114,0.06)] transition-shadow hover:shadow-[0px_4px_14px_rgba(71,88,114,0.14)]",
+        isSelected || isInspected ? "border-foreground/50 ring-1 ring-foreground/20" : "border-border",
         !line.enabled && "opacity-60"
       )}
       style={{ left: x, top: y, width: LINE_W, height: LINE_H, zIndex: z }}
     >
+      <NodeLabel meta={line.channel.toUpperCase()}>
+        <span className="truncate font-medium text-muted-foreground">{line.label}</span>
+      </NodeLabel>
       <div className="flex items-center gap-1.5">
         <button
           type="button"
@@ -356,7 +443,10 @@ function LineNode({ line, planLive, x, y, z, isSelected, onSelect, onToggle, onD
         >
           {isSelected && <Check className="h-3 w-3" />}
         </button>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{line.label}</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
+          {line.forecast.impressions > 0 && `${(line.forecast.impressions / 1_000_000).toFixed(1)}M impr`}
+          {line.forecast.conversions > 0 && ` · ${line.forecast.conversions.toLocaleString()} conv`}
+        </span>
         {lineLive ? (
           <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
             <span className="h-1 w-1 rounded-full bg-emerald-500" />
@@ -368,12 +458,7 @@ function LineNode({ line, planLive, x, y, z, isSelected, onSelect, onToggle, onD
           </span>
         )}
       </div>
-      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-        {line.channel.toUpperCase()}
-        {line.forecast.impressions > 0 && ` · ${(line.forecast.impressions / 1_000_000).toFixed(1)}M impr`}
-        {line.forecast.conversions > 0 && ` · ${line.forecast.conversions.toLocaleString()} conv`}
-      </p>
-      <div className="mt-2 flex items-center gap-1.5">
+      <div className="mt-2.5 flex items-center gap-1.5">
         <span className="text-[12px] text-muted-foreground">$</span>
         <input
           value={draft ?? line.budget.toLocaleString()}

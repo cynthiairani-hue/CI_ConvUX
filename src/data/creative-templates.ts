@@ -8,6 +8,36 @@ import type { AdTile } from "@/types/creative";
 
 const U = "https://images.unsplash.com";
 
+/* Hero creative per channel — the image node that hangs off each media-plan
+   line in the canvas graph ("how ads show up — everything linked"). */
+export const CHANNEL_CREATIVE: Record<string, { imageUrl: string; format: string; headline: string }> = {
+  ctv: {
+    imageUrl: `${U}/photo-1542291026-7eec264c27ff?w=400&h=225&fit=crop&auto=format`,
+    format: "CTV 16:9", headline: "Classics never quit — 30s spot",
+  },
+  dooh: {
+    imageUrl: `${U}/photo-1560769629-975ec94e6a86?w=400&h=225&fit=crop&auto=format`,
+    format: "DOOH billboard", headline: "Worn by your city",
+  },
+  lookalike: {
+    imageUrl: `${U}/photo-1595950653106-6c9ebd614d3a?w=400&h=225&fit=crop&auto=format`,
+    format: "Display 1:1 set", headline: "New drops. Old soul.",
+  },
+  social: {
+    imageUrl: `${U}/photo-1491553895911-0055eca6402d?w=400&h=225&fit=crop&auto=format`,
+    format: "Feed + Story set", headline: "Made for the ones who skate it",
+  },
+  retargeting: {
+    imageUrl: `${U}/photo-1460353581641-37baddab0fa2?w=400&h=225&fit=crop&auto=format`,
+    format: "Dynamic display", headline: "Your size is back in stock",
+  },
+};
+
+export const FALLBACK_CREATIVE = {
+  imageUrl: `${U}/photo-1600185365926-3a2ce3cdb9eb?w=400&h=225&fit=crop&auto=format`,
+  format: "Display", headline: "Brand creative",
+};
+
 const TILE_W = 260;
 const COL = TILE_W + 40;
 
