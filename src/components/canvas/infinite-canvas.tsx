@@ -39,7 +39,6 @@ import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
 import { loadCanvas, persistCanvas, loadFlows, persistFlows, loadCreatives, persistCreatives } from "@/lib/storage";
 import type { CanvasFrame, CanvasFrameKind, CanvasViewport, ReviewBoardCard as ReviewBoardCardType } from "@/types/canvas";
-import type { MediaPlan } from "@/types/campaign";
 import type { OrchestrationFlow } from "@/types/orchestration";
 import type { AdTile } from "@/types/creative";
 import { FLOW_TEMPLATES, createFlowFromTemplate } from "@/data/flow-templates";
@@ -48,6 +47,7 @@ import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas
 import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
 import { ReviewBoardHeaderCard, BOARD_W, BOARD_EST_H } from "@/components/canvas/review-board-card";
 import { PlanGraph, PlanComposedBody, planGraphExtent } from "@/components/canvas/plan-graph";
+import { recalcMediaPlan } from "@/data/media-plan-flow";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -315,8 +315,17 @@ export function InfiniteCanvas() {
   const toggleExpandLines = useCallback((id: string) => {
     setFrames((prev) => {
       const maxZ = prev.reduce((m, f) => Math.max(m, f.z), 0);
-      // Expanding is an act of focus — the plan and its graph come to front.
-      return prev.map((f) => (f.id === id ? { ...f, expandedLines: !f.expandedLines, z: maxZ + 1 } : f));
+      // Expanding is an act of focus — the plan and its graph come to front,
+      // and the WHOLE workflow reveals at once (Flora-style): every stage's
+      // lines unfurled. Collapsing stages back is per-stage, on the nodes.
+      return prev.map((f) => (f.id === id
+        ? {
+            ...f,
+            expandedLines: !f.expandedLines,
+            expandedStages: f.expandedLines ? f.expandedStages : ["awareness", "consideration", "conversion"],
+            z: maxZ + 1,
+          }
+        : f));
     });
   }, []);
 
@@ -334,6 +343,24 @@ export function InfiniteCanvas() {
     saveMediaPlan(updated);
     if (toast) showToast(toast);
   }, [saveMediaPlan, showToast]);
+
+  /* Line selection for bulk actions (launch / pause / remove across lines). */
+  const [selectedLines, setSelectedLines] = useState<Set<string>>(new Set());
+  const [pendingLineRemoval, setPendingLineRemoval] = useState<{ planId: string; ids: string[] } | null>(null);
+
+  const toggleLineSelection = useCallback((lineId: string) => {
+    setSelectedLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(lineId)) next.delete(lineId); else next.add(lineId);
+      return next;
+    });
+  }, []);
+
+  const selectLines = useCallback((ids: string[]) => {
+    setSelectedLines(new Set(ids));
+  }, []);
+
+  const clearLineSelection = useCallback(() => setSelectedLines(new Set()), []);
 
   /* ── Flow management (the orchestration layer) ── */
 
@@ -729,7 +756,18 @@ export function InfiniteCanvas() {
         {frames.filter((f) => f.kind === "media-plan" && f.expandedLines).map((f) => {
           const plan = savedMediaPlans.find((p) => p.id === f.refId);
           return plan ? (
-            <PlanGraph key={`graph-${f.id}`} frame={f} plan={plan} onUpdate={updatePlanFromGraph} onToggleStage={toggleStage} />
+            <PlanGraph
+              key={`graph-${f.id}`}
+              frame={f}
+              plan={plan}
+              onUpdate={updatePlanFromGraph}
+              onToggleStage={toggleStage}
+              selected={selectedLines}
+              onToggleSelect={toggleLineSelection}
+              onSelectAll={selectLines}
+              onClearSelection={clearLineSelection}
+              onRequestRemove={(ids) => setPendingLineRemoval({ planId: plan.id, ids })}
+            />
           ) : null;
         })}
         {boards.map((board) => (
@@ -995,6 +1033,30 @@ export function InfiniteCanvas() {
           setDeletingBoardId(null);
         }}
         onCancel={() => setDeletingBoardId(null)}
+      />
+      <ConfirmDialog
+        open={pendingLineRemoval !== null}
+        title={`Remove ${pendingLineRemoval?.ids.length === 1 ? "this line" : `these ${pendingLineRemoval?.ids.length} lines`}?`}
+        description="The lines are deleted from the media plan and the budget and forecast recalculate. This is the same as deleting them in the plan view."
+        confirmLabel="Remove lines"
+        destructive
+        onConfirm={() => {
+          if (pendingLineRemoval) {
+            const plan = savedMediaPlans.find((p) => p.id === pendingLineRemoval.planId);
+            if (plan) {
+              const remove = new Set(pendingLineRemoval.ids);
+              const campaigns = plan.campaigns.filter((c) => !remove.has(c.id));
+              updatePlanFromGraph(recalcMediaPlan({ ...plan, campaigns }), `${remove.size} ${remove.size === 1 ? "line" : "lines"} removed from the plan`);
+              setSelectedLines((prev) => {
+                const next = new Set(prev);
+                remove.forEach((id) => next.delete(id));
+                return next;
+              });
+            }
+          }
+          setPendingLineRemoval(null);
+        }}
+        onCancel={() => setPendingLineRemoval(null)}
       />
       <ConfirmDialog
         open={confirmingClear}

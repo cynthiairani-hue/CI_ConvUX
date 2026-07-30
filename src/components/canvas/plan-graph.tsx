@@ -8,7 +8,7 @@
    activate or pause the whole plan. One artifact, three modalities. */
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Copy, Pause, Play } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Pause, Play, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CanvasFrame } from "@/types/canvas";
 import type { FunnelStage, MediaCampaign, MediaPlan } from "@/types/campaign";
@@ -127,11 +127,16 @@ export function PlanComposedBody({ plan, onUpdate }: {
 
 /* ── The graph: stage groups + line nodes + wires ── */
 
-export function PlanGraph({ frame, plan, onUpdate, onToggleStage }: {
+export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onToggleSelect, onSelectAll, onClearSelection, onRequestRemove }: {
   frame: CanvasFrame;
   plan: MediaPlan;
   onUpdate: (updated: MediaPlan, toast?: string) => void;
   onToggleStage: (frameId: string, stage: string) => void;
+  selected: Set<string>;
+  onToggleSelect: (lineId: string) => void;
+  onSelectAll: (ids: string[]) => void;
+  onClearSelection: () => void;
+  onRequestRemove: (ids: string[]) => void;
 }) {
   const live = plan.reviewState === "active";
   const stages = layoutStages(frame, plan);
@@ -154,8 +159,73 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage }: {
     onUpdate(recalcMediaPlan({ ...plan, campaigns }), `${c.label} duplicated — same budget, edit before launch`);
   }
 
+  const planLineIds = plan.campaigns.map((c) => c.id);
+  const selectedHere = planLineIds.filter((id) => selected.has(id));
+
+  function bulkSetEnabled(enabled: boolean) {
+    const ids = new Set(selectedHere);
+    const campaigns = plan.campaigns.map((c) => (ids.has(c.id) ? { ...c, enabled } : c));
+    const verb = enabled ? (live ? "live" : "back in the plan") : (live ? "paused" : "taken off the plan");
+    onUpdate(recalcMediaPlan({ ...plan, campaigns }), `${ids.size} ${ids.size === 1 ? "line" : "lines"} ${verb}`);
+  }
+
   return (
     <>
+      {/* Selection bar — the bulk verbs, above the stage column */}
+      <div
+        data-canvas-frame
+        className="absolute flex items-center gap-1 rounded-lg border border-border bg-white px-2 py-1.5 shadow-sm"
+        style={{ left: stageX, top: frame.y - 52, zIndex: frame.z }}
+      >
+        {selectedHere.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => onSelectAll(planLineIds)}
+            className="rounded-md px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Select all lines
+          </button>
+        ) : (
+          <>
+            <span className="px-1.5 text-[12px] font-medium text-foreground">{selectedHere.length} selected</span>
+            <span className="mx-0.5 h-4 w-px bg-border" />
+            <button
+              type="button"
+              onClick={() => bulkSetEnabled(true)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+              title={live ? "Launch the selected lines" : "Include the selected lines in the plan"}
+            >
+              <Play className="h-3 w-3" /> {live ? "Launch" : "Include"}
+            </button>
+            <button
+              type="button"
+              onClick={() => bulkSetEnabled(false)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+              title={live ? "Pause the selected lines" : "Exclude the selected lines from the plan"}
+            >
+              <Pause className="h-3 w-3" /> {live ? "Pause" : "Exclude"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onRequestRemove(selectedHere)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-accent hover:text-red-600"
+              title="Delete the selected lines from the plan"
+            >
+              <Trash2 className="h-3 w-3" /> Remove
+            </button>
+            <span className="mx-0.5 h-4 w-px bg-border" />
+            <button
+              type="button"
+              onClick={onClearSelection}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Clear selection"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+
       <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: frame.z }} aria-hidden>
         {stages.map((s) => {
           const sy = s.y + STAGE_H / 2;
@@ -228,8 +298,11 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage }: {
             x={lineX}
             y={s.y + i * (LINE_H + LINE_GAP)}
             z={frame.z}
+            isSelected={selected.has(c.id)}
+            onSelect={() => onToggleSelect(c.id)}
             onToggle={() => toggleLine(c)}
             onDuplicate={() => duplicateLine(c)}
+            onRemove={() => onRequestRemove([c.id])}
             onBudget={(v) => onUpdate(editCampaignBudget(plan, c.id, v))}
           />
         ))
@@ -238,14 +311,17 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage }: {
   );
 }
 
-function LineNode({ line, planLive, x, y, z, onToggle, onDuplicate, onBudget }: {
+function LineNode({ line, planLive, x, y, z, isSelected, onSelect, onToggle, onDuplicate, onRemove, onBudget }: {
   line: MediaCampaign;
   planLive: boolean;
   x: number;
   y: number;
   z: number;
+  isSelected: boolean;
+  onSelect: () => void;
   onToggle: () => void;
   onDuplicate: () => void;
+  onRemove: () => void;
   onBudget: (value: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -262,12 +338,24 @@ function LineNode({ line, planLive, x, y, z, onToggle, onDuplicate, onBudget }: 
     <div
       data-canvas-frame
       className={cn(
-        "absolute rounded-xl border border-border bg-white px-3 py-2.5 shadow-[0px_2px_8px_rgba(71,88,114,0.06)]",
+        "absolute rounded-xl border bg-white px-3 py-2.5 shadow-[0px_2px_8px_rgba(71,88,114,0.06)]",
+        isSelected ? "border-foreground/50 ring-1 ring-foreground/20" : "border-border",
         !line.enabled && "opacity-60"
       )}
       style={{ left: x, top: y, width: LINE_W, height: LINE_H, zIndex: z }}
     >
       <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onSelect}
+          className={cn(
+            "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+            isSelected ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground/50"
+          )}
+          title={isSelected ? "Deselect" : "Select for bulk actions"}
+        >
+          {isSelected && <Check className="h-3 w-3" />}
+        </button>
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{line.label}</span>
         {lineLive ? (
           <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
@@ -316,6 +404,14 @@ function LineNode({ line, planLive, x, y, z, onToggle, onDuplicate, onBudget }: 
           title="Duplicate this line"
         >
           <Copy className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-red-600"
+          title="Remove this line from the plan"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
