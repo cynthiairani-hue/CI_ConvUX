@@ -263,7 +263,7 @@ export async function POST(request: Request) {
     });
 
     const baseParams = {
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: thinkingMode ? 2048 : 1024,
       system: buildSystemPrompt(brandContext, detailLevel, chatMode),
       ...(allowBuildTool ? { tools } : {}),
