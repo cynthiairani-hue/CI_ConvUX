@@ -142,6 +142,18 @@ export function InfiniteCanvas() {
     }
   }, [savedStrategies, savedMediaPlans, savedAudiences, savedNarratives, savedBriefs]);
 
+  /** Live/paused state for the frame's status chip (null = no chip). */
+  const artifactLiveState = useCallback((kind: CanvasFrameKind, refId: string): "active" | "paused" | null => {
+    let s: string | undefined;
+    switch (kind) {
+      case "strategy": s = savedStrategies.find((a) => a.id === refId)?.status; break;
+      case "media-plan": s = savedMediaPlans.find((a) => a.id === refId)?.reviewState; break;
+      case "audience": s = savedAudiences.find((a) => a.id === refId)?.status; break;
+      default: return null;
+    }
+    return s === "active" || s === "paused" ? s : null;
+  }, [savedStrategies, savedMediaPlans, savedAudiences]);
+
   /* ── Load / seed / persist ── */
 
   useEffect(() => {
@@ -695,6 +707,7 @@ export function InfiniteCanvas() {
             key={frame.id}
             frame={frame}
             name={artifactName(frame.kind, frame.refId) ?? "Untitled"}
+            liveState={artifactLiveState(frame.kind, frame.refId)}
             scale={viewport.scale}
             onMove={moveFrame}
             onFocus={bringToFront}
@@ -921,6 +934,7 @@ export function InfiniteCanvas() {
 function FrameShell({
   frame,
   name,
+  liveState,
   scale,
   onMove,
   onFocus,
@@ -930,6 +944,7 @@ function FrameShell({
 }: {
   frame: CanvasFrame;
   name: string;
+  liveState: "active" | "paused" | null;
   scale: number;
   onMove: (id: string, x: number, y: number) => void;
   onFocus: (id: string) => void;
@@ -991,6 +1006,18 @@ function FrameShell({
           {meta.label}
         </span>
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{name}</span>
+        {liveState === "active" && (
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Live
+          </span>
+        )}
+        {liveState === "paused" && (
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            Paused
+          </span>
+        )}
         <button
           type="button"
           onClick={() => onAsk(frame)}

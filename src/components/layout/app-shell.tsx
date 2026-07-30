@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useState, useCallback, useRef, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Share2, FileDown, Sparkles, Clock, X, Send, ChevronDown, CheckCircle2, Zap, MessageSquare, Eye, Link2, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { approvers } from "@/data/approvers";
@@ -432,6 +432,7 @@ const COMMENT_CURSOR =
 
 function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof useCampaign>["activeMediaPlan"]> }) {
   const { setActiveMediaPlan, saveMediaPlan, showToast, addMediaPlanComment, resolveMediaPlanComment, shareMediaPlanWithClient, setClientApproval } = useCampaign();
+  const router = useRouter();
   const { activePersona } = usePersona();
   const isClient = activePersona.role === "client";
 
@@ -489,6 +490,10 @@ function SplitMediaPlanCanvas({ plan }: { plan: NonNullable<ReturnType<typeof us
   function activate() {
     commit({ ...plan, reviewState: "active", checkInDays: 45, lastModifiedAt: new Date().toISOString() });
     showToast(`${plan.campaigns.filter((c) => c.enabled).length} campaigns created in AdRoll · check-in set for +45 days`);
+    // The activation drop: launching lands you on the canvas — mission control
+    // for what just went live. The canvas captures the still-active plan into a
+    // frame (with its Live status) via its normal capture path.
+    router.push("/canvas");
   }
 
   // Figma/Miro comment tool: in comment mode the cursor is a comment icon and a
