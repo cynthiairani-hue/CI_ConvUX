@@ -317,7 +317,7 @@ function MaturityMeter({ level, label }: { level: 1 | 2 | 3; label: string }) {
 
 const SEED_KEYS = [
   "fuseiq-strategies", "fuseiq-media-plans", "fuseiq-advertisers", "fuseiq-narratives", "fuseiq-audiences",
-  "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions", "fuseiq-canvas", "fuseiq-agency-clients",
+  "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions", "fuseiq-canvas", "fuseiq-flows", "fuseiq-agency-clients",
   "fuseiq-agency-clients-v2", "fuseiq-active-client",
   "fuseiq-chat-mode", "fuseiq-detail-level", "fuseiq-layout-state", "fuseiq-entry-layout",
   "fuseiq-floating-panel", "fuseiq-dock-side",

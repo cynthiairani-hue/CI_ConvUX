@@ -26,13 +26,18 @@ import {
   Swords,
   Users,
   X,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
-import { loadCanvas, persistCanvas } from "@/lib/storage";
+import { loadCanvas, persistCanvas, loadFlows, persistFlows } from "@/lib/storage";
 import type { CanvasFrame, CanvasFrameKind, CanvasViewport } from "@/types/canvas";
+import type { OrchestrationFlow } from "@/types/orchestration";
+import { FLOW_TEMPLATES, createFlowFromTemplate } from "@/data/flow-templates";
+import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StrategyCard } from "@/components/patterns/strategy-card";
 import { MediaPlanCard } from "@/components/patterns/media-plan-card";
 import { AudienceCard } from "@/components/patterns/audience-card";
@@ -72,6 +77,9 @@ export function InfiniteCanvas() {
   const [loaded, setLoaded] = useState(false);
   const [panning, setPanning] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [flows, setFlows] = useState<OrchestrationFlow[]>([]);
+  const [flowsLoaded, setFlowsLoaded] = useState(false);
+  const [deletingFlowId, setDeletingFlowId] = useState<string | null>(null);
 
   /* Live viewport ref so frame placement reads the current camera without
      re-creating callbacks on every pan tick. */
@@ -125,6 +133,16 @@ export function InfiniteCanvas() {
     if (loaded) persistCanvas({ viewport, frames });
   }, [viewport, frames, loaded]);
 
+  useEffect(() => {
+    if (!hydrated || flowsLoaded) return;
+    setFlows(loadFlows());
+    setFlowsLoaded(true);
+  }, [hydrated, flowsLoaded]);
+
+  useEffect(() => {
+    if (flowsLoaded) persistFlows(flows);
+  }, [flows, flowsLoaded]);
+
   /* ── Frame management ── */
 
   const addFrame = useCallback((kind: CanvasFrameKind, refId: string) => {
@@ -164,6 +182,64 @@ export function InfiniteCanvas() {
   const moveFrame = useCallback((id: string, x: number, y: number) => {
     setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, x, y } : f)));
   }, []);
+
+  /* ── Flow management (the orchestration layer) ── */
+
+  const addFlowFromTemplate = useCallback((templateId: string) => {
+    const template = FLOW_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+    const el = containerRef.current;
+    const cw = el?.clientWidth ?? 1200;
+    const ch = el?.clientHeight ?? 800;
+    const v = viewportRef.current;
+    const totalW = NODE_W + 380 * 2; // trigger → condition → actions, three columns
+    const x = (cw / 2 - v.x) / v.scale - totalW / 2;
+    const y = (ch / 2 - v.y) / v.scale - 200;
+    setFlows((prev) => [...prev, createFlowFromTemplate(template, { x, y })]);
+  }, []);
+
+  const moveFlowNode = useCallback((flowId: string, nodeId: string, x: number, y: number) => {
+    setFlows((prev) => prev.map((f) =>
+      f.id === flowId
+        ? { ...f, nodes: f.nodes.map((n) => (n.id === nodeId ? { ...n, x, y } : n)) }
+        : f
+    ));
+  }, []);
+
+  const authorizeFlowAction = useCallback((flowId: string, nodeId: string) => {
+    setFlows((prev) => prev.map((f) =>
+      f.id === flowId
+        ? {
+            ...f,
+            lastModifiedAt: new Date().toISOString(),
+            nodes: f.nodes.map((n) => (n.id === nodeId ? { ...n, authorized: !n.authorized } : n)),
+          }
+        : f
+    ));
+  }, []);
+
+  const activateFlow = useCallback((flowId: string) => {
+    setFlows((prev) => prev.map((f) =>
+      f.id === flowId ? { ...f, status: "active" as const, lastModifiedAt: new Date().toISOString() } : f
+    ));
+    showToast("Flow activated — actions run when the trigger fires (simulated)");
+  }, [showToast]);
+
+  const pauseFlow = useCallback((flowId: string) => {
+    setFlows((prev) => prev.map((f) =>
+      f.id === flowId ? { ...f, status: "paused" as const, lastModifiedAt: new Date().toISOString() } : f
+    ));
+    showToast("Flow paused — no actions will run");
+  }, [showToast]);
+
+  const askAboutFlow = useCallback((flow: OrchestrationFlow) => {
+    const shape = flow.nodes.map((n) => `${n.kind}: ${n.title}`).join(" → ");
+    setPendingContext({
+      label: `Flow · ${flow.name}`,
+      detail: `The user selected the orchestration flow "${flow.name}" (status: ${flow.status}) on their canvas — ${shape}. Ground your answer in this flow.`,
+    });
+    if (state === "resting" || state === "fullscreen") setState("floating");
+  }, [setPendingContext, setState, state]);
 
   /* ── Capture: artifacts built in chat while on this page land as frames ──
      Flows set an active artifact; instead of the split-canvas takeover
@@ -269,7 +345,7 @@ export function InfiniteCanvas() {
 
   const fitToContent = useCallback(() => {
     const el = containerRef.current;
-    if (!el || frames.length === 0) return;
+    if (!el || (frames.length === 0 && flows.length === 0)) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     frames.forEach((f) => {
       const node = el.querySelector<HTMLElement>(`[data-frame-id="${f.id}"]`);
@@ -279,6 +355,12 @@ export function InfiniteCanvas() {
       maxX = Math.max(maxX, f.x + f.w);
       maxY = Math.max(maxY, f.y + h);
     });
+    flows.forEach((flow) => flow.nodes.forEach((n) => {
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + NODE_W);
+      maxY = Math.max(maxY, n.y + NODE_EST_H[n.kind]);
+    }));
     const pad = 60;
     const cw = el.clientWidth, ch = el.clientHeight;
     const scale = Math.min(1, Math.max(MIN_SCALE, Math.min((cw - pad * 2) / (maxX - minX), (ch - pad * 2) / (maxY - minY))));
@@ -287,7 +369,7 @@ export function InfiniteCanvas() {
       x: (cw - (maxX - minX) * scale) / 2 - minX * scale,
       y: (ch - (maxY - minY) * scale) / 2 - minY * scale,
     });
-  }, [frames]);
+  }, [frames, flows]);
 
   /* ── Frame → chat context (Notice → Propose → Authorize entry point) ── */
 
@@ -364,6 +446,23 @@ export function InfiniteCanvas() {
         className="absolute left-0 top-0"
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`, transformOrigin: "0 0" }}
       >
+        <FlowWires flows={flows} />
+        {flows.map((flow) =>
+          flow.nodes.map((node) => (
+            <FlowNodeCard
+              key={node.id}
+              flow={flow}
+              node={node}
+              scale={viewport.scale}
+              onMove={moveFlowNode}
+              onAuthorize={authorizeFlowAction}
+              onActivate={activateFlow}
+              onPause={pauseFlow}
+              onDelete={setDeletingFlowId}
+              onAsk={askAboutFlow}
+            />
+          ))
+        )}
         {frames.map((frame) => (
           <FrameShell
             key={frame.id}
@@ -429,8 +528,25 @@ export function InfiniteCanvas() {
             Add
           </button>
           {addOpen && (
-            <div className="absolute left-0 top-full z-50 mt-1.5 max-h-80 w-72 overflow-y-auto rounded-xl border border-border bg-white py-1.5 shadow-lg">
+            <div className="absolute left-0 top-full z-50 mt-1.5 max-h-96 w-72 overflow-y-auto rounded-xl border border-border bg-white py-1.5 shadow-lg">
               <div className="px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Board templates
+              </div>
+              {FLOW_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { addFlowFromTemplate(t.id); setAddOpen(false); }}
+                  className="flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
+                >
+                  <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] text-foreground">{t.name}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{t.description}</span>
+                  </span>
+                </button>
+              ))}
+              <div className="mt-1 border-t border-border pt-1.5 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Saved artifacts
               </div>
               {unframed.length === 0 ? (
@@ -460,7 +576,7 @@ export function InfiniteCanvas() {
       </div>
 
       {/* Empty state */}
-      {loaded && frames.length === 0 && (
+      {loaded && frames.length === 0 && flows.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="max-w-sm text-center">
             <Frame className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
@@ -468,11 +584,25 @@ export function InfiniteCanvas() {
             <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
               Ask below to build a campaign, audience, or report — every artifact lands here as a
               movable frame. Or use <span className="font-medium text-foreground">Add</span> to place
-              something you&apos;ve already saved.
+              a saved artifact or start an orchestration flow.
             </p>
           </div>
         </div>
       )}
+
+      {/* Delete flow — always behind a confirmation */}
+      <ConfirmDialog
+        open={deletingFlowId !== null}
+        title="Delete this flow?"
+        description={`"${flows.find((f) => f.id === deletingFlowId)?.name ?? "Flow"}" and its trigger, condition, and action nodes will be removed. Nothing that already ran is undone.`}
+        confirmLabel="Delete flow"
+        destructive
+        onConfirm={() => {
+          setFlows((prev) => prev.filter((f) => f.id !== deletingFlowId));
+          setDeletingFlowId(null);
+        }}
+        onCancel={() => setDeletingFlowId(null)}
+      />
 
       {/* Interaction hint */}
       <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur">

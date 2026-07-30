@@ -1,8 +1,10 @@
 import type { StrategyPlan, Advertiser, CFONarrative, AudienceSegment, ApprovalRequest, CompetitiveBrief, MediaPlan } from "@/types/campaign";
 import type { CanvasWorkspace } from "@/types/canvas";
+import type { OrchestrationFlow } from "@/types/orchestration";
 
 const STRATEGIES_KEY = "fuseiq-strategies";
 const CANVAS_KEY = "fuseiq-canvas";
+const FLOWS_KEY = "fuseiq-flows";
 const MEDIA_PLANS_KEY = "fuseiq-media-plans";
 const ADVERTISERS_KEY = "fuseiq-advertisers";
 const NARRATIVES_KEY = "fuseiq-narratives";
@@ -111,6 +113,14 @@ export function loadCanvas(): CanvasWorkspace | null {
 
 export function persistCanvas(workspace: CanvasWorkspace): void {
   safeSet(CANVAS_KEY, workspace);
+}
+
+export function loadFlows(): OrchestrationFlow[] {
+  return safeGet<OrchestrationFlow[]>(FLOWS_KEY, []);
+}
+
+export function persistFlows(flows: OrchestrationFlow[]): void {
+  safeSet(FLOWS_KEY, flows);
 }
 
 export function loadMediaPlans(): MediaPlan[] {
