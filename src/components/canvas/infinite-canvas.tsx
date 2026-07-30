@@ -23,6 +23,7 @@ import {
   Minus,
   Plus,
   Sparkles,
+  Image as ImageIcon,
   Swords,
   Users,
   X,
@@ -32,11 +33,14 @@ import {
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
-import { loadCanvas, persistCanvas, loadFlows, persistFlows } from "@/lib/storage";
+import { loadCanvas, persistCanvas, loadFlows, persistFlows, loadCreatives, persistCreatives } from "@/lib/storage";
 import type { CanvasFrame, CanvasFrameKind, CanvasViewport } from "@/types/canvas";
 import type { OrchestrationFlow } from "@/types/orchestration";
+import type { AdTile } from "@/types/creative";
 import { FLOW_TEMPLATES, createFlowFromTemplate } from "@/data/flow-templates";
+import { buildCreativeReviewBoard } from "@/data/creative-templates";
 import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
+import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StrategyCard } from "@/components/patterns/strategy-card";
 import { MediaPlanCard } from "@/components/patterns/media-plan-card";
@@ -80,6 +84,9 @@ export function InfiniteCanvas() {
   const [flows, setFlows] = useState<OrchestrationFlow[]>([]);
   const [flowsLoaded, setFlowsLoaded] = useState(false);
   const [deletingFlowId, setDeletingFlowId] = useState<string | null>(null);
+  const [creatives, setCreatives] = useState<AdTile[]>([]);
+  const [creativesLoaded, setCreativesLoaded] = useState(false);
+  const [deletingTileId, setDeletingTileId] = useState<string | null>(null);
 
   /* Live viewport ref so frame placement reads the current camera without
      re-creating callbacks on every pan tick. */
@@ -142,6 +149,16 @@ export function InfiniteCanvas() {
   useEffect(() => {
     if (flowsLoaded) persistFlows(flows);
   }, [flows, flowsLoaded]);
+
+  useEffect(() => {
+    if (!hydrated || creativesLoaded) return;
+    setCreatives(loadCreatives());
+    setCreativesLoaded(true);
+  }, [hydrated, creativesLoaded]);
+
+  useEffect(() => {
+    if (creativesLoaded) persistCreatives(creatives);
+  }, [creatives, creativesLoaded]);
 
   /* ── Frame management ── */
 
@@ -231,6 +248,38 @@ export function InfiniteCanvas() {
     ));
     showToast("Flow paused — no actions will run");
   }, [showToast]);
+
+  /* ── Creative tiles (images as exhibits in a decision) ── */
+
+  const addCreativeBoard = useCallback(() => {
+    const el = containerRef.current;
+    const cw = el?.clientWidth ?? 1200;
+    const ch = el?.clientHeight ?? 800;
+    const v = viewportRef.current;
+    const totalW = TILE_W * 3 + 80;
+    const x = (cw / 2 - v.x) / v.scale - totalW / 2;
+    const y = (ch / 2 - v.y) / v.scale - 320;
+    setCreatives((prev) => [...prev, ...buildCreativeReviewBoard({ x, y })]);
+  }, []);
+
+  const moveTile = useCallback((id: string, x: number, y: number) => {
+    setCreatives((prev) => prev.map((t) => (t.id === id ? { ...t, x, y } : t)));
+  }, []);
+
+  const decideTile = useCallback((id: string, status: AdTile["status"]) => {
+    setCreatives((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
+  }, []);
+
+  const askAboutTile = useCallback((tile: AdTile) => {
+    const evidence = tile.metrics
+      ? `live — ${tile.metrics.ctr}% CTR, $${tile.metrics.cpa} CPA, ${tile.metrics.impressions} impressions, trend ${tile.metrics.trend}`
+      : `proposed — ${tile.predictedLift ?? "no prediction"}, ${tile.confidence ?? "unknown"} confidence`;
+    setPendingContext({
+      label: `Creative · ${tile.headline}`,
+      detail: `The user selected the ad creative "${tile.headline}" (${tile.format}, angle: ${tile.angle}, status: ${tile.status}, ${evidence}) on their canvas. Ground your answer in this creative.`,
+    });
+    if (state === "resting" || state === "fullscreen") setState("floating");
+  }, [setPendingContext, setState, state]);
 
   const askAboutFlow = useCallback((flow: OrchestrationFlow) => {
     const shape = flow.nodes.map((n) => `${n.kind}: ${n.title}`).join(" → ");
@@ -361,6 +410,12 @@ export function InfiniteCanvas() {
       maxX = Math.max(maxX, n.x + NODE_W);
       maxY = Math.max(maxY, n.y + NODE_EST_H[n.kind]);
     }));
+    creatives.forEach((t) => {
+      minX = Math.min(minX, t.x);
+      minY = Math.min(minY, t.y);
+      maxX = Math.max(maxX, t.x + TILE_W);
+      maxY = Math.max(maxY, t.y + tileEstHeight(t));
+    });
     const pad = 60;
     const cw = el.clientWidth, ch = el.clientHeight;
     const scale = Math.min(1, Math.max(MIN_SCALE, Math.min((cw - pad * 2) / (maxX - minX), (ch - pad * 2) / (maxY - minY))));
@@ -369,7 +424,7 @@ export function InfiniteCanvas() {
       x: (cw - (maxX - minX) * scale) / 2 - minX * scale,
       y: (ch - (maxY - minY) * scale) / 2 - minY * scale,
     });
-  }, [frames, flows]);
+  }, [frames, flows, creatives]);
 
   /* ── Frame → chat context (Notice → Propose → Authorize entry point) ── */
 
@@ -447,6 +502,17 @@ export function InfiniteCanvas() {
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`, transformOrigin: "0 0" }}
       >
         <FlowWires flows={flows} />
+        {creatives.map((tile) => (
+          <AdTileCard
+            key={tile.id}
+            tile={tile}
+            scale={viewport.scale}
+            onMove={moveTile}
+            onDecide={decideTile}
+            onDelete={setDeletingTileId}
+            onAsk={askAboutTile}
+          />
+        ))}
         {flows.map((flow) =>
           flow.nodes.map((node) => (
             <FlowNodeCard
@@ -546,6 +612,17 @@ export function InfiniteCanvas() {
                   </span>
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => { addCreativeBoard(); setAddOpen(false); }}
+                className="flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
+              >
+                <ImageIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] text-foreground">Creative review board</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">Live ads vs proposed variants — approve the refresh</span>
+                </span>
+              </button>
               <div className="mt-1 border-t border-border pt-1.5 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Saved artifacts
               </div>
@@ -576,7 +653,7 @@ export function InfiniteCanvas() {
       </div>
 
       {/* Empty state */}
-      {loaded && frames.length === 0 && flows.length === 0 && (
+      {loaded && frames.length === 0 && flows.length === 0 && creatives.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="max-w-sm text-center">
             <Frame className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
@@ -602,6 +679,18 @@ export function InfiniteCanvas() {
           setDeletingFlowId(null);
         }}
         onCancel={() => setDeletingFlowId(null)}
+      />
+      <ConfirmDialog
+        open={deletingTileId !== null}
+        title="Delete this creative?"
+        description={`"${creatives.find((t) => t.id === deletingTileId)?.headline ?? "Creative"}" will be removed from the canvas and the library.`}
+        confirmLabel="Delete creative"
+        destructive
+        onConfirm={() => {
+          setCreatives((prev) => prev.filter((t) => t.id !== deletingTileId));
+          setDeletingTileId(null);
+        }}
+        onCancel={() => setDeletingTileId(null)}
       />
 
       {/* Interaction hint */}

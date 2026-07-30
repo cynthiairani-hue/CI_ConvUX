@@ -123,7 +123,7 @@ export function ensureAgencySeed(): AgencyClient[] {
 const ACTIVE_CLIENT_KEY = "fuseiq-active-client";
 const WORKSPACE_KEYS = [
   "fuseiq-strategies", "fuseiq-media-plans", "fuseiq-advertisers", "fuseiq-audiences",
-  "fuseiq-narratives", "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions", "fuseiq-canvas", "fuseiq-flows",
+  "fuseiq-narratives", "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions", "fuseiq-canvas", "fuseiq-flows", "fuseiq-creatives",
 ];
 
 export interface ActiveClient {

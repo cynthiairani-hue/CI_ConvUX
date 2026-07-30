@@ -1,10 +1,12 @@
 import type { StrategyPlan, Advertiser, CFONarrative, AudienceSegment, ApprovalRequest, CompetitiveBrief, MediaPlan } from "@/types/campaign";
 import type { CanvasWorkspace } from "@/types/canvas";
 import type { OrchestrationFlow } from "@/types/orchestration";
+import type { AdTile } from "@/types/creative";
 
 const STRATEGIES_KEY = "fuseiq-strategies";
 const CANVAS_KEY = "fuseiq-canvas";
 const FLOWS_KEY = "fuseiq-flows";
+const CREATIVES_KEY = "fuseiq-creatives";
 const MEDIA_PLANS_KEY = "fuseiq-media-plans";
 const ADVERTISERS_KEY = "fuseiq-advertisers";
 const NARRATIVES_KEY = "fuseiq-narratives";
@@ -121,6 +123,14 @@ export function loadFlows(): OrchestrationFlow[] {
 
 export function persistFlows(flows: OrchestrationFlow[]): void {
   safeSet(FLOWS_KEY, flows);
+}
+
+export function loadCreatives(): AdTile[] {
+  return safeGet<AdTile[]>(CREATIVES_KEY, []);
+}
+
+export function persistCreatives(creatives: AdTile[]): void {
+  safeSet(CREATIVES_KEY, creatives);
 }
 
 export function loadMediaPlans(): MediaPlan[] {
