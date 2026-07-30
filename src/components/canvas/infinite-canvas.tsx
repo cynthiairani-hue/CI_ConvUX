@@ -47,6 +47,7 @@ import { buildCreativeReviewBoard } from "@/data/creative-templates";
 import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
 import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
 import { ReviewBoardHeaderCard, BOARD_W, BOARD_EST_H } from "@/components/canvas/review-board-card";
+import { PlanGraph, PlanComposedBody, planGraphExtent } from "@/components/canvas/plan-graph";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -314,10 +315,25 @@ export function InfiniteCanvas() {
   const toggleExpandLines = useCallback((id: string) => {
     setFrames((prev) => {
       const maxZ = prev.reduce((m, f) => Math.max(m, f.z), 0);
-      // Expanding is an act of focus — the plan and its line nodes come to front.
+      // Expanding is an act of focus — the plan and its graph come to front.
       return prev.map((f) => (f.id === id ? { ...f, expandedLines: !f.expandedLines, z: maxZ + 1 } : f));
     });
   }, []);
+
+  const toggleStage = useCallback((frameId: string, stage: string) => {
+    setFrames((prev) => prev.map((f) => {
+      if (f.id !== frameId) return f;
+      const set = new Set(f.expandedStages ?? []);
+      if (set.has(stage)) set.delete(stage); else set.add(stage);
+      return { ...f, expandedStages: Array.from(set) };
+    }));
+  }, []);
+
+  /** Every graph action writes through the same artifact + recalc path. */
+  const updatePlanFromGraph = useCallback((updated: import("@/types/campaign").MediaPlan, toast?: string) => {
+    saveMediaPlan(updated);
+    if (toast) showToast(toast);
+  }, [saveMediaPlan, showToast]);
 
   /* ── Flow management (the orchestration layer) ── */
 
@@ -619,8 +635,9 @@ export function InfiniteCanvas() {
     frames.filter((f) => f.kind === "media-plan" && f.expandedLines).forEach((f) => {
       const plan = savedMediaPlans.find((p) => p.id === f.refId);
       if (!plan) return;
-      maxX = Math.max(maxX, f.x + f.w + LINE_NODE_OFFSET_X + LINE_NODE_W);
-      maxY = Math.max(maxY, f.y + plan.campaigns.length * (LINE_NODE_H + LINE_NODE_GAP));
+      const ext = planGraphExtent(f, plan);
+      maxX = Math.max(maxX, ext.maxX);
+      maxY = Math.max(maxY, ext.maxY);
     });
     const pad = 60;
     const cw = el.clientWidth, ch = el.clientHeight;
@@ -712,7 +729,7 @@ export function InfiniteCanvas() {
         {frames.filter((f) => f.kind === "media-plan" && f.expandedLines).map((f) => {
           const plan = savedMediaPlans.find((p) => p.id === f.refId);
           return plan ? (
-            <PlanLineNodes key={`lines-${f.id}`} frame={f} plan={plan} planLive={plan.reviewState === "active"} />
+            <PlanGraph key={`graph-${f.id}`} frame={f} plan={plan} onUpdate={updatePlanFromGraph} onToggleStage={toggleStage} />
           ) : null;
         })}
         {boards.map((board) => (
@@ -763,6 +780,14 @@ export function InfiniteCanvas() {
             lod={viewport.scale < LOD_THRESHOLD}
             expandable={frame.kind === "media-plan"}
             onToggleExpand={toggleExpandLines}
+            composedBody={
+              frame.kind === "media-plan" && frame.expandedLines
+                ? (() => {
+                    const p = savedMediaPlans.find((x) => x.id === frame.refId);
+                    return p ? <PlanComposedBody plan={p} onUpdate={updatePlanFromGraph} /> : null;
+                  })()
+                : null
+            }
             scale={viewport.scale}
             onMove={moveFrame}
             onFocus={bringToFront}
@@ -994,6 +1019,7 @@ function FrameShell({
   lod,
   expandable,
   onToggleExpand,
+  composedBody,
   scale,
   onMove,
   onFocus,
@@ -1008,6 +1034,7 @@ function FrameShell({
   lod: boolean;
   expandable: boolean;
   onToggleExpand: (id: string) => void;
+  composedBody?: React.ReactNode;
   scale: number;
   onMove: (id: string, x: number, y: number) => void;
   onFocus: (id: string) => void;
@@ -1111,7 +1138,11 @@ function FrameShell({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      {lod ? (
+      {composedBody ? (
+        /* Decomposed view — the graph beside the frame carries the detail;
+           the frame itself becomes the compact plan node with its actions. */
+        composedBody
+      ) : lod ? (
         /* Low-zoom cover — big type that stays legible when scaled down.
            Zooming past the threshold dissolves it into the real editable card. */
         <div className="p-7">
@@ -1139,85 +1170,5 @@ function FrameShell({
         <div className="cursor-auto p-3">{children}</div>
       )}
     </div>
-  );
-}
-
-/* ── Line/campaign nodes unfurled beside a media-plan frame ──
-   Derived from the plan itself (no separate state): they follow the frame,
-   collapse cleanly, and read as compact status cards wired to their plan. */
-
-const LINE_NODE_W = 300;
-const LINE_NODE_H = 92;
-const LINE_NODE_GAP = 14;
-const LINE_NODE_OFFSET_X = 90;
-
-const STAGE_DOT: Record<string, string> = {
-  awareness: "bg-violet-500",
-  consideration: "bg-blue-500",
-  conversion: "bg-emerald-500",
-};
-
-function PlanLineNodes({ frame, plan, planLive }: {
-  frame: CanvasFrame;
-  plan: MediaPlan;
-  planLive: boolean;
-}) {
-  const nx = frame.x + frame.w + LINE_NODE_OFFSET_X;
-  const px = frame.x + frame.w; // fan-out port on the plan frame
-  const py = frame.y + 56;
-  return (
-    <>
-      <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: frame.z }} aria-hidden>
-        {plan.campaigns.map((c, i) => {
-          const ny = frame.y + i * (LINE_NODE_H + LINE_NODE_GAP) + LINE_NODE_H / 2;
-          const live = planLive && c.enabled;
-          return (
-            <path
-              key={c.id}
-              d={`M ${px} ${py} C ${px + 45} ${py}, ${nx - 45} ${ny}, ${nx} ${ny}`}
-              fill="none"
-              stroke={live ? "#10B981" : "hsl(var(--muted-foreground) / 0.35)"}
-              strokeWidth={1.5}
-              strokeDasharray={live ? undefined : "6 4"}
-            />
-          );
-        })}
-      </svg>
-      {plan.campaigns.map((c, i) => {
-        const live = planLive && c.enabled;
-        return (
-          <div
-            key={c.id}
-            data-canvas-frame
-            className={cn(
-              "absolute rounded-xl border border-border bg-white px-3 py-2.5 shadow-[0px_2px_8px_rgba(71,88,114,0.06)]",
-              !c.enabled && "opacity-60"
-            )}
-            style={{ left: nx, top: frame.y + i * (LINE_NODE_H + LINE_NODE_GAP), width: LINE_NODE_W, height: LINE_NODE_H, zIndex: frame.z }}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STAGE_DOT[c.funnelStage] ?? "bg-muted-foreground/50")} />
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{c.funnelStage}</span>
-              {live ? (
-                <span className="ml-auto flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
-                  <span className="h-1 w-1 rounded-full bg-emerald-500" />
-                  Live
-                </span>
-              ) : (
-                <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  {c.enabled ? "In plan" : "Off"}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 truncate text-[13px] font-medium text-foreground">{c.label}</p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              ${c.budget.toLocaleString()}
-              {c.forecast.impressions > 0 && ` · ${(c.forecast.impressions / 1_000_000).toFixed(1)}M impr`}
-              {c.forecast.conversions > 0 && ` · ${c.forecast.conversions.toLocaleString()} conv`}
-            </p>
-          </div>
-        );
-      })}
-    </>
   );
 }

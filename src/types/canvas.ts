@@ -18,8 +18,10 @@ export interface CanvasFrame {
   w: number;
   /** stacking order — click/drag brings to front */
   z: number;
-  /** media plans only: line/campaign nodes unfurled beside the frame */
+  /** media plans only: the plan is decomposed into a node graph beside the frame */
   expandedLines?: boolean;
+  /** media plans only: which funnel stages have their line nodes unfurled */
+  expandedStages?: string[];
 }
 
 export interface CanvasViewport {
