@@ -1474,17 +1474,34 @@ function FrameShell({
           </span>
         )}
         {expandable && (
-          <button
-            type="button"
-            onClick={() => onToggleExpand(frame.id)}
-            className={cn(
-              "flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-accent",
-              frame.expandedLines ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-            title={frame.expandedLines ? "Collapse lines" : "Show lines beside the plan"}
-          >
-            <ListTree className="h-3.5 w-3.5" />
-          </button>
+          /* Two modalities, one artifact: the SAME plan as a dense editable
+             table or as the wired workflow. The pairing is the value prop —
+             so it gets words, not an icon. */
+          <div className="flex shrink-0 items-center rounded-lg border border-border p-0.5">
+            <button
+              type="button"
+              onClick={() => { if (frame.expandedLines) onToggleExpand(frame.id); }}
+              className={cn(
+                "rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
+                !frame.expandedLines ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+              )}
+              title="The full plan as an editable table"
+            >
+              Table
+            </button>
+            <button
+              type="button"
+              onClick={() => { if (!frame.expandedLines) onToggleExpand(frame.id); }}
+              className={cn(
+                "flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
+                frame.expandedLines ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+              )}
+              title="The same plan as a wired workflow — stages, lines, creatives, audiences"
+            >
+              <ListTree className="h-3 w-3" />
+              Workflow
+            </button>
+          </div>
         )}
         <button
           type="button"
