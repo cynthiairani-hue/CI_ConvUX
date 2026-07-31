@@ -48,8 +48,22 @@ export interface ReviewBoardCard {
   y: number;
 }
 
+/* ── Marketplace data segment placed on the canvas ──
+   Third-party segments from the data marketplace, draggable like any node.
+   `attachedTo` wires it to a first-party audience (extend it with paid data)
+   — the attach decision always shows the CPM first. */
+export interface MarketNode {
+  id: string;
+  segmentId: string;
+  x: number;
+  y: number;
+  /** refId of the saved audience this segment extends, once attached */
+  attachedTo?: string;
+}
+
 export interface CanvasWorkspace {
   viewport: CanvasViewport;
   frames: CanvasFrame[];
   boards?: ReviewBoardCard[];
+  market?: MarketNode[];
 }

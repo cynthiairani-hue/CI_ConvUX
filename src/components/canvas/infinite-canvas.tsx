@@ -41,7 +41,9 @@ import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
 import { loadCanvas, persistCanvas, loadFlows, persistFlows, loadCreatives, persistCreatives } from "@/lib/storage";
-import type { CanvasFrame, CanvasFrameKind, CanvasViewport, ReviewBoardCard as ReviewBoardCardType } from "@/types/canvas";
+import type { CanvasFrame, CanvasFrameKind, CanvasViewport, MarketNode, ReviewBoardCard as ReviewBoardCardType } from "@/types/canvas";
+import { MARKETPLACE_SEGMENTS, marketplaceSegment, audienceForLine } from "@/data/marketplace";
+import { MarketNodeCard, MARKET_W, MARKET_H } from "@/components/canvas/market-node";
 import type { OrchestrationFlow } from "@/types/orchestration";
 import type { AdTile } from "@/types/creative";
 import { FLOW_TEMPLATES, createFlowFromTemplate } from "@/data/flow-templates";
@@ -129,6 +131,7 @@ export function InfiniteCanvas() {
   const [boards, setBoards] = useState<ReviewBoardCardType[]>([]);
   const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [market, setMarket] = useState<MarketNode[]>([]);
 
   /* Live refs so placement always reads current content, even when several
      adds land in the same React tick (rapid clicking, chat captures). */
@@ -142,6 +145,8 @@ export function InfiniteCanvas() {
   boardsRef.current = boards;
   const framesRef = useRef(frames);
   framesRef.current = frames;
+  const marketRef = useRef(market);
+  marketRef.current = market;
 
   const artifactName = useCallback((kind: CanvasFrameKind, refId: string): string | null => {
     switch (kind) {
@@ -200,6 +205,7 @@ export function InfiniteCanvas() {
       // Drop frames whose artifact was deleted since last visit.
       setFrames(stored.frames.filter((f) => artifactName(f.kind, f.refId) !== null));
       setBoards(stored.boards ?? []);
+      setMarket(stored.market ?? []);
     } else {
       // First visit: seed the board from the most recent saved artifacts.
       const picks: { kind: CanvasFrameKind; refId: string }[] = [];
@@ -221,8 +227,8 @@ export function InfiniteCanvas() {
   }, [hydrated, loaded, artifactName, savedStrategies, savedMediaPlans, savedAudiences, savedNarratives, savedBriefs]);
 
   useEffect(() => {
-    if (loaded) persistCanvas({ viewport, frames, boards });
-  }, [viewport, frames, boards, loaded]);
+    if (loaded) persistCanvas({ viewport, frames, boards, market });
+  }, [viewport, frames, boards, market, loaded]);
 
   useEffect(() => {
     if (!hydrated || flowsLoaded) return;
@@ -261,6 +267,7 @@ export function InfiniteCanvas() {
     flowsRef.current.forEach((fl) => fl.nodes.forEach((n) => rects.push({ x: n.x, y: n.y, w: NODE_W, h: NODE_EST_H[n.kind] })));
     creativesRef.current.forEach((t) => rects.push({ x: t.x, y: t.y, w: TILE_W, h: tileEstHeight(t) }));
     boardsRef.current.forEach((b) => rects.push({ x: b.x, y: b.y, w: BOARD_W, h: BOARD_EST_H }));
+    marketRef.current.forEach((m) => rects.push({ x: m.x, y: m.y, w: MARKET_W, h: MARKET_H }));
     return rects;
   }, []);
 
@@ -492,9 +499,36 @@ export function InfiniteCanvas() {
     setFlows([]);
     setCreatives([]);
     setBoards([]);
+    setMarket([]);
     setConfirmingClear(false);
     showToast("Canvas cleared — saved artifacts are still in your workspace");
   }, [showToast]);
+
+  /* ── Marketplace segment nodes ── */
+
+  const addMarketNode = useCallback((segmentId: string) => {
+    const c = viewCenter();
+    const spot = findFreeSpot(MARKET_W, MARKET_H, c.x - MARKET_W / 2, c.y - MARKET_H / 2);
+    setMarket((prev) => [...prev, { id: `mkt-${Date.now().toString(36)}`, segmentId, x: spot.x, y: spot.y }]);
+  }, [findFreeSpot, viewCenter]);
+
+  const moveMarketNode = useCallback((id: string, x: number, y: number) => {
+    setMarket((prev) => prev.map((m) => (m.id === id ? { ...m, x, y } : m)));
+  }, []);
+
+  const attachMarketNode = useCallback((nodeId: string, audienceId: string | null) => {
+    const node = market.find((m) => m.id === nodeId);
+    const seg = node && marketplaceSegment(node.segmentId);
+    setMarket((prev) => prev.map((m) => (m.id === nodeId ? { ...m, attachedTo: audienceId ?? undefined } : m)));
+    if (audienceId) {
+      const aud = savedAudiences.find((a) => a.id === audienceId);
+      // Make the extension visible: the audience joins the canvas and the wire draws.
+      addFrame("audience", audienceId);
+      showToast(`${seg?.name ?? "Segment"} attached — extends ${aud?.name ?? "audience"} at $${seg?.cpm.toFixed(2)} CPM on matched impressions`);
+    } else {
+      showToast("Segment detached — no data cost while unattached");
+    }
+  }, [market, savedAudiences, addFrame, showToast]);
 
   /* ── Creative tiles (images as exhibits in a decision) ── */
 
@@ -665,6 +699,12 @@ export function InfiniteCanvas() {
       maxX = Math.max(maxX, b.x + BOARD_W);
       maxY = Math.max(maxY, b.y + BOARD_EST_H);
     });
+    market.forEach((m) => {
+      minX = Math.min(minX, m.x);
+      minY = Math.min(minY, m.y);
+      maxX = Math.max(maxX, m.x + MARKET_W);
+      maxY = Math.max(maxY, m.y + MARKET_H);
+    });
     frames.filter((f) => f.kind === "media-plan" && f.expandedLines).forEach((f) => {
       const plan = savedMediaPlans.find((p) => p.id === f.refId);
       if (!plan) return;
@@ -680,7 +720,7 @@ export function InfiniteCanvas() {
       x: (cw - (maxX - minX) * scale) / 2 - minX * scale,
       y: (ch - (maxY - minY) * scale) / 2 - minY * scale,
     });
-  }, [frames, flows, creatives, boards, savedMediaPlans]);
+  }, [frames, flows, creatives, boards, market, savedMediaPlans]);
 
   /* ── Frame → chat context (Notice → Propose → Authorize entry point) ── */
 
@@ -759,6 +799,45 @@ export function InfiniteCanvas() {
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`, transformOrigin: "0 0" }}
       >
         <FlowWires flows={flows} />
+        {/* Marketplace attachment wires — dotted: a data feed, not a build step */}
+        <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} aria-hidden>
+          {market.filter((m) => m.attachedTo).map((m) => {
+            const f = frames.find((fr) => fr.kind === "audience" && fr.refId === m.attachedTo);
+            if (!f) return null;
+            const sx = m.x + MARKET_W, sy = m.y + 48;
+            const tx = f.x, ty = f.y + 90;
+            return (
+              <g key={`wire-${m.id}`}>
+                <path
+                  d={`M ${sx} ${sy} C ${sx + 60} ${sy}, ${tx - 60} ${ty}, ${tx} ${ty}`}
+                  fill="none"
+                  stroke="hsl(var(--muted-foreground) / 0.5)"
+                  strokeWidth={1.25}
+                  strokeDasharray="2 4"
+                />
+                <circle cx={sx} cy={sy} r={3.5} fill="white" stroke="hsl(var(--muted-foreground) / 0.5)" strokeWidth={1.5} />
+                <circle cx={tx} cy={ty} r={3.5} fill="white" stroke="hsl(var(--muted-foreground) / 0.5)" strokeWidth={1.5} />
+              </g>
+            );
+          })}
+        </svg>
+        {market.map((m) => {
+          const seg = marketplaceSegment(m.segmentId);
+          if (!seg) return null;
+          return (
+            <MarketNodeCard
+              key={m.id}
+              node={m}
+              segment={seg}
+              attachedName={m.attachedTo ? savedAudiences.find((a) => a.id === m.attachedTo)?.name ?? null : null}
+              isInspected={inspected?.kind === "market" && inspected.nodeId === m.id}
+              scale={viewport.scale}
+              onMove={moveMarketNode}
+              onInspect={() => setInspected({ kind: "market", nodeId: m.id })}
+              onRemove={(id) => setMarket((prev) => prev.filter((x) => x.id !== id))}
+            />
+          );
+        })}
         {frames.filter((f) => f.kind === "media-plan" && f.expandedLines).map((f) => {
           const plan = savedMediaPlans.find((p) => p.id === f.refId);
           return plan ? (
@@ -766,6 +845,7 @@ export function InfiniteCanvas() {
               key={`graph-${f.id}`}
               frame={f}
               plan={plan}
+              audiences={savedAudiences}
               onUpdate={updatePlanFromGraph}
               onToggleStage={toggleStage}
               selected={selectedLines}
@@ -936,6 +1016,25 @@ export function InfiniteCanvas() {
                 </span>
               </button>
               <div className="mt-1 border-t border-border pt-1.5 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Data marketplace
+              </div>
+              {MARKETPLACE_SEGMENTS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => { addMarketNode(s.id); setAddOpen(false); }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] text-foreground">{s.name}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{s.provider} · {s.reach}</span>
+                  </span>
+                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-foreground">
+                    ${s.cpm.toFixed(2)} CPM
+                  </span>
+                </button>
+              ))}
+              <div className="mt-1 border-t border-border pt-1.5 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Saved artifacts
               </div>
               {unframed.length === 0 ? (
@@ -983,6 +1082,120 @@ export function InfiniteCanvas() {
       {/* Inspector — click a graph node to see and act on it (Flora-style) */}
       {(() => {
         if (!inspected) return null;
+        const shell = (title: React.ReactNode, chip: React.ReactNode, body: React.ReactNode) => (
+          <div data-canvas-ui className="absolute right-4 top-4 z-40 w-72 rounded-xl border border-border bg-white shadow-lg">
+            <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
+              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{title}</span>
+              {chip}
+              <button
+                type="button"
+                onClick={() => setInspected(null)}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="Close"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {body}
+          </div>
+        );
+        const metaRow = (label: string, value: React.ReactNode) => (
+          <div className="flex items-baseline justify-between gap-3 py-1">
+            <span className="text-[11px] text-muted-foreground">{label}</span>
+            <span className="text-right text-[12px] font-medium text-foreground">{value}</span>
+          </div>
+        );
+
+        if (inspected.kind === "audience") {
+          const aud = savedAudiences.find((a) => a.id === inspected.audienceId);
+          if (!aud) return null;
+          // Blast radius: every line, in every plan, that targets this segment.
+          const usedBy = savedMediaPlans.flatMap((p) =>
+            p.campaigns.filter((l) => audienceForLine(l, savedAudiences)?.id === aud.id).map((l) => `${p.name} — ${l.label}`)
+          );
+          const feeds = market.filter((m) => m.attachedTo === aud.id).map((m) => marketplaceSegment(m.segmentId)?.name).filter(Boolean);
+          return shell(
+            aud.name,
+            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{aud.status}</span>,
+            <>
+              <div className="px-3.5 py-2">
+                {metaRow("Type", aud.type.replace("-", " "))}
+                {metaRow("Est. size", aud.estimatedSize)}
+                {aud.platforms.length > 0 && metaRow("Platforms", aud.platforms.join(", "))}
+                {aud.type === "lookalike" && metaRow("Segment TTL", "expires in 6 days")}
+                {feeds.length > 0 && metaRow("Data feeds", feeds.join(", "))}
+              </div>
+              {usedBy.length > 0 && (
+                <div className="border-t border-border px-3.5 py-2">
+                  <p className="pb-1 text-[11px] text-muted-foreground">Used by {usedBy.length} {usedBy.length === 1 ? "line" : "lines"} — changes here reach all of them</p>
+                  {usedBy.slice(0, 5).map((u) => (
+                    <p key={u} className="truncate py-0.5 text-[12px] text-foreground">{u}</p>
+                  ))}
+                </div>
+              )}
+              <div className="border-t border-border px-3.5 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => { addFrame("audience", aud.id); setInspected(null); }}
+                  className="w-full rounded-lg border border-border py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+                >
+                  Open the full audience on the canvas
+                </button>
+              </div>
+            </>
+          );
+        }
+
+        if (inspected.kind === "market") {
+          const node = market.find((m) => m.id === inspected.nodeId);
+          const seg = node && marketplaceSegment(node.segmentId);
+          if (!node || !seg) return null;
+          const attached = node.attachedTo ? savedAudiences.find((a) => a.id === node.attachedTo) : null;
+          return shell(
+            seg.name,
+            <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-foreground">${seg.cpm.toFixed(2)} CPM</span>,
+            <>
+              <div className="px-3.5 py-2">
+                {metaRow("Provider", seg.provider)}
+                {metaRow("Category", seg.category)}
+                {metaRow("Reach", seg.reach)}
+                {metaRow("Price", `$${seg.cpm.toFixed(2)} CPM on matched impressions`)}
+                <p className="pt-1.5 text-[11px] leading-4 text-muted-foreground">{seg.description}</p>
+                <p className="pt-1.5 text-[10.5px] text-muted-foreground/70">No cost until attached and the lines using it run.</p>
+              </div>
+              <div className="border-t border-border px-3.5 py-2.5">
+                {attached ? (
+                  <button
+                    type="button"
+                    onClick={() => attachMarketNode(node.id, null)}
+                    className="w-full rounded-lg border border-border py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+                  >
+                    Detach from {attached.name}
+                  </button>
+                ) : (
+                  <>
+                    <p className="pb-1.5 text-[11px] text-muted-foreground">Attach to extend an audience</p>
+                    <div className="max-h-36 space-y-1 overflow-y-auto">
+                      {savedAudiences.map((a) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => attachMarketNode(node.id, a.id)}
+                          className="flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-left transition-colors hover:bg-accent"
+                        >
+                          <Users className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">{a.name}</span>
+                          <span className="shrink-0 text-[10px] text-muted-foreground">{a.estimatedSize}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          );
+        }
+
         const plan = savedMediaPlans.find((p) => p.id === inspected.planId);
         const line = plan?.campaigns.find((c) => c.id === inspected.lineId);
         if (!plan || !line) return null;

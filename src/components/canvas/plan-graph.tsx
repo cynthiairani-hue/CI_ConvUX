@@ -9,12 +9,13 @@
    the inspector. One artifact, three modalities. */
 
 import { useState } from "react";
-import { Check, ChevronDown, ChevronRight, Copy, Image as ImageIcon, Layers, Pause, Play, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Image as ImageIcon, Layers, Pause, Play, Trash2, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CanvasFrame } from "@/types/canvas";
-import type { FunnelStage, MediaCampaign, MediaPlan } from "@/types/campaign";
+import type { AudienceSegment, FunnelStage, MediaCampaign, MediaPlan } from "@/types/campaign";
 import { recalcMediaPlan, editCampaignBudget } from "@/data/media-plan-flow";
 import { CHANNEL_CREATIVE, FALLBACK_CREATIVE } from "@/data/creative-templates";
+import { audienceForLine } from "@/data/marketplace";
 
 const STAGE_W = 260;
 const STAGE_H = 96;
@@ -24,9 +25,13 @@ const LINE_H = 118;
 const LINE_GAP = 24;
 const CRE_W = 200;
 const CRE_H = 112; // 16:9 thumb at 200w
+const AUD_W = 240;
+const AUD_H = 84;
+const AUD_GAP = 22;
 const COL_GAP_1 = 100; // frame → stages
 const COL_GAP_2 = 80;  // stage → lines
 const COL_GAP_3 = 80;  // line → creative
+const COL_GAP_4 = 90;  // creative → audience
 
 const STAGE_ORDER: FunnelStage[] = ["awareness", "consideration", "conversion"];
 
@@ -36,11 +41,10 @@ const STAGE_META: Record<FunnelStage, { label: string; dot: string }> = {
   conversion: { label: "Conversion", dot: "bg-emerald-500" },
 };
 
-export interface InspectTarget {
-  planId: string;
-  lineId: string;
-  kind: "line" | "creative";
-}
+export type InspectTarget =
+  | { kind: "line" | "creative"; planId: string; lineId: string }
+  | { kind: "audience"; audienceId: string }
+  | { kind: "market"; nodeId: string };
 
 interface StageLayout {
   stage: FunnelStage;
@@ -72,7 +76,7 @@ export function planGraphExtent(frame: CanvasFrame, plan: MediaPlan): { maxX: nu
   const maxY = last
     ? last.y + (last.expanded ? Math.max(STAGE_H, last.lines.length * (LINE_H + LINE_GAP) - LINE_GAP) : STAGE_H)
     : frame.y;
-  const maxX = frame.x + frame.w + COL_GAP_1 + STAGE_W + (anyExpanded ? COL_GAP_2 + LINE_W + COL_GAP_3 + CRE_W : 0);
+  const maxX = frame.x + frame.w + COL_GAP_1 + STAGE_W + (anyExpanded ? COL_GAP_2 + LINE_W + COL_GAP_3 + CRE_W + COL_GAP_4 + AUD_W : 0);
   return { maxX, maxY };
 }
 
@@ -152,9 +156,10 @@ export function PlanComposedBody({ plan, onUpdate }: {
 
 /* ── The graph ── */
 
-export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onToggleSelect, onSelectAll, onClearSelection, onRequestRemove, inspected, onInspect }: {
+export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, selected, onToggleSelect, onSelectAll, onClearSelection, onRequestRemove, inspected, onInspect }: {
   frame: CanvasFrame;
   plan: MediaPlan;
+  audiences: AudienceSegment[];
   onUpdate: (updated: MediaPlan, toast?: string) => void;
   onToggleStage: (frameId: string, stage: string) => void;
   selected: Set<string>;
@@ -170,7 +175,34 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
   const stageX = frame.x + frame.w + COL_GAP_1;
   const lineX = stageX + STAGE_W + COL_GAP_2;
   const creX = lineX + LINE_W + COL_GAP_3;
+  const audX = creX + CRE_W + COL_GAP_4;
   const planPort = { x: frame.x + frame.w, y: frame.y + 48 };
+
+  /* Audience column — unique segments the expanded lines target, each one a
+     shared node so the blast radius of an audience change is visible. */
+  const lineY = new Map<string, number>();
+  stages.filter((s) => s.expanded).forEach((s) =>
+    s.lines.forEach((c, i) => lineY.set(c.id, s.y + i * (LINE_H + LINE_GAP)))
+  );
+  const audienceRows: { audience: AudienceSegment; lineIds: string[]; y: number }[] = [];
+  {
+    let cursor = frame.y;
+    const seen = new Map<string, number>();
+    stages.filter((s) => s.expanded).forEach((s) =>
+      s.lines.forEach((c) => {
+        const a = audienceForLine(c, audiences);
+        if (!a) return;
+        const idx = seen.get(a.id);
+        if (idx !== undefined) {
+          audienceRows[idx].lineIds.push(c.id);
+        } else {
+          seen.set(a.id, audienceRows.length);
+          audienceRows.push({ audience: a, lineIds: [c.id], y: cursor });
+          cursor += AUD_H + AUD_GAP;
+        }
+      })
+    );
+  }
 
   function toggleLine(c: MediaCampaign) {
     const campaigns = plan.campaigns.map((x) => (x.id === c.id ? { ...x, enabled: !x.enabled } : x));
@@ -198,26 +230,31 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
   }
 
   const wireStroke = (isLive: boolean) => (isLive ? "#10B981" : "hsl(var(--muted-foreground) / 0.35)");
+  const inspectedLineId = inspected && (inspected.kind === "line" || inspected.kind === "creative") ? inspected.lineId : null;
+  const inspectedKind = inspected?.kind ?? null;
 
   return (
     <>
-      {/* Selection bar — the bulk verbs, above the stage column */}
+      {/* Selection bar — appears only once something is checked; checking is a
+          rare bulk-edit gesture, so it stays out of the way until then */}
+      {selectedHere.length > 0 && (
       <div
         data-canvas-frame
-        className="absolute flex items-center gap-1 rounded-lg border border-border bg-white px-2 py-1.5 shadow-sm"
-        style={{ left: stageX, top: frame.y - 64, zIndex: frame.z }}
+        className="absolute flex items-center gap-1 rounded-lg border border-border bg-white px-2 py-1.5 shadow-md"
+        style={{ left: lineX, top: frame.y - 64, zIndex: frame.z + 1 }}
       >
-        {selectedHere.length === 0 ? (
-          <button
-            type="button"
-            onClick={() => onSelectAll(planLineIds)}
-            className="rounded-md px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            Select all lines
-          </button>
-        ) : (
           <>
             <span className="px-1.5 text-[12px] font-medium text-foreground">{selectedHere.length} selected</span>
+            {selectedHere.length < planLineIds.length && (
+              <button
+                type="button"
+                onClick={() => onSelectAll(planLineIds)}
+                className="rounded-md px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                title="Select every line in the plan"
+              >
+                All
+              </button>
+            )}
             <span className="mx-0.5 h-4 w-px bg-border" />
             <button
               type="button"
@@ -253,8 +290,8 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
               <X className="h-3.5 w-3.5" />
             </button>
           </>
-        )}
       </div>
+      )}
 
       {/* Wires + ports */}
       <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} style={{ zIndex: frame.z }} aria-hidden>
@@ -301,6 +338,26 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
             </g>
           );
         })}
+        {/* line → audience (shared nodes collect wires from every line that targets them) */}
+        {audienceRows.map((row) =>
+          row.lineIds.map((lineId) => {
+            const ly = (lineY.get(lineId) ?? frame.y) + LINE_H / 2;
+            const ay = row.y + AUD_H / 2;
+            const line = plan.campaigns.find((c) => c.id === lineId);
+            const isLive = live && !!line?.enabled;
+            return (
+              <g key={`${row.audience.id}-${lineId}`}>
+                <path
+                  d={`M ${lineX + LINE_W} ${ly} C ${lineX + LINE_W + 140} ${ly}, ${audX - 60} ${ay}, ${audX} ${ay}`}
+                  fill="none"
+                  stroke={wireStroke(isLive)}
+                  strokeWidth={1.25}
+                />
+                <circle cx={audX} cy={ay} r={3.5} fill="white" stroke={wireStroke(isLive)} strokeWidth={1.5} />
+              </g>
+            );
+          })
+        )}
       </svg>
 
       {/* Stage nodes */}
@@ -339,7 +396,7 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
           const y = s.y + i * (LINE_H + LINE_GAP);
           const lineLive = live && c.enabled;
           const cre = creativeFor(c);
-          const isInspected = inspected?.lineId === c.id;
+          const isInspected = inspectedLineId === c.id;
           return (
             <div key={c.id}>
               <LineNode
@@ -349,7 +406,8 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
                 y={y}
                 z={frame.z}
                 isSelected={selected.has(c.id)}
-                isInspected={isInspected && inspected?.kind === "line"}
+                anySelection={selectedHere.length > 0}
+                isInspected={isInspected && inspectedKind === "line"}
                 onSelect={() => onToggleSelect(c.id)}
                 onInspect={() => onInspect({ planId: plan.id, lineId: c.id, kind: "line" })}
                 onToggle={() => toggleLine(c)}
@@ -363,7 +421,7 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
                 onClick={() => onInspect({ planId: plan.id, lineId: c.id, kind: "creative" })}
                 className={cn(
                   "absolute cursor-pointer overflow-hidden rounded-xl border bg-white shadow-[0px_2px_8px_rgba(71,88,114,0.06)] transition-shadow hover:shadow-[0px_4px_14px_rgba(71,88,114,0.14)]",
-                  isInspected && inspected?.kind === "creative" ? "border-foreground/50 ring-1 ring-foreground/20" : "border-border",
+                  isInspected && inspectedKind === "creative" ? "border-foreground/50 ring-1 ring-foreground/20" : "border-border",
                   !c.enabled && "opacity-60"
                 )}
                 style={{ left: creX, top: y, width: CRE_W, height: CRE_H, zIndex: frame.z }}
@@ -385,17 +443,57 @@ export function PlanGraph({ frame, plan, onUpdate, onToggleStage, selected, onTo
           );
         })
       )}
+
+      {/* Audience nodes — shared segments; multiple lines wiring into one node
+          makes the blast radius of an audience change visible */}
+      {audienceRows.map(({ audience, lineIds, y }) => {
+        const anyLive = live && lineIds.some((id) => plan.campaigns.find((c) => c.id === id)?.enabled);
+        const isInspected = inspected?.kind === "audience" && inspected.audienceId === audience.id;
+        return (
+          <div
+            key={audience.id}
+            data-canvas-frame
+            onClick={() => onInspect({ kind: "audience", audienceId: audience.id })}
+            className={cn(
+              "absolute cursor-pointer rounded-xl border bg-white px-3.5 py-3 shadow-[0px_2px_8px_rgba(71,88,114,0.06)] transition-shadow hover:shadow-[0px_4px_14px_rgba(71,88,114,0.14)]",
+              isInspected ? "border-foreground/50 ring-1 ring-foreground/20" : "border-border"
+            )}
+            style={{ left: audX, top: y, width: AUD_W, height: AUD_H, zIndex: frame.z }}
+          >
+            <NodeLabel meta={audience.type.replace("-", " ")}>
+              <Users className="h-3 w-3" />
+              Audience
+            </NodeLabel>
+            <p className="truncate text-[13px] font-medium text-foreground">{audience.name}</p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground">Est. {audience.estimatedSize}</span>
+              {audience.type === "lookalike" && (
+                <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700" title="Segment TTL — refresh before it expires">
+                  Expires in 6d
+                </span>
+              )}
+              {anyLive && (
+                <span className="ml-auto flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                  <span className="h-1 w-1 rounded-full bg-emerald-500" />
+                  {lineIds.length} {lineIds.length === 1 ? "line" : "lines"}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </>
   );
 }
 
-function LineNode({ line, planLive, x, y, z, isSelected, isInspected, onSelect, onInspect, onToggle, onDuplicate, onRemove, onBudget }: {
+function LineNode({ line, planLive, x, y, z, isSelected, anySelection, isInspected, onSelect, onInspect, onToggle, onDuplicate, onRemove, onBudget }: {
   line: MediaCampaign;
   planLive: boolean;
   x: number;
   y: number;
   z: number;
   isSelected: boolean;
+  anySelection: boolean;
   isInspected: boolean;
   onSelect: () => void;
   onInspect: () => void;
@@ -422,7 +520,7 @@ function LineNode({ line, planLive, x, y, z, isSelected, isInspected, onSelect, 
         onInspect();
       }}
       className={cn(
-        "absolute cursor-pointer rounded-xl border bg-white px-3 py-2.5 shadow-[0px_2px_8px_rgba(71,88,114,0.06)] transition-shadow hover:shadow-[0px_4px_14px_rgba(71,88,114,0.14)]",
+        "group absolute cursor-pointer rounded-xl border bg-white px-3 py-2.5 shadow-[0px_2px_8px_rgba(71,88,114,0.06)] transition-shadow hover:shadow-[0px_4px_14px_rgba(71,88,114,0.14)]",
         isSelected || isInspected ? "border-foreground/50 ring-1 ring-foreground/20" : "border-border",
         !line.enabled && "opacity-60"
       )}
@@ -432,12 +530,15 @@ function LineNode({ line, planLive, x, y, z, isSelected, isInspected, onSelect, 
         <span className="truncate font-medium text-muted-foreground">{line.label}</span>
       </NodeLabel>
       <div className="flex items-center gap-1.5">
+        {/* Bulk-select is a rare gesture — the checkbox only surfaces on hover
+            or while a selection is underway. In-plan/Live is the real state. */}
         <button
           type="button"
           onClick={onSelect}
           className={cn(
-            "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
-            isSelected ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground/50"
+            "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all",
+            isSelected ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground/50",
+            isSelected || anySelection ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           )}
           title={isSelected ? "Deselect" : "Select for bulk actions"}
         >
