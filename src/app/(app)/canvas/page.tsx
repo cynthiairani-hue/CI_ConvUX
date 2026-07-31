@@ -8,12 +8,13 @@ import { PageChatInput } from "@/components/ai-companion/page-chat-input";
    itself instead of hijacking the layout. */
 export default function CanvasPage() {
   return (
-    <div className="relative flex h-full min-h-0 flex-1 flex-col">
-      <InfiniteCanvas />
-      <div className="pointer-events-none absolute inset-x-0 bottom-5 z-30">
-        <div className="pointer-events-auto">
-          <PageChatInput placeholder="Ask to build — new artifacts land on this canvas..." />
-        </div>
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-[#F7F9FB]">
+      <div className="relative min-h-0 flex-1">
+        <InfiniteCanvas />
+      </div>
+      {/* Same chat-input mounting as every other page — no overlay, no resize drift */}
+      <div className="shrink-0 pb-6 pt-2">
+        <PageChatInput placeholder="Ask to build — new artifacts land on this canvas..." />
       </div>
     </div>
   );

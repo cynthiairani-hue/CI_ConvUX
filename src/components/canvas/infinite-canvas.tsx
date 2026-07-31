@@ -67,8 +67,10 @@ const MAX_SCALE = 1.75;
 const GRID_SIZE = 24;
 
 /* Below this zoom, frames render as legible covers (semantic zoom) instead of
-   shrunken forms — the canvas becomes a portfolio map, not a wall of stamps. */
-const LOD_THRESHOLD = 0.55;
+   shrunken forms — the canvas becomes a portfolio map, not a wall of stamps.
+   Set high on purpose: dense editable forms are only worth showing when
+   they're actually readable; everything below this is overview territory. */
+const LOD_THRESHOLD = 0.7;
 
 const KIND_META: Record<CanvasFrameKind, { label: string; width: number; icon: LucideIcon }> = {
   strategy: { label: "Campaign", width: 620, icon: Megaphone },
@@ -621,6 +623,7 @@ export function InfiniteCanvas() {
     e.currentTarget.setPointerCapture(e.pointerId);
     setPanning(true);
     setAddOpen(false);
+    setInspected(null); // clicking empty canvas dismisses the inspector
   }
 
   function onBackgroundPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
