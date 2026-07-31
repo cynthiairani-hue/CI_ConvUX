@@ -61,9 +61,28 @@ export interface MarketNode {
   attachedTo?: string;
 }
 
+/** A named camera position — jump back to a saved arrangement (Miro-style). */
+export interface SavedView {
+  id: string;
+  name: string;
+  viewport: CanvasViewport;
+}
+
+/** A sticky note — lightweight canvas comment, signed by its author persona. */
+export interface StickyNote {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  author: string;
+  createdAt: string;
+}
+
 export interface CanvasWorkspace {
   viewport: CanvasViewport;
   frames: CanvasFrame[];
   boards?: ReviewBoardCard[];
   market?: MarketNode[];
+  views?: SavedView[];
+  notes?: StickyNote[];
 }

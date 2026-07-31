@@ -16,8 +16,10 @@ import {
 } from "react";
 import {
   BarChart3,
+  Bookmark,
   Check,
   Eraser,
+  StickyNote as StickyNoteIcon,
   Frame,
   LayoutList,
   Maximize2,
@@ -51,6 +53,9 @@ import { buildCreativeReviewBoard } from "@/data/creative-templates";
 import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
 import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
 import { ReviewBoardHeaderCard, BOARD_W, BOARD_EST_H } from "@/components/canvas/review-board-card";
+import { StickyNoteCard, NOTE_W, NOTE_EST_H } from "@/components/canvas/sticky-note";
+import type { SavedView, StickyNote } from "@/types/canvas";
+import { usePersona } from "@/contexts/persona-context";
 import { PlanGraph, PlanComposedBody, planGraphExtent, audienceNodePositions, creativeFor, type InspectTarget } from "@/components/canvas/plan-graph";
 import { recalcMediaPlan } from "@/data/media-plan-flow";
 import { CHANNEL_CREATIVE } from "@/data/creative-templates";
@@ -134,6 +139,11 @@ export function InfiniteCanvas() {
   const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [market, setMarket] = useState<MarketNode[]>([]);
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [notes, setNotes] = useState<StickyNote[]>([]);
+  const [viewsOpen, setViewsOpen] = useState(false);
+  const [viewName, setViewName] = useState("");
+  const { activePersona } = usePersona();
 
   /* Live refs so placement always reads current content, even when several
      adds land in the same React tick (rapid clicking, chat captures). */
@@ -149,6 +159,8 @@ export function InfiniteCanvas() {
   framesRef.current = frames;
   const marketRef = useRef(market);
   marketRef.current = market;
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
 
   const artifactName = useCallback((kind: CanvasFrameKind, refId: string): string | null => {
     switch (kind) {
@@ -208,6 +220,8 @@ export function InfiniteCanvas() {
       setFrames(stored.frames.filter((f) => artifactName(f.kind, f.refId) !== null));
       setBoards(stored.boards ?? []);
       setMarket(stored.market ?? []);
+      setViews(stored.views ?? []);
+      setNotes(stored.notes ?? []);
     } else {
       // First visit: seed the board from the most recent saved artifacts.
       const picks: { kind: CanvasFrameKind; refId: string }[] = [];
@@ -229,8 +243,8 @@ export function InfiniteCanvas() {
   }, [hydrated, loaded, artifactName, savedStrategies, savedMediaPlans, savedAudiences, savedNarratives, savedBriefs]);
 
   useEffect(() => {
-    if (loaded) persistCanvas({ viewport, frames, boards, market });
-  }, [viewport, frames, boards, market, loaded]);
+    if (loaded) persistCanvas({ viewport, frames, boards, market, views, notes });
+  }, [viewport, frames, boards, market, views, notes, loaded]);
 
   useEffect(() => {
     if (!hydrated || flowsLoaded) return;
@@ -270,6 +284,7 @@ export function InfiniteCanvas() {
     creativesRef.current.forEach((t) => rects.push({ x: t.x, y: t.y, w: TILE_W, h: tileEstHeight(t) }));
     boardsRef.current.forEach((b) => rects.push({ x: b.x, y: b.y, w: BOARD_W, h: BOARD_EST_H }));
     marketRef.current.forEach((m) => rects.push({ x: m.x, y: m.y, w: MARKET_W, h: MARKET_H }));
+    notesRef.current.forEach((n) => rects.push({ x: n.x, y: n.y, w: NOTE_W, h: NOTE_EST_H }));
     return rects;
   }, []);
 
@@ -502,9 +517,30 @@ export function InfiniteCanvas() {
     setCreatives([]);
     setBoards([]);
     setMarket([]);
+    setNotes([]);
     setConfirmingClear(false);
     showToast("Canvas cleared — saved artifacts are still in your workspace");
   }, [showToast]);
+
+  /* ── Saved views (Miro-style camera bookmarks) + sticky notes ── */
+
+  const saveCurrentView = useCallback(() => {
+    const name = viewName.trim() || `View ${views.length + 1}`;
+    setViews((prev) => [...prev, { id: `view-${Date.now().toString(36)}`, name, viewport: viewportRef.current }]);
+    setViewName("");
+    showToast(`View saved — "${name}"`);
+  }, [viewName, views.length, showToast]);
+
+  const addNote = useCallback(() => {
+    const c = viewCenter();
+    const spot = findFreeSpot(NOTE_W, NOTE_EST_H, c.x - NOTE_W / 2, c.y - NOTE_EST_H / 2);
+    setNotes((prev) => [...prev, {
+      id: `note-${Date.now().toString(36)}`,
+      x: spot.x, y: spot.y, text: "",
+      author: activePersona.name,
+      createdAt: new Date().toISOString(),
+    }]);
+  }, [viewCenter, findFreeSpot, activePersona.name]);
 
   /* ── Marketplace segment nodes ── */
 
@@ -886,6 +922,16 @@ export function InfiniteCanvas() {
             />
           ) : null;
         })}
+        {notes.map((n) => (
+          <StickyNoteCard
+            key={n.id}
+            note={n}
+            scale={viewport.scale}
+            onMove={(id, x, y) => setNotes((prev) => prev.map((m) => (m.id === id ? { ...m, x, y } : m)))}
+            onEdit={(id, text) => setNotes((prev) => prev.map((m) => (m.id === id ? { ...m, text } : m)))}
+            onRemove={(id) => setNotes((prev) => prev.filter((m) => m.id !== id))}
+          />
+        ))}
         {boards.map((board) => (
           <ReviewBoardHeaderCard
             key={board.id}
@@ -1089,21 +1135,95 @@ export function InfiniteCanvas() {
             </div>
           )}
         </div>
-        <div className="my-0.5 h-px w-5 bg-border" />
+        <button
+          type="button"
+          onClick={addNote}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="Add a sticky note"
+        >
+          <StickyNoteIcon className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Page actions — top right, same placement as every artifact page */}
+      <div data-canvas-ui className="absolute right-4 top-4 z-40 flex items-center gap-1 rounded-xl border border-border bg-white p-1 shadow-sm">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setViewsOpen((o) => !o)}
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium transition-colors",
+              viewsOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            )}
+            title="Saved views"
+          >
+            <Bookmark className="h-3.5 w-3.5" />
+            Views{views.length > 0 ? ` (${views.length})` : ""}
+          </button>
+          {viewsOpen && (
+            <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-border bg-white py-1.5 shadow-lg">
+              <div className="px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Saved views
+              </div>
+              {views.length === 0 && (
+                <p className="px-3.5 py-1 text-[12px] text-muted-foreground">No saved views yet.</p>
+              )}
+              {views.map((v) => (
+                <div key={v.id} className="group flex items-center gap-1 px-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setViewport(v.viewport); setViewsOpen(false); }}
+                    className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-[13px] text-foreground transition-colors hover:bg-accent"
+                  >
+                    {v.name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViews((prev) => prev.filter((x) => x.id !== v.id))}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                    title="Delete view"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <div className="mt-1 flex items-center gap-1.5 border-t border-border px-3 pt-2 pb-1">
+                <input
+                  value={viewName}
+                  onChange={(e) => setViewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveCurrentView(); }}
+                  placeholder={`View ${views.length + 1}`}
+                  className="min-w-0 flex-1 rounded-lg border border-border px-2 py-1 text-[12px] outline-none focus:border-foreground/40"
+                />
+                <button
+                  type="button"
+                  onClick={saveCurrentView}
+                  className="shrink-0 rounded-lg bg-foreground px-2 py-1 text-[12px] font-medium text-background hover:bg-foreground/90"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mx-0.5 h-5 w-px bg-border" />
         <button
           type="button"
           onClick={() => setConfirmingClear(true)}
           disabled={frames.length === 0 && flows.length === 0 && creatives.length === 0 && boards.length === 0}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+          className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
           title="Clear the canvas"
         >
           <Eraser className="h-3.5 w-3.5" />
+          Clear
         </button>
+        <div className="mx-0.5 h-5 w-px bg-border" />
         <span
-          className="flex h-8 w-8 items-center justify-center text-muted-foreground"
-          title="The canvas auto-saves — layout, flows, creatives, and boards survive refresh"
+          className="flex h-8 items-center gap-1 px-2 text-[11px] text-muted-foreground"
+          title="The canvas auto-saves — layout, views, notes, flows, and boards survive refresh"
         >
           <Check className="h-3.5 w-3.5 text-emerald-600" />
+          Saved
         </span>
       </div>
 
@@ -1111,7 +1231,7 @@ export function InfiniteCanvas() {
       {(() => {
         if (!inspected) return null;
         const shell = (title: React.ReactNode, chip: React.ReactNode, body: React.ReactNode) => (
-          <div data-canvas-ui className="absolute right-4 top-4 z-40 w-72 rounded-xl border border-border bg-white shadow-lg">
+          <div data-canvas-ui className="absolute right-4 top-16 z-40 w-72 rounded-xl border border-border bg-white shadow-lg">
             <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
               <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{title}</span>
               {chip}
@@ -1243,7 +1363,7 @@ export function InfiniteCanvas() {
           </div>
         );
         return (
-          <div data-canvas-ui className="absolute right-4 top-4 z-40 w-72 rounded-xl border border-border bg-white shadow-lg">
+          <div data-canvas-ui className="absolute right-4 top-16 z-40 w-72 rounded-xl border border-border bg-white shadow-lg">
             <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
               <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
                 {inspected.kind === "creative" ? cre.headline : line.label}
