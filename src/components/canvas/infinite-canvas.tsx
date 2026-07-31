@@ -51,7 +51,7 @@ import { buildCreativeReviewBoard } from "@/data/creative-templates";
 import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
 import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
 import { ReviewBoardHeaderCard, BOARD_W, BOARD_EST_H } from "@/components/canvas/review-board-card";
-import { PlanGraph, PlanComposedBody, planGraphExtent, type InspectTarget } from "@/components/canvas/plan-graph";
+import { PlanGraph, PlanComposedBody, planGraphExtent, audienceNodePositions, type InspectTarget } from "@/components/canvas/plan-graph";
 import { recalcMediaPlan } from "@/data/media-plan-flow";
 import { CHANNEL_CREATIVE, FALLBACK_CREATIVE } from "@/data/creative-templates";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -804,6 +804,31 @@ export function InfiniteCanvas() {
         <FlowWires flows={flows} />
         {/* Marketplace attachment wires — dotted: a data feed, not a build step */}
         <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} aria-hidden>
+          {/* Audience node ↔ its opened full frame: the SAME artifact, so the
+              link is drawn — dotted, because it's identity, not flow */}
+          {frames.filter((f) => f.kind === "media-plan" && f.expandedLines).flatMap((pf) => {
+            const plan = savedMediaPlans.find((p) => p.id === pf.refId);
+            if (!plan) return [];
+            return audienceNodePositions(pf, plan, savedAudiences).flatMap((row) => {
+              const af = frames.find((fr) => fr.kind === "audience" && fr.refId === row.audience.id);
+              if (!af) return [];
+              const sx = row.x + row.w, sy = row.y + row.h / 2;
+              const tx = af.x, ty = af.y + 60;
+              return [(
+                <g key={`aud-frame-${pf.id}-${row.audience.id}`}>
+                  <path
+                    d={`M ${sx} ${sy} C ${sx + 60} ${sy}, ${tx - 60} ${ty}, ${tx} ${ty}`}
+                    fill="none"
+                    stroke="hsl(var(--muted-foreground) / 0.45)"
+                    strokeWidth={1.25}
+                    strokeDasharray="2 4"
+                  />
+                  <circle cx={sx} cy={sy} r={3.5} fill="white" stroke="hsl(var(--muted-foreground) / 0.5)" strokeWidth={1.5} />
+                  <circle cx={tx} cy={ty} r={3.5} fill="white" stroke="hsl(var(--muted-foreground) / 0.5)" strokeWidth={1.5} />
+                </g>
+              )];
+            });
+          })}
           {market.filter((m) => m.attachedTo).map((m) => {
             const f = frames.find((fr) => fr.kind === "audience" && fr.refId === m.attachedTo);
             if (!f) return null;

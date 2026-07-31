@@ -84,6 +84,32 @@ function creativeFor(line: MediaCampaign) {
   return CHANNEL_CREATIVE[line.channel] ?? FALLBACK_CREATIVE;
 }
 
+/** Positions of the graph's audience nodes — shared with the canvas so the
+    same segment's full frame can be wired to its node when both are visible. */
+export function audienceNodePositions(frame: CanvasFrame, plan: MediaPlan, audiences: AudienceSegment[]):
+  { audience: AudienceSegment; lineIds: string[]; x: number; y: number; w: number; h: number }[] {
+  const stages = layoutStages(frame, plan);
+  const audX = frame.x + frame.w + COL_GAP_1 + STAGE_W + COL_GAP_2 + LINE_W + COL_GAP_3 + CRE_W + COL_GAP_4;
+  const rows: { audience: AudienceSegment; lineIds: string[]; x: number; y: number; w: number; h: number }[] = [];
+  let cursor = frame.y;
+  const seen = new Map<string, number>();
+  stages.filter((s) => s.expanded).forEach((s) =>
+    s.lines.forEach((c) => {
+      const a = audienceForLine(c, audiences);
+      if (!a) return;
+      const idx = seen.get(a.id);
+      if (idx !== undefined) {
+        rows[idx].lineIds.push(c.id);
+      } else {
+        seen.set(a.id, rows.length);
+        rows.push({ audience: a, lineIds: [c.id], x: audX, y: cursor, w: AUD_W, h: AUD_H });
+        cursor += AUD_H + AUD_GAP;
+      }
+    })
+  );
+  return rows;
+}
+
 /* Flora-style floating label above a node */
 function NodeLabel({ children, meta }: { children: React.ReactNode; meta?: string }) {
   return (
@@ -184,25 +210,7 @@ export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, sel
   stages.filter((s) => s.expanded).forEach((s) =>
     s.lines.forEach((c, i) => lineY.set(c.id, s.y + i * (LINE_H + LINE_GAP)))
   );
-  const audienceRows: { audience: AudienceSegment; lineIds: string[]; y: number }[] = [];
-  {
-    let cursor = frame.y;
-    const seen = new Map<string, number>();
-    stages.filter((s) => s.expanded).forEach((s) =>
-      s.lines.forEach((c) => {
-        const a = audienceForLine(c, audiences);
-        if (!a) return;
-        const idx = seen.get(a.id);
-        if (idx !== undefined) {
-          audienceRows[idx].lineIds.push(c.id);
-        } else {
-          seen.set(a.id, audienceRows.length);
-          audienceRows.push({ audience: a, lineIds: [c.id], y: cursor });
-          cursor += AUD_H + AUD_GAP;
-        }
-      })
-    );
-  }
+  const audienceRows = audienceNodePositions(frame, plan, audiences);
 
   function toggleLine(c: MediaCampaign) {
     const campaigns = plan.campaigns.map((x) => (x.id === c.id ? { ...x, enabled: !x.enabled } : x));
