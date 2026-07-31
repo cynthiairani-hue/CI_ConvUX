@@ -1167,7 +1167,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           state === "fullscreen" ||
           state === "floating" ||
           state === "split";
-        const showBubble = (hasArtifact || onCanvasPage) && !chatVisible;
+        // No bubble on /canvas — the page has a permanent chat input already.
+        const showBubble = hasArtifact && !chatVisible && !onCanvasPage;
         if (!showBubble) return null;
         // Reopen consistently with the user's preferred docked layout (keeps the
         // artifact visible) — not always floating, which used to differ from how

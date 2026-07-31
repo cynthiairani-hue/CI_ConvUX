@@ -184,7 +184,7 @@ interface AICompanionContextValue {
   setDetailLevel: (level: DetailLevel) => void;
   messages: ChatMessage[];
   isLoading: boolean;
-  openFullscreen: (initialMessage?: string, opts?: { skipIntentRouting?: boolean }) => void;
+  openFullscreen: (initialMessage?: string, opts?: { skipIntentRouting?: boolean; defaultLayout?: AICompanionState }) => void;
   startCampaignFlow: () => void;
   startMediaPlanFlow: () => void;
   /** Open a plan with a contextual chat starter (status + in-flight suggestion). */
@@ -2956,14 +2956,17 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
   }, [initNewSession, setActiveMediaPlan, setState, collapseLeftRail]);
 
   const openFullscreen = useCallback(
-    (initialMessage?: string, opts?: { skipIntentRouting?: boolean }) => {
+    (initialMessage?: string, opts?: { skipIntentRouting?: boolean; defaultLayout?: AICompanionState }) => {
       if (initialMessage) {
         if (state !== "resting") {
           // Chat is already open — continue in the current conversation and layout
           setTimeout(() => sendMessage(initialMessage, undefined, opts), 0);
         } else {
-          // Chat is closed — open a new session in the user's explicit entry layout
-          setState(readEntryLayout());
+          // Chat is closed — open a new session in the user's explicit entry
+          // layout; a caller-provided default (e.g. the canvas prefers a
+          // floating window) applies only when the user never picked one.
+          const explicit = typeof window !== "undefined" && localStorage.getItem(ENTRY_LAYOUT_KEY) !== null;
+          setState(explicit ? readEntryLayout() : (opts?.defaultLayout ?? readEntryLayout()));
           initNewSession(true);
           // "Act on this" / nudges pass skipIntentRouting so the prompt goes
           // straight to the conversational AI instead of misfiring a build flow.

@@ -9,16 +9,16 @@
    the inspector. One artifact, three modalities. */
 
 import { useState } from "react";
-import { Check, ChevronDown, ChevronRight, Copy, Image as ImageIcon, Layers, Pause, Play, Trash2, Users, X } from "lucide-react";
+import { Calendar, Check, ChevronDown, ChevronRight, Copy, Image as ImageIcon, Layers, Pause, Play, Trash2, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CanvasFrame } from "@/types/canvas";
-import type { AudienceSegment, FunnelStage, MediaCampaign, MediaPlan } from "@/types/campaign";
-import { recalcMediaPlan, editCampaignBudget } from "@/data/media-plan-flow";
+import type { AudienceSegment, FunnelStage, MediaCampaign, MediaChannelKey, MediaPlan } from "@/types/campaign";
+import { recalcMediaPlan, editCampaignBudget, addBlankLine } from "@/data/media-plan-flow";
 import { CHANNEL_CREATIVE, FALLBACK_CREATIVE } from "@/data/creative-templates";
 import { audienceForLine } from "@/data/marketplace";
 
 const STAGE_W = 260;
-const STAGE_H = 96;
+const STAGE_H = 126;
 const STAGE_GAP = 26;
 const LINE_W = 310;
 const LINE_H = 118;
@@ -34,6 +34,41 @@ const COL_GAP_3 = 80;  // line → creative
 const COL_GAP_4 = 90;  // creative → audience
 
 const STAGE_ORDER: FunnelStage[] = ["awareness", "consideration", "conversion"];
+
+const ADD_CHANNELS: { key: string; label: string }[] = [
+  { key: "ctv", label: "Connected TV" },
+  { key: "dooh", label: "Digital Out-of-Home" },
+  { key: "lookalike", label: "Lookalike" },
+  { key: "social", label: "Social" },
+  { key: "retargeting", label: "Retargeting" },
+];
+
+/* Rough month-range parser for flight strings like "Jul 24 – Sep 30" — good
+   enough to place bars proportionally on the plan's own window. */
+const MONTH_IDX: Record<string, number> = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+function parseFlight(s: string | undefined): { start: number; end: number } | null {
+  if (!s) return null;
+  const m = s.toLowerCase().match(/([a-z]{3})[a-z]*\s*(\d{1,2})?\s*[–—-]\s*([a-z]{3})[a-z]*\s*(\d{1,2})?/);
+  if (!m) return null;
+  const sm = MONTH_IDX[m[1]], em = MONTH_IDX[m[3]];
+  if (sm === undefined || em === undefined) return null;
+  return { start: sm * 31 + (m[2] ? +m[2] : 1), end: em * 31 + (m[4] ? +m[4] : 28) };
+}
+
+const STAGE_BAR: Record<FunnelStage, string> = {
+  awareness: "#8B5CF6",
+  consideration: "#3B82F6",
+  conversion: "#10B981",
+};
+
+const FLIGHT_W = 930;
+const FLIGHT_ROW_H = 24;
+const FLIGHT_PAD = 64;
+const FLIGHT_GAP = 40;
+
+export function flightingHeight(plan: MediaPlan): number {
+  return FLIGHT_PAD + plan.campaigns.filter((c) => c.enabled).length * FLIGHT_ROW_H;
+}
 
 const STAGE_META: Record<FunnelStage, { label: string; dot: string }> = {
   awareness: { label: "Awareness", dot: "bg-violet-500" },
@@ -73,14 +108,18 @@ export function planGraphExtent(frame: CanvasFrame, plan: MediaPlan): { maxX: nu
   const stages = layoutStages(frame, plan);
   const anyExpanded = stages.some((s) => s.expanded);
   const last = stages[stages.length - 1];
-  const maxY = last
+  let maxY = last
     ? last.y + (last.expanded ? Math.max(STAGE_H, last.lines.length * (LINE_H + LINE_GAP) - LINE_GAP) : STAGE_H)
     : frame.y;
+  if (anyExpanded) maxY += FLIGHT_GAP + flightingHeight(plan);
   const maxX = frame.x + frame.w + COL_GAP_1 + STAGE_W + (anyExpanded ? COL_GAP_2 + LINE_W + COL_GAP_3 + CRE_W + COL_GAP_4 + AUD_W : 0);
   return { maxX, maxY };
 }
 
-function creativeFor(line: MediaCampaign) {
+export function creativeFor(line: MediaCampaign) {
+  // An explicit swap (line.creative holds a creative key) wins over the
+  // channel default — changing a creative is a real, persisted line edit.
+  if (line.creative && CHANNEL_CREATIVE[line.creative]) return CHANNEL_CREATIVE[line.creative];
   return CHANNEL_CREATIVE[line.channel] ?? FALLBACK_CREATIVE;
 }
 
@@ -394,9 +433,78 @@ export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, sel
               {s.expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
               {s.expanded ? "Hide lines" : `Show ${s.lines.length} ${s.lines.length === 1 ? "line" : "lines"}`}
             </button>
+            {/* Add a line to this stage — same builder the plan card uses */}
+            <select
+              value=""
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const res = addBlankLine(plan, s.stage, e.target.value as MediaChannelKey);
+                onUpdate(recalcMediaPlan(res.plan), `New ${meta.label.toLowerCase()} line added — set its budget and audience`);
+              }}
+              className="mt-1.5 w-full cursor-pointer rounded-md border border-dashed border-border bg-transparent px-1.5 py-1 text-[11px] text-muted-foreground outline-none transition-colors hover:border-foreground/40 hover:text-foreground"
+            >
+              <option value="">＋ Add line…</option>
+              {ADD_CHANNELS.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
           </div>
         );
       })}
+
+      {/* Flighting — bars mirror each line's flight on the plan's window */}
+      {stages.some((s) => s.expanded) && (() => {
+        const lastS = stages[stages.length - 1];
+        const colBottom = lastS.y + (lastS.expanded ? Math.max(STAGE_H, lastS.lines.length * (LINE_H + LINE_GAP) - LINE_GAP) : STAGE_H);
+        const fy = colBottom + FLIGHT_GAP;
+        const win = parseFlight(plan.flight) ?? { start: 6 * 31 + 1, end: 8 * 31 + 30 };
+        const span = Math.max(1, win.end - win.start);
+        const enabled = plan.campaigns.filter((c) => c.enabled);
+        const months: number[] = [];
+        for (let mi = Math.floor(win.start / 31); mi <= Math.floor((win.end - 1) / 31); mi++) months.push(mi);
+        const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+        return (
+          <div
+            data-canvas-frame
+            className="absolute rounded-xl border border-border bg-white px-4 py-3 shadow-[0px_2px_8px_rgba(71,88,114,0.06)]"
+            style={{ left: stageX, top: fy, width: FLIGHT_W, zIndex: frame.z }}
+          >
+            <NodeLabel meta={plan.flight}>
+              <Calendar className="h-3 w-3" />
+              Flighting
+            </NodeLabel>
+            <div className="relative mb-1 ml-[158px] mr-[72px] h-4">
+              {months.map((mi) => (
+                <span
+                  key={mi}
+                  className="absolute text-[10px] uppercase tracking-wider text-muted-foreground/70"
+                  style={{ left: `${clamp01((mi * 31 + 1 - win.start) / span) * 100}%` }}
+                >
+                  {MONTH_NAMES[mi]}
+                </span>
+              ))}
+            </div>
+            {enabled.map((c) => {
+              const f = parseFlight(c.flightDates) ?? win;
+              const l = clamp01((f.start - win.start) / span);
+              const w = Math.max(0.04, clamp01((f.end - f.start) / span) - Math.max(0, l + clamp01((f.end - f.start) / span) - 1));
+              return (
+                <div key={c.id} className="flex h-6 items-center gap-2">
+                  <span className="w-[150px] truncate text-[11px] text-muted-foreground">{c.label}</span>
+                  <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="absolute h-2 rounded-full"
+                      style={{ left: `${l * 100}%`, width: `${w * 100}%`, background: STAGE_BAR[c.funnelStage] }}
+                    />
+                  </div>
+                  <span className="w-16 text-right text-[11px] tabular-nums text-muted-foreground">${c.budget.toLocaleString()}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Line nodes + creative nodes */}
       {stages.filter((s) => s.expanded).map((s) =>

@@ -51,9 +51,9 @@ import { buildCreativeReviewBoard } from "@/data/creative-templates";
 import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
 import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
 import { ReviewBoardHeaderCard, BOARD_W, BOARD_EST_H } from "@/components/canvas/review-board-card";
-import { PlanGraph, PlanComposedBody, planGraphExtent, audienceNodePositions, type InspectTarget } from "@/components/canvas/plan-graph";
+import { PlanGraph, PlanComposedBody, planGraphExtent, audienceNodePositions, creativeFor, type InspectTarget } from "@/components/canvas/plan-graph";
 import { recalcMediaPlan } from "@/data/media-plan-flow";
-import { CHANNEL_CREATIVE, FALLBACK_CREATIVE } from "@/data/creative-templates";
+import { CHANNEL_CREATIVE } from "@/data/creative-templates";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { StrategyCard } from "@/components/patterns/strategy-card";
@@ -1229,7 +1229,12 @@ export function InfiniteCanvas() {
         if (!plan || !line) return null;
         const planLive = plan.reviewState === "active";
         const lineLive = planLive && line.enabled;
-        const cre = CHANNEL_CREATIVE[line.channel] ?? FALLBACK_CREATIVE;
+        const cre = creativeFor(line);
+        const lineAudience = audienceForLine(line, savedAudiences);
+        const commitLine = (patch: Partial<typeof line>, toast: string) => {
+          const campaigns = plan.campaigns.map((x) => (x.id === line.id ? { ...x, ...patch } : x));
+          updatePlanFromGraph({ ...plan, campaigns, lastModifiedAt: new Date().toISOString() }, toast);
+        };
         const stageMeta = { awareness: "Awareness", consideration: "Consideration", conversion: "Conversion" }[line.funnelStage];
         const row = (label: string, value: React.ReactNode) => (
           <div className="flex items-baseline justify-between gap-3 py-1">
@@ -1277,6 +1282,37 @@ export function InfiniteCanvas() {
               {line.forecast.cpa != null && row("Est. CPA", `$${line.forecast.cpa}`)}
               {line.flightDates && row("Flight", line.flightDates)}
             </div>
+            {/* Change what the line targets / runs — real edits to the same artifact */}
+            <div className="space-y-2 border-t border-border px-3.5 py-2.5">
+              <div>
+                <label className="text-[11px] text-muted-foreground">Target audience</label>
+                <select
+                  value={lineAudience?.id ?? ""}
+                  onChange={(e) => {
+                    const a = savedAudiences.find((x) => x.id === e.target.value);
+                    if (a) commitLine({ audience: a.name }, `${line.label} now targets ${a.name} — wires updated`);
+                  }}
+                  className="mt-1 w-full rounded-lg border border-border bg-white px-2 py-1.5 text-[12px] text-foreground outline-none focus:border-foreground/40"
+                >
+                  {!lineAudience && <option value="">No audience resolved</option>}
+                  {savedAudiences.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name} · {a.estimatedSize}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] text-muted-foreground">Creative</label>
+                <select
+                  value={line.creative && CHANNEL_CREATIVE[line.creative] ? line.creative : line.channel}
+                  onChange={(e) => commitLine({ creative: e.target.value }, `${line.label} creative swapped — the node updates on the canvas`)}
+                  className="mt-1 w-full rounded-lg border border-border bg-white px-2 py-1.5 text-[12px] text-foreground outline-none focus:border-foreground/40"
+                >
+                  {Object.entries(CHANNEL_CREATIVE).map(([key, c]) => (
+                    <option key={key} value={key}>{c.headline} · {c.format}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div className="flex items-center gap-1.5 border-t border-border px-3.5 py-2.5">
               <button
                 type="button"
@@ -1317,8 +1353,8 @@ export function InfiniteCanvas() {
         </div>
       )}
 
-      {/* Interaction hint */}
-      <div className="pointer-events-none absolute bottom-4 left-4 z-30 rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur">
+      {/* Interaction hint — centered just above the chat input strip */}
+      <div className="pointer-events-none absolute bottom-3 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur">
         Drag to pan · ⌘ scroll to zoom · drag cards by their title bar
       </div>
     </div>
@@ -1510,9 +1546,9 @@ function FrameShell({
                 "rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
                 !frame.expandedLines ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
               )}
-              title="The full plan as an editable table"
+              title="The full plan, editable in place"
             >
-              Table
+              Plan
             </button>
             <button
               type="button"
@@ -1550,29 +1586,35 @@ function FrameShell({
            the frame itself becomes the compact plan node with its actions. */
         composedBody
       ) : lod ? (
-        /* Low-zoom cover — big type that stays legible when scaled down.
+        /* Low-zoom cover — legible type that scales with the artifact's weight:
+           a media plan warrants a poster, an audience only a compact card.
            Zooming past the threshold dissolves it into the real editable card. */
-        <div className="p-7">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Icon className="h-5 w-5" />
-            <span className="text-[13px] font-medium uppercase tracking-wider">{meta.label}</span>
-            {liveState === "active" && (
-              <span className="ml-auto flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[13px] font-medium text-emerald-600">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Live
-              </span>
-            )}
-            {liveState === "paused" && (
-              <span className="ml-auto flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[13px] font-medium text-amber-700">
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                Paused
-              </span>
-            )}
-          </div>
-          <p className="mt-4 text-[28px] font-semibold leading-9 text-foreground">{name}</p>
-          {summary && <p className="mt-2 text-[17px] leading-7 text-muted-foreground">{summary}</p>}
-          <p className="mt-6 text-[13px] text-muted-foreground/60">Zoom in to edit</p>
-        </div>
+        (() => {
+          const compact = frame.kind === "audience" || frame.kind === "brief";
+          return (
+            <div className={compact ? "p-4" : "p-6"}>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Icon className={compact ? "h-3.5 w-3.5" : "h-5 w-5"} />
+                <span className={cn("font-medium uppercase tracking-wider", compact ? "text-[11px]" : "text-[13px]")}>{meta.label}</span>
+                {liveState === "active" && (
+                  <span className={cn("ml-auto flex items-center gap-1.5 rounded-full bg-emerald-50 font-medium text-emerald-600", compact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-[13px]")}>
+                    <span className={cn("rounded-full bg-emerald-500", compact ? "h-1.5 w-1.5" : "h-2 w-2")} />
+                    Live
+                  </span>
+                )}
+                {liveState === "paused" && (
+                  <span className={cn("ml-auto flex items-center gap-1.5 rounded-full bg-amber-50 font-medium text-amber-700", compact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-[13px]")}>
+                    <span className={cn("rounded-full bg-amber-500", compact ? "h-1.5 w-1.5" : "h-2 w-2")} />
+                    Paused
+                  </span>
+                )}
+              </div>
+              <p className={cn("font-semibold text-foreground", compact ? "mt-2 text-[17px] leading-6" : "mt-3 text-[24px] leading-8")}>{name}</p>
+              {summary && <p className={cn("text-muted-foreground", compact ? "mt-1 text-[13px] leading-5" : "mt-1.5 text-[15px] leading-6")}>{summary}</p>}
+              <p className={cn("text-muted-foreground/60", compact ? "mt-2 text-[11px]" : "mt-4 text-[12px]")}>Zoom in to edit</p>
+            </div>
+          );
+        })()
       ) : (
         <div className="cursor-auto p-3">{children}</div>
       )}

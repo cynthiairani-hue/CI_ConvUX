@@ -14,7 +14,7 @@ export default function CanvasPage() {
       </div>
       {/* Same chat-input mounting as every other page — no overlay, no resize drift */}
       <div className="shrink-0 pb-6 pt-2">
-        <PageChatInput placeholder="Ask to build — new artifacts land on this canvas..." />
+        <PageChatInput placeholder="Ask to build — new artifacts land on this canvas..." openIn="floating-left" />
       </div>
     </div>
   );

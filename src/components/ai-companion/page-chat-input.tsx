@@ -222,8 +222,24 @@ function PagePromptDropdown({
   );
 }
 
-export function PageChatInput({ placeholder }: { placeholder?: string }) {
+export function PageChatInput({ placeholder, openIn }: { placeholder?: string; openIn?: "floating-left" }) {
   const { openFullscreen, state } = useAICompanion();
+
+  /* Canvas asks: intents open a floating window docked left by default, so
+     the board stays visible. Only the DEFAULT changes — a user's explicit
+     layout choice (ChatLayoutPicker) always wins, and they can drag/resize. */
+  function openWithLayout(text: string) {
+    if (openIn === "floating-left") {
+      try {
+        if (!localStorage.getItem("fuseiq-floating-panel")) {
+          localStorage.setItem("fuseiq-floating-panel", JSON.stringify({ x: 96, y: 88, width: 380, height: 520 }));
+        }
+      } catch { /* storage unavailable — panel falls back to its own default */ }
+      openFullscreen(text, { defaultLayout: "floating" });
+    } else {
+      openFullscreen(text);
+    }
+  }
   const [value, setValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -260,7 +276,7 @@ export function PageChatInput({ placeholder }: { placeholder?: string }) {
     e?.preventDefault();
     const t = value.trim();
     if (!t) return;
-    openFullscreen(t);
+    openWithLayout(t);
     setValue("");
   }
 
@@ -272,7 +288,7 @@ export function PageChatInput({ placeholder }: { placeholder?: string }) {
   }
 
   function handleSelectPrompt(text: string) {
-    openFullscreen(text);
+    openWithLayout(text);
     setIsFocused(false);
     setValue("");
   }
