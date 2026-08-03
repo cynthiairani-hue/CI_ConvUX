@@ -115,6 +115,7 @@ export function LeftRail() {
             }
             isActive={pathname.startsWith(item.href)}
             isCollapsed={leftRailCollapsed}
+            accent={item.id === "canvas" ? "purple" : undefined}
           />
         ))}
       </nav>

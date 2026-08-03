@@ -16,6 +16,8 @@ interface LeftRailNavItemProps {
   badge?: number;
   isActive: boolean;
   isCollapsed: boolean;
+  /** Experimental surfaces get the collaboration purple, not the default ink. */
+  accent?: "purple";
 }
 
 export function LeftRailNavItem({
@@ -25,6 +27,7 @@ export function LeftRailNavItem({
   badge,
   isActive,
   isCollapsed,
+  accent,
 }: LeftRailNavItemProps) {
   const linkContent = (
     <Link
@@ -34,6 +37,10 @@ export function LeftRailNavItem({
         isActive
           ? "bg-accent text-foreground"
           : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+        accent === "purple" &&
+          (isActive
+            ? "bg-[#F3F0FF] text-[#7C5CFC]"
+            : "text-[#9B85FD] hover:bg-[#F3F0FF]/60 hover:text-[#7C5CFC]"),
         isCollapsed && "justify-center px-2"
       )}
     >
