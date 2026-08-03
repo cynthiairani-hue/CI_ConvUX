@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSitePassword } from "@/lib/site-password";
 
 const COOKIE_NAME = "fuseiq_unlock";
 
@@ -8,7 +9,7 @@ const COOKIE_NAME = "fuseiq_unlock";
  * it is never sent to the client.
  */
 export async function POST(req: NextRequest) {
-  const password = process.env.SITE_PASSWORD;
+  const password = getSitePassword();
 
   // If no gate is configured, treat as already unlocked.
   if (!password) {

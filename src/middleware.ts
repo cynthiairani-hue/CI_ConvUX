@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSitePassword } from "@/lib/site-password";
 
 /**
  * Optional site-wide password gate, controlled by the `SITE_PASSWORD` env var.
@@ -15,8 +16,8 @@ import { NextRequest, NextResponse } from "next/server";
 const COOKIE_NAME = "fuseiq_unlock";
 
 export function middleware(req: NextRequest) {
-  const password = process.env.SITE_PASSWORD;
-  if (!password) return NextResponse.next(); // not gated
+  const password = getSitePassword();
+  if (!password) return NextResponse.next(); // not gated (local dev)
 
   const { pathname } = req.nextUrl;
 
