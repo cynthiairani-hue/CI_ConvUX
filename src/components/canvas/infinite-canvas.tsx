@@ -818,10 +818,90 @@ export function InfiniteCanvas() {
   ].filter((a) => !frames.some((f) => f.kind === a.kind && f.refId === a.refId));
 
   return (
-    <>
+    <div className="flex h-full min-h-0 w-full flex-col">
+      {/* Page header — same bar as every artifact page: title left, actions right */}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
+        <h1 className="text-[14px] font-semibold text-foreground">Canvas</h1>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setViewsOpen((o) => !o)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
+                viewsOpen ? "border-foreground/30 bg-accent text-foreground" : "border-border text-foreground hover:bg-accent"
+              )}
+            >
+              <Bookmark className="h-3.5 w-3.5" />
+              Views{views.length > 0 ? ` (${views.length})` : ""}
+            </button>
+            {viewsOpen && (
+              <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-border bg-white py-1.5 shadow-lg">
+                <div className="px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Saved views
+                </div>
+                {views.length === 0 && (
+                  <p className="px-3.5 py-1 text-[12px] text-muted-foreground">No saved views yet.</p>
+                )}
+                {views.map((v) => (
+                  <div key={v.id} className="group flex items-center gap-1 px-1.5">
+                    <button
+                      type="button"
+                      onClick={() => { setViewport(v.viewport); setViewsOpen(false); }}
+                      className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-[13px] text-foreground transition-colors hover:bg-accent"
+                    >
+                      {v.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViews((prev) => prev.filter((x) => x.id !== v.id))}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                      title="Delete view"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                <div className="mt-1 flex items-center gap-1.5 border-t border-border px-3 pt-2 pb-1">
+                  <input
+                    value={viewName}
+                    onChange={(e) => setViewName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveCurrentView(); }}
+                    placeholder={`View ${views.length + 1}`}
+                    className="min-w-0 flex-1 rounded-lg border border-border px-2 py-1 text-[12px] outline-none focus:border-foreground/40"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveCurrentView}
+                    className="shrink-0 rounded-lg bg-foreground px-2 py-1 text-[12px] font-medium text-background hover:bg-foreground/90"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setConfirmingClear(true)}
+            disabled={frames.length === 0 && flows.length === 0 && creatives.length === 0 && boards.length === 0}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-40"
+          >
+            <Eraser className="h-3.5 w-3.5" />
+            Clear
+          </button>
+          <span
+            className="flex items-center gap-1 px-1 text-[11px] text-muted-foreground"
+            title="The canvas auto-saves — layout, views, notes, flows, and boards survive refresh"
+          >
+            <Check className="h-3.5 w-3.5 text-emerald-600" />
+            Saved
+          </span>
+        </div>
+      </header>
     <div
       ref={containerRef}
-      className={cn("relative h-full w-full flex-1 overflow-hidden bg-[#F7F9FB]", panning ? "cursor-grabbing select-none" : "cursor-grab")}
+      className={cn("relative min-h-0 w-full flex-1 overflow-hidden bg-[#F7F9FB]", panning ? "cursor-grabbing select-none" : "cursor-grab")}
       style={{
         backgroundImage: "radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)",
         backgroundSize: `${GRID_SIZE * viewport.scale}px ${GRID_SIZE * viewport.scale}px`,
@@ -1143,88 +1223,6 @@ export function InfiniteCanvas() {
         >
           <StickyNoteIcon className="h-3.5 w-3.5" />
         </button>
-      </div>
-
-      {/* Page actions — top right, same placement as every artifact page */}
-      <div data-canvas-ui className="absolute right-4 top-4 z-40 flex items-center gap-1 rounded-xl border border-border bg-white p-1 shadow-sm">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setViewsOpen((o) => !o)}
-            className={cn(
-              "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium transition-colors",
-              viewsOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
-            )}
-            title="Saved views"
-          >
-            <Bookmark className="h-3.5 w-3.5" />
-            Views{views.length > 0 ? ` (${views.length})` : ""}
-          </button>
-          {viewsOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-border bg-white py-1.5 shadow-lg">
-              <div className="px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Saved views
-              </div>
-              {views.length === 0 && (
-                <p className="px-3.5 py-1 text-[12px] text-muted-foreground">No saved views yet.</p>
-              )}
-              {views.map((v) => (
-                <div key={v.id} className="group flex items-center gap-1 px-1.5">
-                  <button
-                    type="button"
-                    onClick={() => { setViewport(v.viewport); setViewsOpen(false); }}
-                    className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-[13px] text-foreground transition-colors hover:bg-accent"
-                  >
-                    {v.name}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViews((prev) => prev.filter((x) => x.id !== v.id))}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
-                    title="Delete view"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              <div className="mt-1 flex items-center gap-1.5 border-t border-border px-3 pt-2 pb-1">
-                <input
-                  value={viewName}
-                  onChange={(e) => setViewName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") saveCurrentView(); }}
-                  placeholder={`View ${views.length + 1}`}
-                  className="min-w-0 flex-1 rounded-lg border border-border px-2 py-1 text-[12px] outline-none focus:border-foreground/40"
-                />
-                <button
-                  type="button"
-                  onClick={saveCurrentView}
-                  className="shrink-0 rounded-lg bg-foreground px-2 py-1 text-[12px] font-medium text-background hover:bg-foreground/90"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="mx-0.5 h-5 w-px bg-border" />
-        <button
-          type="button"
-          onClick={() => setConfirmingClear(true)}
-          disabled={frames.length === 0 && flows.length === 0 && creatives.length === 0 && boards.length === 0}
-          className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-          title="Clear the canvas"
-        >
-          <Eraser className="h-3.5 w-3.5" />
-          Clear
-        </button>
-        <div className="mx-0.5 h-5 w-px bg-border" />
-        <span
-          className="flex h-8 items-center gap-1 px-2 text-[11px] text-muted-foreground"
-          title="The canvas auto-saves — layout, views, notes, flows, and boards survive refresh"
-        >
-          <Check className="h-3.5 w-3.5 text-emerald-600" />
-          Saved
-        </span>
       </div>
 
       {/* Inspector — click a graph node to see and act on it (Flora-style) */}
@@ -1551,7 +1549,7 @@ export function InfiniteCanvas() {
         onConfirm={clearCanvas}
         onCancel={() => setConfirmingClear(false)}
       />
-    </>
+    </div>
   );
 }
 
