@@ -1060,10 +1060,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (!hasArtifact) userClosedRef.current = false;
   }, [hasArtifact]);
 
-  // Rule: collapse left rail when an artifact is open OR when split panel is active
+  // Rule: collapse left rail when an artifact is open, when the split panel is
+  // active, or on /canvas — the canvas wants the full width. Manual re-expand
+  // still works until the next trigger.
   useEffect(() => {
-    if (hasArtifact || state === "split") collapseLeftRail();
-  }, [hasArtifact, state, collapseLeftRail]);
+    if (hasArtifact || state === "split" || onCanvasPage) collapseLeftRail();
+  }, [hasArtifact, state, onCanvasPage, collapseLeftRail]);
 
   // Rule: auto-open AI panel when an artifact opens (first time only, unless user closed it)
   useEffect(() => {
