@@ -3,7 +3,7 @@
 /* ── Sticky note — the canvas's lightweight comment ──
    Draggable, edited in place, signed by the persona who wrote it. */
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StickyNote } from "@/types/canvas";
@@ -20,6 +20,15 @@ export function StickyNoteCard({ note, scale, onMove, onEdit, onRemove }: {
 }) {
   const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Grow with the content — a sticky never hides its own lines.
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, [note.text]);
 
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
@@ -59,11 +68,12 @@ export function StickyNoteCard({ note, scale, onMove, onEdit, onRemove }: {
         <X className="h-3 w-3" />
       </button>
       <textarea
+        ref={taRef}
         value={note.text}
         onChange={(e) => onEdit(note.id, e.target.value)}
         placeholder="Type a note…"
-        rows={3}
-        className="w-full resize-none bg-transparent text-[13px] leading-5 text-amber-950 outline-none placeholder:text-amber-700/50"
+        rows={2}
+        className="w-full resize-none overflow-hidden bg-transparent text-[13px] leading-5 text-amber-950 outline-none placeholder:text-amber-700/50"
       />
       <p className="mt-1 text-[10px] font-medium text-amber-700/70">{note.author}</p>
     </div>

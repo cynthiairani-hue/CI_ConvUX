@@ -26,6 +26,7 @@ import { AudienceCard } from "@/components/patterns/audience-card";
 import { getCurrentBrand } from "@/data/brand-profiles";
 import { FFERN_SEED_PERFORMANCE } from "@/data/seed-ffern";
 import { Toast } from "@/components/ui/toast-notification";
+import { FeedbackButton } from "./feedback-dialog";
 
 const MIN_CHAT_WIDTH = 320;
 const MAX_CHAT_WIDTH = 640;
@@ -1176,6 +1177,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         return <ChatBubble onOpen={reopenChat} />;
       })()}
 
+      <FeedbackButton />
       <Toast />
     </>
   );

@@ -393,6 +393,49 @@ export function InfiniteCanvas() {
   /* Click-to-inspect (Flora-style right panel for the selected node). */
   const [inspected, setInspected] = useState<InspectTarget | null>(null);
 
+  /* ── Forecaster (what-if) — a scratch overlay per plan frame. The live
+        artifact is untouched until an explicit Apply. ── */
+  const [scenario, setScenario] = useState<{
+    frameId: string;
+    planId: string;
+    budgets: Record<string, number>;
+    enabled: Record<string, boolean>;
+  } | null>(null);
+  const [confirmingApply, setConfirmingApply] = useState(false);
+
+  const scenarioPlanFor = useCallback((plan: import("@/types/campaign").MediaPlan) => {
+    if (!scenario || scenario.planId !== plan.id) return plan;
+    const campaigns = plan.campaigns.map((c) => ({
+      ...c,
+      budget: scenario.budgets[c.id] ?? c.budget,
+      enabled: scenario.enabled[c.id] ?? c.enabled,
+    }));
+    return recalcMediaPlan({ ...plan, campaigns });
+  }, [scenario]);
+
+  const applyScenario = useCallback(() => {
+    if (!scenario) return;
+    const plan = savedMediaPlans.find((p) => p.id === scenario.planId);
+    if (!plan) { setScenario(null); return; }
+    const changed = Object.keys(scenario.budgets).length + Object.keys(scenario.enabled).length;
+    updatePlanFromGraph(scenarioPlanFor(plan), `Scenario applied — ${changed} ${changed === 1 ? "change" : "changes"} now live on ${plan.name}`);
+    setScenario(null);
+    setConfirmingApply(false);
+  }, [scenario, savedMediaPlans, scenarioPlanFor, updatePlanFromGraph]);
+
+  const scenarioSetBudget = useCallback((lineId: string, v: number) => {
+    setScenario((s) => s && { ...s, budgets: { ...s.budgets, [lineId]: Math.max(0, Math.round(v)) } });
+  }, []);
+
+  const scenarioToggle = useCallback((lineId: string) => {
+    setScenario((s) => {
+      if (!s) return s;
+      const plan = savedMediaPlans.find((p) => p.id === s.planId);
+      const cur = s.enabled[lineId] ?? plan?.campaigns.find((c) => c.id === lineId)?.enabled ?? true;
+      return { ...s, enabled: { ...s.enabled, [lineId]: !cur } };
+    });
+  }, [savedMediaPlans]);
+
   const toggleLineSelection = useCallback((lineId: string) => {
     setSelectedLines((prev) => {
       const next = new Set(prev);
@@ -702,8 +745,8 @@ export function InfiniteCanvas() {
     const el = containerRef.current;
     if (!el) return;
     function onWheel(e: WheelEvent) {
-      // Menus and inspectors scroll natively — only the board pans/zooms.
-      if ((e.target as HTMLElement).closest?.("[data-canvas-ui]")) return;
+      // Menus, inspectors, and text fields scroll natively — only the board pans/zooms.
+      if ((e.target as HTMLElement).closest?.("[data-canvas-ui], textarea, input, select")) return;
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
         const rect = el!.getBoundingClientRect();
@@ -1013,8 +1056,9 @@ export function InfiniteCanvas() {
             <PlanGraph
               key={`graph-${f.id}`}
               frame={f}
-              plan={plan}
+              plan={scenarioPlanFor(plan)}
               audiences={savedAudiences}
+              forecast={scenario?.frameId === f.id ? { live: plan, onBudget: scenarioSetBudget, onToggle: scenarioToggle } : undefined}
               onUpdate={updatePlanFromGraph}
               onToggleStage={toggleStage}
               selected={selectedLines}
@@ -1089,7 +1133,17 @@ export function InfiniteCanvas() {
               frame.kind === "media-plan" && frame.expandedLines
                 ? (() => {
                     const p = savedMediaPlans.find((x) => x.id === frame.refId);
-                    return p ? <PlanComposedBody plan={p} onUpdate={updatePlanFromGraph} /> : null;
+                    if (!p) return null;
+                    const inScenario = scenario?.frameId === frame.id;
+                    return (
+                      <PlanComposedBody
+                        plan={inScenario ? scenarioPlanFor(p) : p}
+                        onUpdate={updatePlanFromGraph}
+                        forecast={inScenario
+                          ? { active: true, live: p, onApply: () => setConfirmingApply(true), onDiscard: () => setScenario(null) }
+                          : { active: false, onStart: () => { setInspected(null); setScenario({ frameId: frame.id, planId: p.id, budgets: {}, enabled: {} }); } }}
+                      />
+                    );
                   })()
                 : null
             }
@@ -1564,6 +1618,20 @@ export function InfiniteCanvas() {
           setPendingLineRemoval(null);
         }}
         onCancel={() => setPendingLineRemoval(null)}
+      />
+      <ConfirmDialog
+        open={confirmingApply}
+        title="Apply this scenario to the live plan?"
+        description={(() => {
+          if (!scenario) return "";
+          const n = Object.keys(scenario.budgets).length + Object.keys(scenario.enabled).length;
+          const plan = savedMediaPlans.find((p) => p.id === scenario.planId);
+          const liveNote = plan?.reviewState === "active" ? " This plan is LIVE — changes take effect immediately." : "";
+          return `${n} ${n === 1 ? "change" : "changes"} will be written to "${plan?.name ?? "the plan"}" and the forecast recalculated.${liveNote}`;
+        })()}
+        confirmLabel="Apply scenario"
+        onConfirm={applyScenario}
+        onCancel={() => setConfirmingApply(false)}
       />
       <ConfirmDialog
         open={confirmingClear}

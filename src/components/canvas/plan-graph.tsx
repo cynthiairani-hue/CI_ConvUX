@@ -9,7 +9,7 @@
    the inspector. One artifact, three modalities. */
 
 import { useState } from "react";
-import { Calendar, Check, ChevronDown, ChevronRight, Copy, Image as ImageIcon, Layers, Pause, Play, Trash2, Users, X } from "lucide-react";
+import { Calendar, Check, ChevronDown, ChevronRight, Copy, FlaskConical, Image as ImageIcon, Layers, Pause, Play, Trash2, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CanvasFrame } from "@/types/canvas";
 import type { AudienceSegment, FunnelStage, MediaCampaign, MediaChannelKey, MediaPlan } from "@/types/campaign";
@@ -159,17 +159,81 @@ function NodeLabel({ children, meta }: { children: React.ReactNode; meta?: strin
   );
 }
 
+/* ── Forecaster (what-if) plumbing ──
+   The scenario is a scratch overlay: budgets and on/off per line, applied to
+   a COPY of the plan through the same recalc engine. The live artifact is
+   untouched until an explicit Apply — Sabrina's "layer hovering above". */
+
+export interface ForecastControls {
+  live: MediaPlan;
+  onBudget: (lineId: string, value: number) => void;
+  onToggle: (lineId: string) => void;
+}
+
+const delta = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toLocaleString()}`;
+
 /* ── Compact plan body shown while the plan is decomposed ── */
 
-export function PlanComposedBody({ plan, onUpdate }: {
+export function PlanComposedBody({ plan, onUpdate, forecast }: {
   plan: MediaPlan;
   onUpdate: (updated: MediaPlan, toast?: string) => void;
+  forecast?:
+    | { active: false; onStart: () => void }
+    | { active: true; live: MediaPlan; onApply: () => void; onDiscard: () => void };
 }) {
   const live = plan.reviewState === "active";
   const enabledCount = plan.campaigns.filter((c) => c.enabled).length;
 
   function setReviewState(reviewState: MediaPlan["reviewState"], toast: string) {
     onUpdate(recalcMediaPlan({ ...plan, reviewState }), toast);
+  }
+
+  if (forecast?.active) {
+    const lv = forecast.live.summary;
+    const sc = plan.summary;
+    return (
+      <div className="p-5">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="flex items-center gap-1.5 rounded-full bg-[#F3F0FF] px-2.5 py-1 text-[11px] font-medium text-[#7C5CFC]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#7C5CFC]" />
+            Scenario — the live plan is untouched
+          </span>
+        </div>
+        <p className="text-[15px] font-medium text-foreground">
+          ${sc.totalBudget.toLocaleString()}
+          {sc.totalBudget !== lv.totalBudget && (
+            <span className="ml-1.5 text-[12px] font-medium text-[#7C5CFC]">{delta(sc.totalBudget - lv.totalBudget)} vs live</span>
+          )}
+        </p>
+        <p className="mt-1 text-[12px] text-muted-foreground">
+          {sc.estConversions.toLocaleString()} conversions
+          <span className={cn("ml-1 font-medium", sc.estConversions >= lv.estConversions ? "text-emerald-600" : "text-amber-600")}>
+            ({delta(sc.estConversions - lv.estConversions)})
+          </span>
+          {" · "}{sc.estRoas}x ROAS
+          <span className={cn("ml-1 font-medium", sc.estRoas >= lv.estRoas ? "text-emerald-600" : "text-amber-600")}>
+            ({sc.estRoas >= lv.estRoas ? "+" : "−"}{Math.abs(Math.round((sc.estRoas - lv.estRoas) * 10) / 10)})
+          </span>
+        </p>
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={forecast.onApply}
+            className="flex items-center gap-1.5 rounded-lg bg-[#7C5CFC] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#6B4BEB]"
+          >
+            <Check className="h-3.5 w-3.5" /> Apply to live plan
+          </button>
+          <button
+            type="button"
+            onClick={forecast.onDiscard}
+            className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            Discard
+          </button>
+        </div>
+        <p className="mt-3 text-[11px] text-muted-foreground/60">Adjust budgets and toggle lines on the nodes — purple values are the scenario</p>
+      </div>
+    );
   }
 
   return (
@@ -213,6 +277,16 @@ export function PlanComposedBody({ plan, onUpdate }: {
             {plan.reviewState === "draft" ? "Draft — send for approval from the full plan" : "Awaiting approval"}
           </span>
         )}
+        {forecast && !forecast.active && (
+          <button
+            type="button"
+            onClick={forecast.onStart}
+            className="flex items-center gap-1.5 rounded-lg border border-[#7C5CFC]/40 px-3 py-1.5 text-[12px] font-medium text-[#7C5CFC] transition-colors hover:bg-[#F3F0FF]"
+            title="Play with budgets and lines without touching the live plan"
+          >
+            <FlaskConical className="h-3.5 w-3.5" /> Forecast
+          </button>
+        )}
       </div>
       <p className="mt-3 text-[11px] text-muted-foreground/60">Collapse the graph to edit the full plan</p>
     </div>
@@ -221,7 +295,7 @@ export function PlanComposedBody({ plan, onUpdate }: {
 
 /* ── The graph ── */
 
-export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, selected, onToggleSelect, onSelectAll, onClearSelection, onRequestRemove, inspected, onInspect }: {
+export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, selected, onToggleSelect, onSelectAll, onClearSelection, onRequestRemove, inspected, onInspect, forecast }: {
   frame: CanvasFrame;
   plan: MediaPlan;
   audiences: AudienceSegment[];
@@ -234,6 +308,9 @@ export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, sel
   onRequestRemove: (ids: string[]) => void;
   inspected: InspectTarget | null;
   onInspect: (target: InspectTarget | null) => void;
+  /** When present, the graph is in Forecast mode: edits route to the scenario
+      overlay, structural actions are hidden, purple deltas show vs live. */
+  forecast?: ForecastControls;
 }) {
   const live = plan.reviewState === "active";
   const stages = layoutStages(frame, plan);
@@ -284,7 +361,7 @@ export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, sel
     <>
       {/* Selection bar — appears only once something is checked; checking is a
           rare bulk-edit gesture, so it stays out of the way until then */}
-      {selectedHere.length > 0 && (
+      {!forecast && selectedHere.length > 0 && (
       <div
         data-canvas-frame
         className="absolute flex items-center gap-1 rounded-lg border border-border bg-white px-2 py-1.5 shadow-md"
@@ -433,7 +510,9 @@ export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, sel
               {s.expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
               {s.expanded ? "Hide lines" : `Show ${s.lines.length} ${s.lines.length === 1 ? "line" : "lines"}`}
             </button>
-            {/* Add a line to this stage — same builder the plan card uses */}
+            {/* Add a line to this stage — same builder the plan card uses.
+                Hidden in Forecast mode: scenarios play with existing lines. */}
+            {!forecast && (
             <select
               value=""
               onChange={(e) => {
@@ -448,6 +527,7 @@ export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, sel
                 <option key={c.key} value={c.key}>{c.label}</option>
               ))}
             </select>
+            )}
           </div>
         );
       })}
@@ -521,15 +601,18 @@ export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, sel
                 x={lineX}
                 y={y}
                 z={frame.z}
-                isSelected={selected.has(c.id)}
-                anySelection={selectedHere.length > 0}
+                isSelected={!forecast && selected.has(c.id)}
+                anySelection={!forecast && selectedHere.length > 0}
                 isInspected={isInspected && inspectedKind === "line"}
-                onSelect={() => onToggleSelect(c.id)}
-                onInspect={() => onInspect({ planId: plan.id, lineId: c.id, kind: "line" })}
-                onToggle={() => toggleLine(c)}
-                onDuplicate={() => duplicateLine(c)}
-                onRemove={() => onRequestRemove([c.id])}
-                onBudget={(v) => onUpdate(editCampaignBudget(plan, c.id, v))}
+                forecast={forecast ? {
+                  liveBudget: forecast.live.campaigns.find((l) => l.id === c.id)?.budget ?? c.budget,
+                } : undefined}
+                onSelect={() => { if (!forecast) onToggleSelect(c.id); }}
+                onInspect={() => { if (!forecast) onInspect({ planId: plan.id, lineId: c.id, kind: "line" }); }}
+                onToggle={() => (forecast ? forecast.onToggle(c.id) : toggleLine(c))}
+                onDuplicate={() => { if (!forecast) duplicateLine(c); }}
+                onRemove={() => { if (!forecast) onRequestRemove([c.id]); }}
+                onBudget={(v) => (forecast ? forecast.onBudget(c.id, v) : onUpdate(editCampaignBudget(plan, c.id, v)))}
               />
               {/* Creative node — how the ads show up, linked */}
               <div
@@ -602,7 +685,7 @@ export function PlanGraph({ frame, plan, audiences, onUpdate, onToggleStage, sel
   );
 }
 
-function LineNode({ line, planLive, x, y, z, isSelected, anySelection, isInspected, onSelect, onInspect, onToggle, onDuplicate, onRemove, onBudget }: {
+function LineNode({ line, planLive, x, y, z, isSelected, anySelection, isInspected, forecast, onSelect, onInspect, onToggle, onDuplicate, onRemove, onBudget }: {
   line: MediaCampaign;
   planLive: boolean;
   x: number;
@@ -611,6 +694,8 @@ function LineNode({ line, planLive, x, y, z, isSelected, anySelection, isInspect
   isSelected: boolean;
   anySelection: boolean;
   isInspected: boolean;
+  /** Forecast mode: show the scenario budget in purple with a delta vs live. */
+  forecast?: { liveBudget: number };
   onSelect: () => void;
   onInspect: () => void;
   onToggle: () => void;
@@ -619,6 +704,7 @@ function LineNode({ line, planLive, x, y, z, isSelected, anySelection, isInspect
   onBudget: (value: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const budgetDelta = forecast ? line.budget - forecast.liveBudget : 0;
   const lineLive = planLive && line.enabled;
 
   function commitBudget() {
@@ -683,9 +769,19 @@ function LineNode({ line, planLive, x, y, z, isSelected, anySelection, isInspect
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commitBudget}
           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-          className="w-20 rounded-md border border-border px-1.5 py-1 text-[12px] tabular-nums text-foreground outline-none focus:border-foreground/40"
+          className={cn(
+            "w-20 rounded-md border px-1.5 py-1 text-[12px] tabular-nums outline-none",
+            forecast && budgetDelta !== 0
+              ? "border-[#7C5CFC]/50 bg-[#F3F0FF] text-[#7C5CFC] focus:border-[#7C5CFC]"
+              : "border-border text-foreground focus:border-foreground/40"
+          )}
           aria-label="Line budget"
         />
+        {forecast && budgetDelta !== 0 && (
+          <span className="shrink-0 text-[11px] font-medium tabular-nums text-[#7C5CFC]">
+            {budgetDelta > 0 ? "+" : "−"}${Math.abs(budgetDelta).toLocaleString()}
+          </span>
+        )}
         <button
           type="button"
           onClick={onToggle}
@@ -699,22 +795,26 @@ function LineNode({ line, planLive, x, y, z, isSelected, anySelection, isInspect
         >
           {line.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
         </button>
-        <button
-          type="button"
-          onClick={onDuplicate}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Duplicate this line"
-        >
-          <Copy className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-red-600"
-          title="Remove this line from the plan"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        {!forecast && (
+          <>
+            <button
+              type="button"
+              onClick={onDuplicate}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Duplicate this line"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-red-600"
+              title="Remove this line from the plan"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
