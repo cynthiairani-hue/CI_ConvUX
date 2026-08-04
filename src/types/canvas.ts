@@ -18,6 +18,8 @@ export interface CanvasFrame {
   w: number;
   /** stacking order — click/drag brings to front */
   z: number;
+  /** collapsed to just the title bar (window-style minimize) */
+  minimized?: boolean;
   /** media plans only: the plan is decomposed into a node graph beside the frame */
   expandedLines?: boolean;
   /** media plans only: which funnel stages have their line nodes unfurled */

@@ -324,7 +324,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
   /* An expanded plan occupies far more than its frame — the whole graph
      (stages, lines, creatives, audiences, flighting) counts as occupied. */
   const graphRects = useCallback((fs: CanvasFrame[]): Rect[] =>
-    fs.filter((f) => f.kind === "media-plan" && f.expandedLines).flatMap((f) => {
+    fs.filter((f) => f.kind === "media-plan" && f.expandedLines && !f.minimized).flatMap((f) => {
       const plan = plansRef.current.find((p) => p.id === f.refId);
       if (!plan) return [];
       const ext = planGraphExtent(f, plan);
@@ -394,6 +394,17 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
 
   const moveFrame = useCallback((id: string, x: number, y: number) => {
     setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, x, y } : f)));
+  }, []);
+
+  /* Width resize (height stays content-driven). Clamped to readable bounds. */
+  const resizeFrame = useCallback((id: string, w: number) => {
+    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, w: Math.round(Math.min(1400, Math.max(380, w))) } : f)));
+  }, []);
+
+  /* Window-style minimize: collapse to the title bar (the artifact keeps its
+     spot and width; the expanded plan graph hides with it). */
+  const toggleMinimizeFrame = useCallback((id: string) => {
+    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, minimized: !f.minimized } : f)));
   }, []);
 
   const toggleExpandLines = useCallback((id: string) => {
@@ -916,7 +927,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
       maxX = Math.max(maxX, m.x + MARKET_W);
       maxY = Math.max(maxY, m.y + MARKET_H);
     });
-    frames.filter((f) => f.kind === "media-plan" && f.expandedLines).forEach((f) => {
+    frames.filter((f) => f.kind === "media-plan" && f.expandedLines && !f.minimized).forEach((f) => {
       const plan = savedMediaPlans.find((p) => p.id === f.refId);
       if (!plan) return;
       const ext = planGraphExtent(f, plan);
@@ -1073,7 +1084,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
         <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} aria-hidden>
           {/* Audience node ↔ its opened full frame: the SAME artifact, so the
               link is drawn — dotted, because it's identity, not flow */}
-          {frames.filter((f) => f.kind === "media-plan" && f.expandedLines).flatMap((pf) => {
+          {frames.filter((f) => f.kind === "media-plan" && f.expandedLines && !f.minimized).flatMap((pf) => {
             const plan = savedMediaPlans.find((p) => p.id === pf.refId);
             if (!plan) return [];
             return audienceNodePositions(pf, plan, savedAudiences).flatMap((row) => {
@@ -1133,7 +1144,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
             />
           );
         })}
-        {frames.filter((f) => f.kind === "media-plan" && f.expandedLines).map((f) => {
+        {frames.filter((f) => f.kind === "media-plan" && f.expandedLines && !f.minimized).map((f) => {
           const plan = savedMediaPlans.find((p) => p.id === f.refId);
           return plan ? (
             <PlanGraph
@@ -1234,6 +1245,8 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
             }
             scale={viewport.scale}
             onMove={moveFrame}
+            onResize={resizeFrame}
+            onMinimize={toggleMinimizeFrame}
             onFocus={bringToFront}
             onRemove={removeFrame}
             onAsk={askAboutFrame}
@@ -1247,11 +1260,11 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
       <div data-canvas-ui className="absolute left-4 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-xl border border-border bg-white p-1 shadow-md">
         <button
           type="button"
-          onClick={() => zoomBy(1 / 1.25)}
+          onClick={() => zoomBy(1.25)}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Zoom out"
+          title="Zoom in"
         >
-          <Minus className="h-4 w-4" />
+          <Plus className="h-4 w-4" />
         </button>
         <button
           type="button"
@@ -1263,11 +1276,11 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
         </button>
         <button
           type="button"
-          onClick={() => zoomBy(1.25)}
+          onClick={() => zoomBy(1 / 1.25)}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Zoom in"
+          title="Zoom out"
         >
-          <Plus className="h-4 w-4" />
+          <Minus className="h-4 w-4" />
         </button>
         <div className="my-0.5 h-px w-5 bg-border" />
         <button
@@ -1838,6 +1851,8 @@ function FrameShell({
   composedBody,
   scale,
   onMove,
+  onResize,
+  onMinimize,
   onFocus,
   onRemove,
   onAsk,
@@ -1853,6 +1868,8 @@ function FrameShell({
   composedBody?: React.ReactNode;
   scale: number;
   onMove: (id: string, x: number, y: number) => void;
+  onResize: (id: string, w: number) => void;
+  onMinimize: (id: string) => void;
   onFocus: (id: string) => void;
   onRemove: (id: string) => void;
   onAsk: (frame: CanvasFrame) => void;
@@ -1862,6 +1879,8 @@ function FrameShell({
   const Icon = meta.icon;
   const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const resizeRef = useRef<{ startX: number; ow: number } | null>(null);
+  const [resizing, setResizing] = useState(false);
 
   function onTitlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
@@ -1899,7 +1918,8 @@ function FrameShell({
     >
       <div
         className={cn(
-          "flex select-none items-center gap-2 rounded-t-2xl border-b border-border bg-muted/40 px-3 py-2",
+          "flex select-none items-center gap-2 bg-muted/40 px-3 py-2",
+          frame.minimized ? "rounded-2xl" : "rounded-t-2xl border-b border-border",
           dragging ? "cursor-grabbing" : "cursor-grab"
         )}
         onPointerDown={onTitlePointerDown}
@@ -1964,6 +1984,14 @@ function FrameShell({
         </button>
         <button
           type="button"
+          onClick={() => onMinimize(frame.id)}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title={frame.minimized ? "Restore" : "Minimize to title bar"}
+        >
+          {frame.minimized ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
           onClick={() => onRemove(frame.id)}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           title="Remove from canvas (the artifact stays saved)"
@@ -1971,7 +1999,10 @@ function FrameShell({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      {composedBody ? (
+      {frame.minimized ? (
+        /* Minimized: the title bar IS the window — spot and width preserved. */
+        null
+      ) : composedBody ? (
         /* Decomposed view — the graph beside the frame carries the detail;
            the frame itself becomes the compact plan node with its actions. */
         composedBody
@@ -2007,6 +2038,38 @@ function FrameShell({
         })()
       ) : (
         <div className="cursor-auto p-3">{children}</div>
+      )}
+      {/* Width-resize handle — only when zoomed in enough to edit (same LOD
+          gate as the card content) and the window isn't minimized. */}
+      {!lod && !frame.minimized && (
+        <div
+          className={cn(
+            "absolute -right-1 top-0 h-full w-2 cursor-ew-resize",
+            resizing && "bg-[#7C5CFC]/20"
+          )}
+          title="Drag to resize"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            e.preventDefault();
+            onFocus(frame.id);
+            resizeRef.current = { startX: e.clientX, ow: frame.w };
+            try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* released */ }
+            setResizing(true);
+          }}
+          onPointerMove={(e) => {
+            const r = resizeRef.current;
+            if (!r) return;
+            onResize(frame.id, r.ow + (e.clientX - r.startX) / scale);
+          }}
+          onPointerUp={() => { resizeRef.current = null; setResizing(false); }}
+          onPointerCancel={() => { resizeRef.current = null; setResizing(false); }}
+        >
+          <div className={cn(
+            "absolute right-1 top-1/2 h-8 w-1 -translate-y-1/2 rounded-full bg-border opacity-0 transition-opacity hover:opacity-100",
+            resizing && "bg-[#7C5CFC] opacity-100"
+          )} />
+        </div>
       )}
     </div>
   );
