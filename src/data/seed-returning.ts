@@ -439,7 +439,7 @@ function seedCynCanvas(set: (key: string, value: unknown) => void): void {
 /** Media plans = the agency's Vans book of work. Version-gated; always Vans, and
  *  registers the Vans advertiser so the plans resolve to "Vans" in the UI. */
 function seedMediaPlans(set: (key: string, value: unknown) => void): void {
-  const MP_SEED_VERSION = "v7-vans-pins";
+  const MP_SEED_VERSION = "v8-agentic-line";
   const needs =
     localStorage.getItem("fuseiq-media-plans-seed") !== MP_SEED_VERSION || isEmptyKey("fuseiq-media-plans");
   if (!needs) return;

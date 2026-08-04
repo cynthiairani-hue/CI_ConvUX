@@ -706,6 +706,9 @@ export function MediaPlanCard({ plan, onChange, readOnly }: MediaPlanCardProps) 
                             {c.status === "closed_beta" && (
                               <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600">Beta</span>
                             )}
+                            {c.status === "exploration" && (
+                              <span className="shrink-0 rounded-full bg-[#F3F0FF] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#7C5CFC]">Exploration</span>
+                            )}
                           </div>
                         </td>
                         <td className="px-2 py-2.5"><span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{c.channel}</span></td>

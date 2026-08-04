@@ -5,6 +5,7 @@ import {
   Users,
   BarChart3,
   CheckSquare,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ export const navItems: NavItem[] = [
   { id: "campaigns", label: "Campaigns", href: "/campaigns", icon: Megaphone },
   { id: "audiences", label: "Audiences", href: "/audiences", icon: Users },
   { id: "reports", label: "Reports", href: "/reports", icon: BarChart3 },
+  { id: "agentic", label: "Agentic Explorations", href: "/agentic", icon: Bot },
   {
     id: "approvals",
     label: "Approvals",

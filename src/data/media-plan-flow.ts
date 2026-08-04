@@ -60,10 +60,10 @@ const CHANNEL_TEMPLATE: Omit<MediaCampaign, "forecast">[] = [
     description: "Find new customers at scale",
     funnelStage: "consideration",
     status: "available",
-    budget: 38_000,
-    baseBudget: 38_000,
+    budget: 34_000,
+    baseBudget: 34_000,
     enabled: true,
-    baseForecast: { impressions: 7_600_000, conversions: 1_267, roas: 2.8, cpa: 30 },
+    baseForecast: { impressions: 6_800_000, conversions: 1_133, roas: 2.8, cpa: 30 },
   },
   {
     id: "mc-social",
@@ -72,10 +72,10 @@ const CHANNEL_TEMPLATE: Omit<MediaCampaign, "forecast">[] = [
     description: "Awareness + DTC conversion",
     funnelStage: "consideration",
     status: "available",
-    budget: 30_000,
-    baseBudget: 30_000,
+    budget: 26_000,
+    baseBudget: 26_000,
     enabled: true,
-    baseForecast: { impressions: 5_000_000, conversions: 1_250, roas: 3.4, cpa: 24 },
+    baseForecast: { impressions: 4_330_000, conversions: 1_083, roas: 3.4, cpa: 24 },
   },
   {
     id: "mc-retargeting",
@@ -88,6 +88,18 @@ const CHANNEL_TEMPLATE: Omit<MediaCampaign, "forecast">[] = [
     baseBudget: 32_000,
     enabled: true,
     baseForecast: { impressions: 3_200_000, conversions: 2_000, roas: 5.0, cpa: 16 },
+  },
+  {
+    id: "mc-agentic",
+    channel: "agentic",
+    label: "AI Agents — Agentic Channels",
+    description: "Surface in ChatGPT, Claude & Copilot answers",
+    funnelStage: "conversion",
+    status: "exploration",
+    budget: 8_000,
+    baseBudget: 8_000,
+    enabled: true,
+    baseForecast: { impressions: 320_000, conversions: 500, roas: 4.6, cpa: 16 },
   },
 ];
 
@@ -342,6 +354,7 @@ const CHANNEL_PATTERNS: { key: MediaChannelKey; re: RegExp }[] = [
   { key: "lookalike", re: /lookalike|prospect/i },
   { key: "social", re: /\bsocial\b|meta|instagram|facebook/i },
   { key: "retargeting", re: /retarget|site\s*visitor|warm/i },
+  { key: "agentic", re: /agentic|ai\s*agent|chatgpt|copilot|claude|perplexity/i },
 ];
 
 function matchChannelKey(text: string): MediaChannelKey | null {
@@ -367,6 +380,7 @@ export const WHY_CHANNEL: Record<MediaChannelKey, string> = {
   lookalike: "Lookalike prospecting finds net-new customers who resemble your best buyers — it's how you grow the funnel, so its CPA runs higher and ROAS lower than warm retargeting. It's the volume engine of the plan.",
   social: "Social (Meta & Instagram) does double duty — prospecting plus DTC conversion — which is why it carries both reach and a solid ROAS. It's the flexible mid-funnel workhorse.",
   retargeting: "Site retargeting converts warm visitors who already know you, so it's the most efficient line in the plan — lowest CPA, highest ROAS — but it's capped by how much qualified traffic the upper funnel sends it.",
+  agentic: "AI agents are where high-intent buyers increasingly start — when ChatGPT, Claude, or Copilot recommends your product, the click converts near retargeting efficiency. It's an exploration line: spend funds catalog syndication and knowledge-base freshness, and conversions are attributed per agent channel. Manage readiness in Agentic Explorations.",
 };
 
 export type MediaPlanCommand =

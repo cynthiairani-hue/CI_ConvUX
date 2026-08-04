@@ -321,8 +321,9 @@ export interface AgencyTeamMember {
 // blended ROAS is a real ratio (revenue/spend), never "scales with spend."
 
 export type FunnelStage = "awareness" | "consideration" | "conversion";
-export type MediaChannelKey = "ctv" | "dooh" | "lookalike" | "social" | "retargeting";
-export type MediaChannelStatus = "available" | "closed_beta";
+export type MediaChannelKey = "ctv" | "dooh" | "lookalike" | "social" | "retargeting" | "agentic";
+/** "exploration" = a Future Vision channel — rendered with the purple Exploration chip. */
+export type MediaChannelStatus = "available" | "closed_beta" | "exploration";
 
 export interface MediaForecast {
   impressions: number;
