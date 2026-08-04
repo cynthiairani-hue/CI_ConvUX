@@ -159,6 +159,8 @@ export function InfiniteCanvas() {
   framesRef.current = frames;
   const marketRef = useRef(market);
   marketRef.current = market;
+  const plansRef = useRef(savedMediaPlans);
+  plansRef.current = savedMediaPlans;
   const notesRef = useRef(notes);
   notesRef.current = notes;
 
@@ -278,6 +280,16 @@ export function InfiniteCanvas() {
     });
   }, []);
 
+  /* An expanded plan occupies far more than its frame — the whole graph
+     (stages, lines, creatives, audiences, flighting) counts as occupied. */
+  const graphRects = useCallback((fs: CanvasFrame[]): Rect[] =>
+    fs.filter((f) => f.kind === "media-plan" && f.expandedLines).flatMap((f) => {
+      const plan = plansRef.current.find((p) => p.id === f.refId);
+      if (!plan) return [];
+      const ext = planGraphExtent(f, plan);
+      return [{ x: f.x, y: f.y, w: ext.maxX - f.x, h: ext.maxY - f.y }];
+    }), []);
+
   const nonFrameRects = useCallback((): Rect[] => {
     const rects: Rect[] = [];
     flowsRef.current.forEach((fl) => fl.nodes.forEach((n) => rects.push({ x: n.x, y: n.y, w: NODE_W, h: NODE_EST_H[n.kind] })));
@@ -289,8 +301,11 @@ export function InfiniteCanvas() {
   }, []);
 
   const findFreeSpot = useCallback((w: number, h: number, startX: number, startY: number): { x: number; y: number } => {
-    return findSpotIn([...frameRects(framesRef.current), ...nonFrameRects()], w, h, startX, startY);
-  }, [frameRects, nonFrameRects]);
+    return findSpotIn(
+      [...frameRects(framesRef.current), ...graphRects(framesRef.current), ...nonFrameRects()],
+      w, h, startX, startY
+    );
+  }, [frameRects, graphRects, nonFrameRects]);
 
   /** Canvas-space point at the center of the current view. */
   const viewCenter = useCallback((): { x: number; y: number } => {
@@ -316,12 +331,12 @@ export function InfiniteCanvas() {
         return prev.map((f) => (f.id === existing.id ? { ...f, z: maxZ + 1 } : f));
       }
       const spot = findSpotIn(
-        [...frameRects(prev), ...nonFrameRects()],
+        [...frameRects(prev), ...graphRects(prev), ...nonFrameRects()],
         w, FRAME_EST_H[kind], c.x - w / 2, c.y - 220
       );
       return [...prev, { id: frameId(kind, refId), kind, refId, x: spot.x, y: spot.y, w, z: maxZ + 1 }];
     });
-  }, [viewCenter, frameRects, nonFrameRects]);
+  }, [viewCenter, frameRects, graphRects, nonFrameRects]);
 
   const removeFrame = useCallback((id: string) => {
     setFrames((prev) => prev.filter((f) => f.id !== id));
@@ -404,11 +419,19 @@ export function InfiniteCanvas() {
   }, [findFreeSpot, viewCenter]);
 
   const moveFlowNode = useCallback((flowId: string, nodeId: string, x: number, y: number) => {
-    setFlows((prev) => prev.map((f) =>
-      f.id === flowId
-        ? { ...f, nodes: f.nodes.map((n) => (n.id === nodeId ? { ...n, x, y } : n)) }
-        : f
-    ));
+    setFlows((prev) => prev.map((f) => {
+      if (f.id !== flowId) return f;
+      const node = f.nodes.find((n) => n.id === nodeId);
+      if (!node) return f;
+      // The trigger is the flow's anchor card — dragging it moves the whole
+      // flow as a group (same contract as dragging a plan frame moves its
+      // graph). Conditions/actions still reposition individually.
+      if (node.kind === "trigger") {
+        const dx = x - node.x, dy = y - node.y;
+        return { ...f, nodes: f.nodes.map((n) => ({ ...n, x: n.x + dx, y: n.y + dy })) };
+      }
+      return { ...f, nodes: f.nodes.map((n) => (n.id === nodeId ? { ...n, x, y } : n)) };
+    }));
   }, []);
 
   const authorizeFlowAction = useCallback((flowId: string, nodeId: string) => {
@@ -679,6 +702,8 @@ export function InfiniteCanvas() {
     const el = containerRef.current;
     if (!el) return;
     function onWheel(e: WheelEvent) {
+      // Menus and inspectors scroll natively — only the board pans/zooms.
+      if ((e.target as HTMLElement).closest?.("[data-canvas-ui]")) return;
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
         const rect = el!.getBoundingClientRect();
