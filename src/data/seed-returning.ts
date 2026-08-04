@@ -329,6 +329,11 @@ export function ensureReturningSeed(): void {
   // skipped (and corrects any plans a non-agency reseed wrote with the wrong brand).
   seedMediaPlans(set);
 
+  // Cyn's Canvas — the curated Canvas Explorations demo scene (media-planner
+  // workflow view + CPA-guardrail flow + CMO sticky thread), so the deployed
+  // link opens on a real working session, not an empty canvas.
+  seedCynCanvas(set);
+
   // Agency portfolio (no client selected) works per-client (see ensureAgencySeed)
   // — don't seed a single-brand workspace there. But once a client is entered,
   // getCurrentBrand() resolves to that client, so seeding fills *their* scoped
@@ -379,6 +384,56 @@ export function ensureReturningSeed(): void {
   // real plans that open the media-plan card (not campaigns). Version-gated: a
   // bump re-seeds the curated set once (e.g. to refresh staggered flights),
   // overwriting prior demo plans, then respects the user's edits going forward.
+}
+
+/** Cyn's Canvas — a composed canvas project that reads like a session Cynthia
+ *  ran with her CMO: the Holiday Push plan opened into its planner workflow
+ *  view, the retargeting audience, an AI-drafted CPA guardrail flow awaiting
+ *  authorization, and a sticky-note exchange with the CMO. Seeds once when no
+ *  canvas projects exist (and no legacy single canvas awaits migration). */
+function seedCynCanvas(set: (key: string, value: unknown) => void): void {
+  if (localStorage.getItem("fuseiq-canvas-projects") || localStorage.getItem("fuseiq-canvas")) return;
+  const id = "cnv-cyn";
+  const t = "2026-08-04T09:00:00.000Z";
+  const fx = 1200, fy = 200; // flow anchor; everything else hangs off it
+  set("fuseiq-canvas-projects", [
+    { id, name: "Cyn's Canvas", status: "active", createdAt: t, lastModifiedAt: t },
+  ]);
+  set(`fuseiq-flows--${id}`, [{
+    id: "flow-cyn-guardrail",
+    name: "CPA guardrail — Vans plan",
+    status: "draft",
+    nodes: [
+      { id: "flow-cyn-trigger", kind: "trigger", x: fx, y: fy + 70, title: "CPA rises above $40", detail: "Fires when CPA rises above $40 on the Vans plan." },
+      { id: "flow-cyn-condition", kind: "condition", x: fx + 380, y: fy + 92, title: "Only while Vans plan is active", detail: "Applies only while the Vans plan is live." },
+      { id: "flow-cyn-pause", kind: "action", x: fx + 760, y: fy, authorized: false, title: "Pause worst-performing line", detail: "Pauses the worst-performing line on the Vans plan." },
+      { id: "flow-cyn-slack", kind: "action", x: fx + 760, y: fy + 170, authorized: false, title: "Notify Slack", detail: "Posts the CPA breach and the paused line to your team channel." },
+    ],
+    edges: [
+      { from: "flow-cyn-trigger", to: "flow-cyn-condition" },
+      { from: "flow-cyn-condition", to: "flow-cyn-pause" },
+      { from: "flow-cyn-condition", to: "flow-cyn-slack" },
+    ],
+    createdAt: t,
+    lastModifiedAt: t,
+  }]);
+  const viewport = { x: -(fx - 720) * 0.42, y: -(fy - 220) * 0.42, scale: 0.42 };
+  set(`fuseiq-canvas--${id}`, {
+    viewport,
+    frames: [
+      { id: "frame-media-plan-seed-mp-holiday", kind: "media-plan", refId: "seed-mp-holiday", x: fx, y: fy + 560, w: 860, z: 1, expandedLines: true },
+      { id: "frame-audience-seed-aud-retargeting", kind: "audience", refId: "seed-aud-retargeting", x: fx - 660, y: fy - 40, w: 560, z: 2 },
+    ],
+    boards: [],
+    market: [],
+    views: [{ id: "view-cmo", name: "CMO walkthrough", viewport }],
+    notes: [
+      { id: "note-cmo-1", x: fx - 640, y: fy + 620, text: "Holiday budget feels light vs LY. What does +$25k into retargeting buy us? Show me the forecast delta.", author: "Dana W. — CMO, Vans", createdAt: t },
+      { id: "note-cmo-2", x: fx + 1180, y: fy + 60, text: "Love the guardrail — but nothing pauses spend without a human sign-off. Keep the approvals on.", author: "Dana W. — CMO, Vans", createdAt: t },
+      { id: "note-cmo-3", x: fx - 640, y: fy + 880, text: "Why is CTV carrying this much? If CPA drifts past $40 I want it caught same-day, not in the Monday report.", author: "Dana W. — CMO, Vans", createdAt: t },
+      { id: "note-cyn-1", x: fx + 1180, y: fy + 330, text: "Done — the flow to the left watches CPA live. Actions stay locked until you authorize each one.", author: "Cynthia — Brainlabs", createdAt: t },
+    ],
+  });
 }
 
 /** Media plans = the agency's Vans book of work. Version-gated; always Vans, and
