@@ -271,7 +271,7 @@ export default function AgenticPage() {
                 </div>
                 <ul className="mt-2.5 space-y-1 text-[12px] text-muted-foreground">
                   <li className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-600" /> Refreshes sources only — never activates a channel, never changes pricing or policies</li>
-                  <li className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-600" /> Syndication spend capped at the plan's AI Agents line budget</li>
+                  <li className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-600" /> Syndication spend capped at the plan&apos;s AI Agents line budget</li>
                   <li className="flex items-center gap-1.5"><Check className="h-3 w-3 text-emerald-600" /> Weekly digest of every action taken, revocable anytime</li>
                 </ul>
                 {state.manageForMe && (
@@ -305,7 +305,7 @@ export default function AgenticPage() {
               <div className="rounded-xl border border-border bg-white p-4">
                 <h2 className="text-[13px] font-semibold text-foreground">Agents</h2>
                 <p className="mt-0.5 text-[12px] text-muted-foreground">
-                  Every workflow you've built is an agent: named, scoped, and supervised. Actions stay locked until you authorize them.
+                  Every workflow you&apos;ve built is an agent: named, scoped, and supervised. Actions stay locked until you authorize them.
                 </p>
                 <div className="mt-3 space-y-2">
                   {loaded && agents.length === 0 && (
