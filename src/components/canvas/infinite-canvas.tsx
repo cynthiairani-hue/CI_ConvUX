@@ -114,7 +114,7 @@ function findSpotIn(rects: Rect[], w: number, h: number, startX: number, startY:
   return { x, y };
 }
 
-export function InfiniteCanvas({ projectId }: { projectId: string }) {
+export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; focusFlowId?: string }) {
   const {
     savedStrategies, saveStrategy, activeStrategy, setActiveStrategy,
     savedMediaPlans, saveMediaPlan, activeMediaPlan, setActiveMediaPlan,
@@ -526,6 +526,32 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
   const deleteFlowTemplate = useCallback((templateId: string) => {
     setFlowTemplates((prev) => prev.filter((t) => t.id !== templateId));
   }, []);
+
+  /* Deep-link focus (?focus=<flowId> from the Agentic roster): pan the camera
+     to the flow and pulse a purple ring on its cards so the arrival lands ON
+     the agent, not wherever the canvas was last left. One-shot per mount. */
+  const [highlightFlowId, setHighlightFlowId] = useState<string | null>(null);
+  const focusAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (!loaded || !flowsLoaded || !focusFlowId || focusAppliedRef.current) return;
+    const flow = flows.find((f) => f.id === focusFlowId);
+    if (!flow || flow.nodes.length === 0) return;
+    focusAppliedRef.current = true;
+    const minX = Math.min(...flow.nodes.map((n) => n.x));
+    const maxX = Math.max(...flow.nodes.map((n) => n.x + NODE_W));
+    const minY = Math.min(...flow.nodes.map((n) => n.y));
+    const maxY = Math.max(...flow.nodes.map((n) => n.y + NODE_EST_H[n.kind]));
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    const el = containerRef.current;
+    const cw = el?.clientWidth ?? 1200, ch = el?.clientHeight ?? 800;
+    // Fit the flow with margin, capped at 100% — never zoom past readable.
+    const scale = Math.min(1, (cw - 160) / (maxX - minX), (ch - 160) / (maxY - minY));
+    setViewport({ x: cw / 2 - cx * scale, y: ch / 2 - cy * scale, scale });
+    setHighlightFlowId(flow.id);
+    const t = setTimeout(() => setHighlightFlowId(null), 4000);
+    return () => clearTimeout(t);
+  }, [loaded, flowsLoaded, focusFlowId, flows]);
 
   /* Chat-generated flow drafts land here: lay out at a free spot near the
      viewport center and clear the pending pointer (same contract as the
@@ -1174,6 +1200,7 @@ export function InfiniteCanvas({ projectId }: { projectId: string }) {
               onDelete={setDeletingFlowId}
               onAsk={askAboutFlow}
               onSaveTemplate={saveFlowAsTemplate}
+              highlight={flow.id === highlightFlowId}
             />
           ))
         )}

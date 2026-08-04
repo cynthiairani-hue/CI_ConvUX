@@ -337,9 +337,9 @@ export default function AgenticPage() {
                           </p>
                         </div>
                         <Link
-                          href={`/canvas/${projectId}`}
+                          href={`/canvas/${projectId}?focus=${flow.id}`}
                           className="flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[12px] font-medium text-foreground hover:bg-accent"
-                          title={`Open on ${projectName}`}
+                          title={`Open on ${projectName} — jumps to this agent`}
                         >
                           Open canvas <ExternalLink className="h-3 w-3" />
                         </Link>

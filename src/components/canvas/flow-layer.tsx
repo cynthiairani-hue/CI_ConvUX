@@ -83,6 +83,7 @@ export function FlowNodeCard({
   onDelete,
   onAsk,
   onSaveTemplate,
+  highlight,
 }: {
   flow: OrchestrationFlow;
   node: FlowNode;
@@ -94,6 +95,8 @@ export function FlowNodeCard({
   onDelete: (flowId: string) => void;
   onAsk: (flow: OrchestrationFlow) => void;
   onSaveTemplate: (flow: OrchestrationFlow) => void;
+  /** Deep-link arrival (Agentic roster → canvas): purple ring on this flow's cards. */
+  highlight?: boolean;
 }) {
   const meta = NODE_META[node.kind];
   const Icon = meta.icon;
@@ -132,7 +135,8 @@ export function FlowNodeCard({
       data-node-id={node.id}
       className={cn(
         "absolute select-none rounded-xl border border-border bg-white shadow-[0px_2px_12px_rgba(71,88,114,0.08)]",
-        dragging ? "cursor-grabbing shadow-[0px_8px_24px_rgba(71,88,114,0.16)]" : "cursor-grab"
+        dragging ? "cursor-grabbing shadow-[0px_8px_24px_rgba(71,88,114,0.16)]" : "cursor-grab",
+        highlight && "animate-pulse ring-2 ring-[#7C5CFC] shadow-[0px_8px_28px_rgba(124,92,252,0.35)]"
       )}
       style={{ left: node.x, top: node.y, width: NODE_W }}
       onPointerDown={onPointerDown}
