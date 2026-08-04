@@ -338,7 +338,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
 
   const nonFrameRects = useCallback((): Rect[] => {
     const rects: Rect[] = [];
-    flowsRef.current.forEach((fl) => fl.nodes.forEach((n) => rects.push({ x: n.x, y: n.y, w: NODE_W, h: NODE_EST_H[n.kind] })));
+    flowsRef.current.filter((fl) => !fl.minimized).forEach((fl) => fl.nodes.forEach((n) => rects.push({ x: n.x, y: n.y, w: NODE_W, h: NODE_EST_H[n.kind] })));
     creativesRef.current.forEach((t) => rects.push({ x: t.x, y: t.y, w: TILE_W, h: tileEstHeight(t) }));
     boardsRef.current.forEach((b) => rects.push({ x: b.x, y: b.y, w: BOARD_W, h: BOARD_EST_H }));
     marketRef.current.forEach((m) => rects.push({ x: m.x, y: m.y, w: MARKET_W, h: MARKET_H }));
@@ -414,6 +414,15 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
       const maxZ = prev.reduce((m, f) => Math.max(m, f.z), 0);
       return prev.map((f) => (f.id === id ? { ...f, minimized: false, z: maxZ + 1 } : f));
     });
+  }, []);
+
+  /* Flows dock into the same taskbar — an active agent keeps running there. */
+  const minimizeFlow = useCallback((id: string) => {
+    setFlows((prev) => prev.map((f) => (f.id === id ? { ...f, minimized: true } : f)));
+  }, []);
+
+  const restoreFlow = useCallback((id: string) => {
+    setFlows((prev) => prev.map((f) => (f.id === id ? { ...f, minimized: false } : f)));
   }, []);
 
   const toggleExpandLines = useCallback((id: string) => {
@@ -1088,7 +1097,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
         className="absolute left-0 top-0"
         style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`, transformOrigin: "0 0" }}
       >
-        <FlowWires flows={flows} />
+        <FlowWires flows={flows.filter((f) => !f.minimized)} />
         {/* Marketplace attachment wires — dotted: a data feed, not a build step */}
         <svg className="absolute left-0 top-0 overflow-visible" width={1} height={1} aria-hidden>
           {/* Audience node ↔ its opened full frame: the SAME artifact, so the
@@ -1206,7 +1215,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
             onAsk={askAboutTile}
           />
         ))}
-        {flows.map((flow) =>
+        {flows.filter((f) => !f.minimized).map((flow) =>
           flow.nodes.map((node) => (
             <FlowNodeCard
               key={node.id}
@@ -1220,6 +1229,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
               onDelete={setDeletingFlowId}
               onAsk={askAboutFlow}
               onSaveTemplate={saveFlowAsTemplate}
+              onMinimize={minimizeFlow}
               highlight={flow.id === highlightFlowId}
             />
           ))
@@ -1271,7 +1281,8 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
       {mounted && (() => {
         const dockEl = document.getElementById("canvas-minimized-dock");
         const mins = frames.filter((f) => f.minimized);
-        if (!dockEl || mins.length === 0) return null;
+        const minFlows = flows.filter((f) => f.minimized);
+        if (!dockEl || (mins.length === 0 && minFlows.length === 0)) return null;
         return createPortal(
           <div data-canvas-ui className="flex items-center gap-1.5 overflow-x-auto border-t border-border bg-white px-3 py-1.5">
             <span className="shrink-0 pr-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -1305,6 +1316,37 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
                 </div>
               );
             })}
+            {/* Minimized flows — an active agent keeps running while docked,
+                so the tab carries its status dot. Removing is the canvas
+                delete (confirmed): flows live only on the canvas. */}
+            {minFlows.map((f) => (
+              <div
+                key={f.id}
+                className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/40 py-1 pl-2 pr-1 shadow-sm"
+              >
+                <button
+                  type="button"
+                  onClick={() => restoreFlow(f.id)}
+                  className="flex items-center gap-1.5"
+                  title="Restore to canvas"
+                >
+                  <Zap className="h-3.5 w-3.5 shrink-0 text-[#7C5CFC]" />
+                  <span className="max-w-[150px] truncate text-[12px] font-medium text-foreground">{f.name}</span>
+                  <span className={cn(
+                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                    f.status === "active" ? "bg-emerald-500" : f.status === "paused" ? "bg-amber-500" : "bg-muted-foreground/50"
+                  )} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeletingFlowId(f.id)}
+                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  title="Delete flow"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
           </div>,
           dockEl
         );

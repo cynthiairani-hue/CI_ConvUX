@@ -33,6 +33,8 @@ export interface OrchestrationFlow {
   status: FlowStatus;
   nodes: FlowNode[];
   edges: FlowEdge[];
+  /** collapsed into the canvas taskbar (the flow keeps running if active) */
+  minimized?: boolean;
   createdAt: string;
   lastModifiedAt: string;
 }

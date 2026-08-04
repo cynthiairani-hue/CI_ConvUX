@@ -7,7 +7,7 @@
    before the flow can activate — the agent loop, visible and enforced. */
 
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { BookmarkPlus, Check, Filter, Play, Pause, Sparkles, Trash2, Zap, type LucideIcon } from "lucide-react";
+import { BookmarkPlus, Check, Filter, Minus as MinusIcon, Play, Pause, Sparkles, Trash2, Zap, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrchestrationFlow, FlowNode, FlowNodeKind, FlowStatus } from "@/types/orchestration";
 
@@ -83,6 +83,7 @@ export function FlowNodeCard({
   onDelete,
   onAsk,
   onSaveTemplate,
+  onMinimize,
   highlight,
 }: {
   flow: OrchestrationFlow;
@@ -95,6 +96,7 @@ export function FlowNodeCard({
   onDelete: (flowId: string) => void;
   onAsk: (flow: OrchestrationFlow) => void;
   onSaveTemplate: (flow: OrchestrationFlow) => void;
+  onMinimize: (flowId: string) => void;
   /** Deep-link arrival (Agentic roster → canvas): purple ring on this flow's cards. */
   highlight?: boolean;
 }) {
@@ -165,6 +167,14 @@ export function FlowNodeCard({
             title="Save this flow as a reusable template"
           >
             <BookmarkPlus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMinimize(flow.id)}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Minimize to the taskbar (an active flow keeps running)"
+          >
+            <MinusIcon className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
