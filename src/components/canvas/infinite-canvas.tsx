@@ -14,6 +14,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   BarChart3,
   Bookmark,
@@ -164,6 +165,10 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
     setRenamingProject(false);
   }, [projectNameDraft, projectId]);
   const [viewName, setViewName] = useState("");
+  // Gate the bottom-taskbar portal until we're mounted on the client (the
+  // portal target lives in the page, outside the canvas region).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const { activePersona } = usePersona();
 
   /* Live refs so placement always reads current content, even when several
@@ -396,15 +401,19 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
     setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, x, y } : f)));
   }, []);
 
-  /* Width resize (height stays content-driven). Clamped to readable bounds. */
-  const resizeFrame = useCallback((id: string, w: number) => {
-    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, w: Math.round(Math.min(1400, Math.max(380, w))) } : f)));
+  const resizeFrame = useCallback((id: string, w: number, h: number) => {
+    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, w, h } : f)));
   }, []);
 
-  /* Window-style minimize: collapse to the title bar (the artifact keeps its
-     spot and width; the expanded plan graph hides with it). */
-  const toggleMinimizeFrame = useCallback((id: string) => {
-    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, minimized: !f.minimized } : f)));
+  const minimizeFrame = useCallback((id: string) => {
+    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, minimized: true } : f)));
+  }, []);
+
+  const restoreFrame = useCallback((id: string) => {
+    setFrames((prev) => {
+      const maxZ = prev.reduce((m, f) => Math.max(m, f.z), 0);
+      return prev.map((f) => (f.id === id ? { ...f, minimized: false, z: maxZ + 1 } : f));
+    });
   }, []);
 
   const toggleExpandLines = useCallback((id: string) => {
@@ -1215,7 +1224,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
             />
           ))
         )}
-        {frames.map((frame) => (
+        {frames.filter((frame) => !frame.minimized).map((frame) => (
           <FrameShell
             key={frame.id}
             frame={frame}
@@ -1246,15 +1255,60 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
             scale={viewport.scale}
             onMove={moveFrame}
             onResize={resizeFrame}
-            onMinimize={toggleMinimizeFrame}
             onFocus={bringToFront}
             onRemove={removeFrame}
+            onMinimize={minimizeFrame}
             onAsk={askAboutFrame}
           >
             {renderArtifact(frame)}
           </FrameShell>
         ))}
       </div>
+
+      {/* Minimized-window taskbar — portaled to a page-level strip at the
+          bottom of the SCREEN (below the canvas region), so it neither pans
+          with the canvas nor gets clipped by it. */}
+      {mounted && (() => {
+        const dockEl = document.getElementById("canvas-minimized-dock");
+        const mins = frames.filter((f) => f.minimized);
+        if (!dockEl || mins.length === 0) return null;
+        return createPortal(
+          <div data-canvas-ui className="flex items-center gap-1.5 overflow-x-auto border-t border-border bg-white px-3 py-1.5">
+            <span className="shrink-0 pr-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Minimized
+            </span>
+            {mins.map((f) => {
+              const Icon = KIND_META[f.kind].icon;
+              const nm = artifactName(f.kind, f.refId) ?? "Untitled";
+              return (
+                <div
+                  key={f.id}
+                  className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/40 py-1 pl-2 pr-1 shadow-sm"
+                >
+                  <button
+                    type="button"
+                    onClick={() => restoreFrame(f.id)}
+                    className="flex items-center gap-1.5"
+                    title="Restore to canvas"
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="max-w-[150px] truncate text-[12px] font-medium text-foreground">{nm}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeFrame(f.id)}
+                    className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    title="Remove from canvas (the artifact stays saved)"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>,
+          dockEl
+        );
+      })()}
 
       {/* Toolbar */}
       <div data-canvas-ui className="absolute left-4 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-xl border border-border bg-white p-1 shadow-md">
@@ -1852,9 +1906,9 @@ function FrameShell({
   scale,
   onMove,
   onResize,
-  onMinimize,
   onFocus,
   onRemove,
+  onMinimize,
   onAsk,
   children,
 }: {
@@ -1868,19 +1922,50 @@ function FrameShell({
   composedBody?: React.ReactNode;
   scale: number;
   onMove: (id: string, x: number, y: number) => void;
-  onResize: (id: string, w: number) => void;
-  onMinimize: (id: string) => void;
+  onResize: (id: string, w: number, h: number) => void;
   onFocus: (id: string) => void;
   onRemove: (id: string) => void;
+  onMinimize: (id: string) => void;
   onAsk: (frame: CanvasFrame) => void;
   children: React.ReactNode;
 }) {
   const meta = KIND_META[frame.kind];
   const Icon = meta.icon;
+  const rootRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const [dragging, setDragging] = useState(false);
-  const resizeRef = useRef<{ startX: number; ow: number } | null>(null);
+  const resizeRef = useRef<{ startX: number; startY: number; ow: number; oh: number } | null>(null);
   const [resizing, setResizing] = useState(false);
+
+  // A resized frame gets an explicit height and a scrolling body. Only the
+  // normal editable render supports it — the low-zoom cover and the decomposed
+  // media-plan graph stay content-driven.
+  const resizable = !lod && !composedBody;
+  const explicitH = resizable ? frame.h : undefined;
+
+  function onResizePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    e.stopPropagation(); // don't start a canvas pan
+    e.preventDefault();
+    onFocus(frame.id);
+    const oh = frame.h ?? rootRef.current?.offsetHeight ?? 400;
+    resizeRef.current = { startX: e.clientX, startY: e.clientY, ow: frame.w, oh };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* already released */ }
+    setResizing(true);
+  }
+
+  function onResizePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    const r = resizeRef.current;
+    if (!r) return;
+    const w = Math.max(320, r.ow + (e.clientX - r.startX) / scale);
+    const h = Math.max(160, r.oh + (e.clientY - r.startY) / scale);
+    onResize(frame.id, w, h);
+  }
+
+  function onResizePointerUp() {
+    resizeRef.current = null;
+    setResizing(false);
+  }
 
   function onTitlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (e.button !== 0) return;
@@ -1907,19 +1992,20 @@ function FrameShell({
 
   return (
     <div
+      ref={rootRef}
       data-canvas-frame
       data-frame-id={frame.id}
       className={cn(
         "absolute rounded-2xl border border-border bg-white shadow-[0px_2px_16px_rgba(71,88,114,0.10)]",
-        dragging && "shadow-[0px_8px_28px_rgba(71,88,114,0.18)]"
+        (dragging || resizing) && "shadow-[0px_8px_28px_rgba(71,88,114,0.18)]",
+        explicitH && "flex flex-col overflow-hidden"
       )}
-      style={{ left: frame.x, top: frame.y, width: frame.w, zIndex: frame.z }}
+      style={{ left: frame.x, top: frame.y, width: frame.w, height: explicitH, zIndex: frame.z }}
       onPointerDownCapture={() => onFocus(frame.id)}
     >
       <div
         className={cn(
-          "flex select-none items-center gap-2 bg-muted/40 px-3 py-2",
-          frame.minimized ? "rounded-2xl" : "rounded-t-2xl border-b border-border",
+          "flex shrink-0 select-none items-center gap-2 rounded-t-2xl border-b border-border bg-muted/40 px-3 py-2",
           dragging ? "cursor-grabbing" : "cursor-grab"
         )}
         onPointerDown={onTitlePointerDown}
@@ -1986,9 +2072,9 @@ function FrameShell({
           type="button"
           onClick={() => onMinimize(frame.id)}
           className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title={frame.minimized ? "Restore" : "Minimize to title bar"}
+          title="Minimize to the taskbar"
         >
-          {frame.minimized ? <Maximize2 className="h-3 w-3" /> : <Minus className="h-3.5 w-3.5" />}
+          <Minus className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
@@ -1999,10 +2085,7 @@ function FrameShell({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      {frame.minimized ? (
-        /* Minimized: the title bar IS the window — spot and width preserved. */
-        null
-      ) : composedBody ? (
+      {composedBody ? (
         /* Decomposed view — the graph beside the frame carries the detail;
            the frame itself becomes the compact plan node with its actions. */
         composedBody
@@ -2037,38 +2120,22 @@ function FrameShell({
           );
         })()
       ) : (
-        <div className="cursor-auto p-3">{children}</div>
+        <div className={cn("cursor-auto p-3", explicitH && "min-h-0 flex-1 overflow-auto")}>{children}</div>
       )}
-      {/* Width-resize handle — only when zoomed in enough to edit (same LOD
-          gate as the card content) and the window isn't minimized. */}
-      {!lod && !frame.minimized && (
+      {resizable && (
+        /* Corner grip — drag to resize; the body scrolls once a height is set. */
         <div
-          className={cn(
-            "absolute -right-1 top-0 h-full w-2 cursor-ew-resize",
-            resizing && "bg-[#7C5CFC]/20"
-          )}
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
+          onPointerCancel={onResizePointerUp}
+          className="absolute bottom-0 right-0 z-10 flex h-4 w-4 cursor-nwse-resize items-end justify-end p-0.5"
           title="Drag to resize"
-          onPointerDown={(e) => {
-            if (e.button !== 0) return;
-            e.stopPropagation();
-            e.preventDefault();
-            onFocus(frame.id);
-            resizeRef.current = { startX: e.clientX, ow: frame.w };
-            try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* released */ }
-            setResizing(true);
-          }}
-          onPointerMove={(e) => {
-            const r = resizeRef.current;
-            if (!r) return;
-            onResize(frame.id, r.ow + (e.clientX - r.startX) / scale);
-          }}
-          onPointerUp={() => { resizeRef.current = null; setResizing(false); }}
-          onPointerCancel={() => { resizeRef.current = null; setResizing(false); }}
         >
-          <div className={cn(
-            "absolute right-1 top-1/2 h-8 w-1 -translate-y-1/2 rounded-full bg-border opacity-0 transition-opacity hover:opacity-100",
-            resizing && "bg-[#7C5CFC] opacity-100"
-          )} />
+          <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden className="text-muted-foreground/60">
+            <path d="M8 0 L8 8 L0 8" fill="none" stroke="currentColor" strokeWidth="1" />
+            <path d="M8 4 L4 8 M8 7 L7 8" stroke="currentColor" strokeWidth="1" />
+          </svg>
         </div>
       )}
     </div>
