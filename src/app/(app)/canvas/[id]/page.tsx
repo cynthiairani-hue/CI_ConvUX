@@ -22,6 +22,10 @@ export default function CanvasProjectPage({
       <div className="shrink-0 pb-6 pt-2">
         <PageChatInput placeholder="Ask to build — new artifacts land on this canvas..." openIn="floating-left" />
       </div>
+      {/* Bottom-of-screen taskbar for minimized canvas windows. The canvas
+          portals its dock in here; empty:hidden means it takes no space until
+          there's something minimized. */}
+      <div id="canvas-minimized-dock" className="shrink-0 empty:hidden" />
     </div>
   );
 }
