@@ -24,6 +24,7 @@ import {
   Frame,
   LayoutList,
   ChevronLeft,
+  Layers,
   Maximize2,
   Megaphone,
   Minus,
@@ -146,6 +147,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
   const [views, setViews] = useState<SavedView[]>([]);
   const [notes, setNotes] = useState<StickyNote[]>([]);
   const [addTab, setAddTab] = useState<"add" | "views">("add");
+  const [contentsOpen, setContentsOpen] = useState(false);
   const [projectName, setProjectName] = useState("Canvas");
   const [renamingProject, setRenamingProject] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState("");
@@ -424,6 +426,36 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
   const restoreFlow = useCallback((id: string) => {
     setFlows((prev) => prev.map((f) => (f.id === id ? { ...f, minimized: false } : f)));
   }, []);
+
+  /* ── Contents-panel navigation: frame a rect, restore docked items first ── */
+
+  const centerOnRect = useCallback((minX: number, minY: number, maxX: number, maxY: number) => {
+    const el = containerRef.current;
+    const cw = el?.clientWidth ?? 1200, ch = el?.clientHeight ?? 800;
+    const scale = Math.min(1, (cw - 160) / Math.max(1, maxX - minX), (ch - 160) / Math.max(1, maxY - minY));
+    setViewport({ x: cw / 2 - ((minX + maxX) / 2) * scale, y: ch / 2 - ((minY + maxY) / 2) * scale, scale });
+  }, []);
+
+  const jumpToFrame = useCallback((id: string) => {
+    const f = frames.find((x) => x.id === id);
+    if (!f) return;
+    if (f.minimized) restoreFrame(id);
+    const h = f.h ?? FRAME_EST_H[f.kind] ?? 400;
+    centerOnRect(f.x, f.y, f.x + f.w, f.y + h);
+  }, [frames, restoreFrame, centerOnRect]);
+
+  const jumpToFlow = useCallback((id: string) => {
+    const fl = flows.find((x) => x.id === id);
+    if (!fl || fl.nodes.length === 0) return;
+    if (fl.minimized) restoreFlow(id);
+    const minX = Math.min(...fl.nodes.map((n) => n.x));
+    const maxX = Math.max(...fl.nodes.map((n) => n.x + NODE_W));
+    const minY = Math.min(...fl.nodes.map((n) => n.y));
+    const maxY = Math.max(...fl.nodes.map((n) => n.y + NODE_EST_H[n.kind]));
+    centerOnRect(minX, minY, maxX, maxY);
+    setHighlightFlowId(id);
+    setTimeout(() => setHighlightFlowId((cur) => (cur === id ? null : cur)), 3000);
+  }, [flows, restoreFlow, centerOnRect]);
 
   const toggleExpandLines = useCallback((id: string) => {
     setFrames((prev) => {
@@ -1352,8 +1384,8 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
         );
       })()}
 
-      {/* Toolbar */}
-      <div data-canvas-ui className="absolute left-4 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-xl border border-border bg-white p-1 shadow-md">
+      {/* Action bar — horizontal, bottom-center (à la Figma): zoom, fit, add, note, contents */}
+      <div data-canvas-ui className="absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-0.5 rounded-xl border border-border bg-white p-1 shadow-md">
         <button
           type="button"
           onClick={() => zoomBy(1.25)}
@@ -1378,7 +1410,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
         >
           <Minus className="h-4 w-4" />
         </button>
-        <div className="my-0.5 h-px w-5 bg-border" />
+        <div className="mx-0.5 h-5 w-px bg-border" />
         <button
           type="button"
           onClick={fitToContent}
@@ -1388,7 +1420,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
         >
           <Maximize2 className="h-3.5 w-3.5" />
         </button>
-        <div className="my-0.5 h-px w-5 bg-border" />
+        <div className="mx-0.5 h-5 w-px bg-border" />
         <div className="relative">
           <button
             type="button"
@@ -1402,7 +1434,7 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
             <Plus className="h-4 w-4" />
           </button>
           {addOpen && (
-            <div className="absolute left-full top-0 z-50 ml-2 max-h-96 w-72 overflow-y-auto rounded-xl border border-border bg-white py-1.5 shadow-lg">
+            <div className="absolute bottom-full left-1/2 z-50 mb-2 max-h-96 w-72 -translate-x-1/2 overflow-y-auto rounded-xl border border-border bg-white py-1.5 shadow-lg">
               {/* Tabs: Add (templates, boards, data, artifacts) | Views (camera bookmarks) */}
               <div className="mx-3 mb-1 flex gap-1 rounded-lg bg-muted p-0.5">
                 {(["add", "views"] as const).map((tab) => (
@@ -1590,7 +1622,110 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
         >
           <StickyNoteIcon className="h-3.5 w-3.5" />
         </button>
+        <div className="mx-0.5 h-5 w-px bg-border" />
+        <button
+          type="button"
+          onClick={() => setContentsOpen((o) => !o)}
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+            contentsOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          )}
+          title="Contents — everything on this canvas"
+        >
+          <Layers className="h-3.5 w-3.5" />
+        </button>
       </div>
+
+      {/* Contents panel (à la Miro's Frames): everything on the canvas — and in
+          the taskbar — by name. Click to jump the camera to it (docked items
+          restore first). */}
+      {contentsOpen && (
+        <div data-canvas-ui className="absolute right-4 top-4 z-40 flex max-h-[calc(100%-6rem)] w-72 flex-col rounded-xl border border-border bg-white shadow-lg">
+          <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
+            <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="flex-1 text-[13px] font-medium text-foreground">Contents</span>
+            <button
+              type="button"
+              onClick={() => setContentsOpen(false)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Close"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
+            {frames.length === 0 && flows.length === 0 && boards.length === 0 && notes.length === 0 && (
+              <p className="px-4 py-2 text-[12px] text-muted-foreground">Nothing on this canvas yet.</p>
+            )}
+            {frames.length > 0 && (
+              <div className="px-4 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Artifacts</div>
+            )}
+            {frames.map((f) => {
+              const FIcon = KIND_META[f.kind].icon;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => jumpToFrame(f.id)}
+                  className="flex w-full items-center gap-2 px-4 py-1.5 text-left transition-colors hover:bg-accent"
+                >
+                  <FIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{artifactName(f.kind, f.refId) ?? "Untitled"}</span>
+                  {f.minimized && <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted-foreground">Docked</span>}
+                </button>
+              );
+            })}
+            {flows.length > 0 && (
+              <div className="px-4 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Flows</div>
+            )}
+            {flows.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => jumpToFlow(f.id)}
+                className="flex w-full items-center gap-2 px-4 py-1.5 text-left transition-colors hover:bg-accent"
+              >
+                <Zap className="h-3.5 w-3.5 shrink-0 text-[#7C5CFC]" />
+                <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{f.name}</span>
+                <span className={cn(
+                  "h-1.5 w-1.5 shrink-0 rounded-full",
+                  f.status === "active" ? "bg-emerald-500" : f.status === "paused" ? "bg-amber-500" : "bg-muted-foreground/50"
+                )} />
+                {f.minimized && <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted-foreground">Docked</span>}
+              </button>
+            ))}
+            {boards.length > 0 && (
+              <div className="px-4 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Boards</div>
+            )}
+            {boards.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => { centerOnRect(b.x, b.y, b.x + 400, b.y + 280); }}
+                className="flex w-full items-center gap-2 px-4 py-1.5 text-left transition-colors hover:bg-accent"
+              >
+                <Presentation className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{b.name}</span>
+              </button>
+            ))}
+            {notes.length > 0 && (
+              <div className="px-4 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Notes</div>
+            )}
+            {notes.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => { centerOnRect(n.x, n.y, n.x + 240, n.y + 170); }}
+                className="flex w-full items-center gap-2 px-4 py-1.5 text-left transition-colors hover:bg-accent"
+              >
+                <StickyNoteIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{n.text || "Empty note"}</span>
+                <span className="max-w-[70px] shrink-0 truncate text-[10px] text-muted-foreground">{n.author}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Inspector — click a graph node to see and act on it (Flora-style) */}
       {(() => {
@@ -1838,8 +1973,8 @@ export function InfiniteCanvas({ projectId, focusFlowId }: { projectId: string; 
         </div>
       )}
 
-      {/* Interaction hint — centered just above the chat input strip */}
-      <div className="pointer-events-none absolute bottom-3 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur">
+      {/* Interaction hint — bottom-left, out of the action bar's way */}
+      <div className="pointer-events-none absolute bottom-4 left-4 z-30 whitespace-nowrap rounded-lg bg-white/80 px-2.5 py-1.5 text-[11px] text-muted-foreground backdrop-blur">
         Drag to pan · ⌘ scroll to zoom · drag cards by their title bar
       </div>
     </div>
