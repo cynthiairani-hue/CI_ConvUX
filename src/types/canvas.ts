@@ -16,6 +16,11 @@ export interface CanvasFrame {
   y: number;
   /** frame width in canvas units; height is content-driven */
   w: number;
+  /** explicit height in canvas units once the user resizes the frame; when
+      unset the height stays content-driven. A resized frame scrolls its body. */
+  h?: number;
+  /** collapsed into the bottom taskbar (artifact stays saved; layout retained) */
+  minimized?: boolean;
   /** stacking order — click/drag brings to front */
   z: number;
   /** media plans only: the plan is decomposed into a node graph beside the frame */
