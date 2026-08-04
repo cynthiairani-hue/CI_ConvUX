@@ -28,6 +28,7 @@ import type { CampaignPlan, StrategyPlan, KeywordChip, IABIndustry, IABRestricte
 import type { ChoiceOption } from "@/components/ai-companion/chat-choices";
 import { useCampaign } from "./campaign-context";
 import { useLayout } from "./layout-context";
+import type { FlowDraft } from "@/types/orchestration";
 import { buildNarrativeFromSeed } from "@/data/narrative-flow";
 import { SEED_PERFORMANCE, SEED_ANOMALIES } from "@/data/seed-company";
 import { FFERN_SEED_PERFORMANCE, FFERN_SEED_ANOMALIES } from "@/data/seed-ffern";
@@ -260,7 +261,7 @@ function looksLikeBriefText(text: string): boolean {
 
 export function AICompanionProvider({ children }: { children: ReactNode }) {
   const { activePersona } = usePersona();
-  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, saveMediaPlan, activeMediaPlan, savedMediaPlans, clearAllArtifacts } = useCampaign();
+  const { setActivePlan, advertiser, setAdvertiser, setActiveStrategy, saveStrategy, saveNarrative, setActiveNarrative, setActiveAudience, setActiveBrief, saveBrief, setActiveOperator, setActiveMediaPlan, saveMediaPlan, activeMediaPlan, savedMediaPlans, clearAllArtifacts, setPendingFlowDraft } = useCampaign();
   const { collapseLeftRail } = useLayout();
   // Defer localStorage reads to useEffect to prevent hydration mismatches
   // Always boots to "resting" — the chat opens deliberately (a CTA, the bubble,
@@ -992,6 +993,55 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         collapseLeftRail();
       };
 
+      // LLM workflow composer: the ask becomes an orchestration-flow draft on
+      // the canvas. Composed strictly from the flow catalog (things the system
+      // can actually run); every action lands unauthorized — the user walks
+      // Notice → Propose → Authorize on the canvas before activation.
+      const doFlowBuild = async (ask: string) => {
+        const clientName = getActiveClient()?.name || (brandRef.current || getCurrentBrand())?.name || "";
+        const thinkingMsg: ChatMessage = { id: nextId(), role: "assistant", content: "", thinkingSteps: [] };
+        const thinkingId = thinkingMsg.id;
+        setMessages((prev) => [...prev, thinkingMsg]);
+        setIsLoading(false);
+        const addStep = (s: string) =>
+          setMessages((prev) => prev.map((m) => (m.id === thinkingId ? { ...m, thinkingSteps: [...(m.thinkingSteps ?? []), s] } : m)));
+        const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+        addStep("Reading the automation");
+        let draft: FlowDraft | null = null;
+        try {
+          const res = await fetch("/api/flow/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ask, clientName }),
+          });
+          draft = ((await res.json()) as { draft: FlowDraft | null }).draft ?? null;
+        } catch {
+          draft = null;
+        }
+        await delay(600); addStep("Mapping to triggers and actions the system can run");
+        // Never break the build: catalog-consistent fallback (post-notice +
+        // notify-slack both exist in the catalog) when the LLM is unavailable.
+        if (!draft) {
+          draft = {
+            name: "Monitoring flow",
+            trigger: { title: "Signal detected", detail: `Fires when the condition you described occurs: "${ask.slice(0, 120)}".` },
+            condition: null,
+            actions: [
+              { title: "Post a Notice with what changed", detail: "Adds a card to Priorities with the signal, the evidence, and a suggested next step." },
+              { title: "Notify the team in Slack", detail: "Posts the signal summary to your team channel." },
+            ],
+          };
+        }
+        await delay(600); addStep("Composing the flow");
+        await delay(400);
+        setPendingFlowDraft(draft);
+        const onCanvas = typeof window !== "undefined" && /^\/canvas\/./.test(window.location.pathname);
+        const shape = [draft.trigger.title, ...(draft.condition ? [draft.condition.title] : []), ...draft.actions.map((a) => a.title)].join(" → ");
+        const narration = `Drafted **${draft.name}**: ${shape}.\n\nEach action needs your explicit authorization before the flow can activate${onCanvas ? " — it's on your canvas now, as a draft." : " — open **Canvas Explorations** to review and authorize it."} Once it's the way you want it, you can save it as a reusable template from the flow's title bar.`;
+        setMessages((prev) => prev.map((m) => (m.id === thinkingId ? { ...m, content: narration } : m)));
+      };
+
       // Dismiss any pending setup-mode choice card — user chose to type instead
       // Fall back to the default mode (conversational/Guided)
       setMessages((prev) => {
@@ -1032,6 +1082,25 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         const merged = mergeIntent(currentCampaignIntent, parsed);
         evaluateAndRespond(merged, userMsg);
         return;
+      }
+
+      // WORKFLOW intent — "automate…", "build a workflow…", or a when/then-
+      // shaped ask ("when CPA passes $40, pause the worst line and Slack me").
+      // Must run BEFORE the media-plan edit parser: words like "pause"/"shift"
+      // would otherwise be misread as plan edits. Capability questions
+      // ("what can you automate?") stay conversational.
+      {
+        const flowKeyword = /\b(automat(?:e|ion|ed)|workflow|orchestrat\w*|auto-?pilot)\b/i.test(content);
+        const flowInfoQuestion = /^(what|which|how|why|where|who|do you|does)\b/i.test(content.trim());
+        const flowShape =
+          /\b(when|whenever|every time|any ?time)\b/i.test(content) &&
+          /\b(pause|notify|alert|shift|sync|widen|email|slack|post a notice|flag|resume|tell me|let me know|ping)\b/i.test(content) &&
+          !/\?\s*$/.test(content.trim());
+        if ((flowKeyword && !flowInfoQuestion) || flowShape) {
+          setMessages((prev) => [...prev, userMsg]);
+          void doFlowBuild(content);
+          return;
+        }
       }
 
       // Active media plan: interpret freeform edit commands ("change CTV budget
@@ -2082,7 +2151,7 @@ export function AICompanionProvider({ children }: { children: ReactNode }) {
         }
       );
     },
-    [strategyIntent, campaignIntent, evaluateStrategyFlow, evaluateAndRespond, callAPI, setActivePlan, saveNarrative, setActiveNarrative, collapseLeftRail, advertiser, setAdvertiser, chatMode, setChatMode, setActiveStrategy, saveStrategy]
+    [strategyIntent, campaignIntent, evaluateStrategyFlow, evaluateAndRespond, callAPI, setActivePlan, saveNarrative, setActiveNarrative, collapseLeftRail, advertiser, setAdvertiser, chatMode, setChatMode, setActiveStrategy, saveStrategy, setPendingFlowDraft]
   );
 
   // Continue campaign flow AFTER mode is chosen (or when mode is already known)

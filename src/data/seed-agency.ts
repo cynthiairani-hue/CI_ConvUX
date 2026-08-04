@@ -124,7 +124,17 @@ const ACTIVE_CLIENT_KEY = "fuseiq-active-client";
 const WORKSPACE_KEYS = [
   "fuseiq-strategies", "fuseiq-media-plans", "fuseiq-advertisers", "fuseiq-audiences",
   "fuseiq-narratives", "fuseiq-approvals", "fuseiq-briefs", "fuseiq-chat-sessions", "fuseiq-canvas", "fuseiq-flows", "fuseiq-creatives",
+  "fuseiq-canvas-projects",
 ];
+
+/* Canvas projects store per-project keys ("fuseiq-canvas--<id>", …) alongside
+   the registry — clear those by prefix when switching workspace scope. */
+function clearWorkspaceKeys(): void {
+  WORKSPACE_KEYS.forEach((k) => localStorage.removeItem(k));
+  Object.keys(localStorage)
+    .filter((k) => /^fuseiq-(canvas|flows|creatives)--/.test(k))
+    .forEach((k) => localStorage.removeItem(k));
+}
 
 export interface ActiveClient {
   id: string;
@@ -145,13 +155,13 @@ export function getActiveClient(): ActiveClient | null {
 
 /** Enter a client's scoped workspace (clears the prior scope; caller reloads). */
 export function enterClient(c: AgencyClient): void {
-  WORKSPACE_KEYS.forEach((k) => localStorage.removeItem(k));
+  clearWorkspaceKeys();
   localStorage.setItem(ACTIVE_CLIENT_KEY, JSON.stringify({ id: c.id, name: c.name, domain: c.domain, industry: c.industry }));
 }
 
 /** Return to the agency portfolio (clears client scope; caller reloads). */
 export function exitClient(): void {
-  WORKSPACE_KEYS.forEach((k) => localStorage.removeItem(k));
+  clearWorkspaceKeys();
   localStorage.removeItem(ACTIVE_CLIENT_KEY);
 }
 

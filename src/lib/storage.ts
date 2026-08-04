@@ -1,11 +1,12 @@
 import type { StrategyPlan, Advertiser, CFONarrative, AudienceSegment, ApprovalRequest, CompetitiveBrief, MediaPlan } from "@/types/campaign";
 import type { CanvasWorkspace } from "@/types/canvas";
-import type { OrchestrationFlow } from "@/types/orchestration";
+import type { OrchestrationFlow, SavedFlowTemplate } from "@/types/orchestration";
 import type { AdTile } from "@/types/creative";
 
 const STRATEGIES_KEY = "fuseiq-strategies";
 const CANVAS_KEY = "fuseiq-canvas";
 const FLOWS_KEY = "fuseiq-flows";
+const FLOW_TEMPLATES_KEY = "fuseiq-flow-templates";
 const CREATIVES_KEY = "fuseiq-creatives";
 const MEDIA_PLANS_KEY = "fuseiq-media-plans";
 const ADVERTISERS_KEY = "fuseiq-advertisers";
@@ -109,28 +110,124 @@ export function persistStrategies(strategies: StrategyPlan[]): void {
   safeSet(STRATEGIES_KEY, strategies);
 }
 
-export function loadCanvas(): CanvasWorkspace | null {
-  return safeGet<CanvasWorkspace | null>(CANVAS_KEY, null);
+/* ── Canvas projects (à la Miro) ──
+   The canvas is multi-project: a registry of project metadata plus per-project
+   keys ("fuseiq-canvas--<id>", same for flows/creatives). The landing page at
+   /canvas lists the registry; each project opens its own workspace. A legacy
+   single-workspace install migrates into the first project on first read. */
+
+export interface CanvasProjectMeta {
+  id: string;
+  name: string;
+  status: "active" | "archived";
+  createdAt: string;
+  lastModifiedAt: string;
 }
 
-export function persistCanvas(workspace: CanvasWorkspace): void {
-  safeSet(CANVAS_KEY, workspace);
+const CANVAS_PROJECTS_KEY = "fuseiq-canvas-projects";
+const projectKey = (base: string, projectId: string) => `${base}--${projectId}`;
+
+function migrateLegacyCanvas(): void {
+  try {
+    if (localStorage.getItem(CANVAS_PROJECTS_KEY)) return;
+    const legacy = localStorage.getItem(CANVAS_KEY);
+    if (!legacy) return;
+    const id = `cnv-${Date.now().toString(36)}`;
+    const now = new Date().toISOString();
+    localStorage.setItem(projectKey(CANVAS_KEY, id), legacy);
+    for (const base of [FLOWS_KEY, CREATIVES_KEY]) {
+      const v = localStorage.getItem(base);
+      if (v) localStorage.setItem(projectKey(base, id), v);
+      localStorage.removeItem(base);
+    }
+    localStorage.removeItem(CANVAS_KEY);
+    safeSet(CANVAS_PROJECTS_KEY, [{ id, name: "My canvas", status: "active", createdAt: now, lastModifiedAt: now } satisfies CanvasProjectMeta]);
+  } catch {
+    // localStorage unavailable — nothing to migrate
+  }
 }
 
-export function loadFlows(): OrchestrationFlow[] {
-  return safeGet<OrchestrationFlow[]>(FLOWS_KEY, []);
+export function loadCanvasProjects(): CanvasProjectMeta[] {
+  migrateLegacyCanvas();
+  return safeGet<CanvasProjectMeta[]>(CANVAS_PROJECTS_KEY, []);
 }
 
-export function persistFlows(flows: OrchestrationFlow[]): void {
-  safeSet(FLOWS_KEY, flows);
+export function persistCanvasProjects(projects: CanvasProjectMeta[]): void {
+  safeSet(CANVAS_PROJECTS_KEY, projects);
 }
 
-export function loadCreatives(): AdTile[] {
-  return safeGet<AdTile[]>(CREATIVES_KEY, []);
+/** Stamp a project's lastModifiedAt — called by the per-project persists. */
+export function touchCanvasProject(projectId: string): void {
+  const projects = safeGet<CanvasProjectMeta[]>(CANVAS_PROJECTS_KEY, []);
+  const i = projects.findIndex((p) => p.id === projectId);
+  if (i < 0) return;
+  projects[i] = { ...projects[i], lastModifiedAt: new Date().toISOString() };
+  safeSet(CANVAS_PROJECTS_KEY, projects);
 }
 
-export function persistCreatives(creatives: AdTile[]): void {
-  safeSet(CREATIVES_KEY, creatives);
+/** Copy one project's workspace/flows/creatives under a new project id. */
+export function copyCanvasProjectData(sourceId: string, targetId: string): void {
+  try {
+    for (const base of [CANVAS_KEY, FLOWS_KEY, CREATIVES_KEY]) {
+      const v = localStorage.getItem(projectKey(base, sourceId));
+      if (v) localStorage.setItem(projectKey(base, targetId), v);
+    }
+  } catch {
+    // localStorage unavailable
+  }
+}
+
+/** Remove a project's stored data (registry entry is the caller's job). */
+export function deleteCanvasProjectData(projectId: string): void {
+  try {
+    for (const base of [CANVAS_KEY, FLOWS_KEY, CREATIVES_KEY]) {
+      localStorage.removeItem(projectKey(base, projectId));
+    }
+  } catch {
+    // localStorage unavailable
+  }
+}
+
+/** Light stats for the landing-page cards. */
+export function canvasProjectStats(projectId: string): { frames: number; flows: number; notes: number } {
+  const ws = safeGet<CanvasWorkspace | null>(projectKey(CANVAS_KEY, projectId), null);
+  const flows = safeGet<OrchestrationFlow[]>(projectKey(FLOWS_KEY, projectId), []);
+  return { frames: ws?.frames?.length ?? 0, flows: flows.length, notes: ws?.notes?.length ?? 0 };
+}
+
+export function loadCanvas(projectId: string): CanvasWorkspace | null {
+  return safeGet<CanvasWorkspace | null>(projectKey(CANVAS_KEY, projectId), null);
+}
+
+export function persistCanvas(projectId: string, workspace: CanvasWorkspace): void {
+  safeSet(projectKey(CANVAS_KEY, projectId), workspace);
+  touchCanvasProject(projectId);
+}
+
+export function loadFlows(projectId: string): OrchestrationFlow[] {
+  return safeGet<OrchestrationFlow[]>(projectKey(FLOWS_KEY, projectId), []);
+}
+
+export function persistFlows(projectId: string, flows: OrchestrationFlow[]): void {
+  safeSet(projectKey(FLOWS_KEY, projectId), flows);
+  touchCanvasProject(projectId);
+}
+
+export function loadFlowTemplates(): SavedFlowTemplate[] {
+  return safeGet<SavedFlowTemplate[]>(FLOW_TEMPLATES_KEY, []);
+}
+
+export function persistFlowTemplates(templates: SavedFlowTemplate[]): void {
+  safeSet(FLOW_TEMPLATES_KEY, templates);
+}
+
+export function loadCreatives(projectId: string): AdTile[] {
+  return safeGet<AdTile[]>(projectKey(CREATIVES_KEY, projectId), []);
+}
+
+export function persistCreatives(projectId: string, creatives: AdTile[]): void {
+  safeSet(projectKey(CREATIVES_KEY, projectId), creatives);
+  touchCanvasProject(projectId);
 }
 
 export function loadMediaPlans(): MediaPlan[] {

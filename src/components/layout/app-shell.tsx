@@ -1038,7 +1038,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   // On /canvas, artifacts render inside canvas frames — the split-canvas takeover
   // is suppressed (Operator excepted: it has its own authorization surface).
   const pathname = usePathname();
-  const onCanvasPage = pathname?.startsWith("/canvas") ?? false;
+  // Inside a canvas PROJECT (/canvas/<id>) — the landing list at /canvas
+  // behaves like every other list page (expanded rail, normal takeover).
+  const onCanvasPage = /^\/canvas\/./.test(pathname ?? "");
   const hasArtifact = onCanvasPage
     ? !!activeOperator
     : !!(activeStrategy || activeNarrative || activeAudience || activeBrief || activeOperator || activeMediaPlan);

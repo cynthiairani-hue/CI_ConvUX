@@ -24,6 +24,7 @@ import type {
 import { approvers } from "@/data/approvers";
 import { personas } from "@/data/personas";
 import type { PersonaId } from "@/types/persona";
+import type { FlowDraft } from "@/types/orchestration";
 import {
   loadStrategies,
   persistStrategies,
@@ -72,6 +73,11 @@ interface CampaignContextValue {
   setActiveOperator: (operator: OperatorPlan | null) => void;
   activeMediaPlan: MediaPlan | null;
   setActiveMediaPlan: (plan: MediaPlan | null) => void;
+  /** Chat-generated flow awaiting canvas placement — the canvas captures it,
+      lays it out at a free spot, and clears the pointer (same contract as the
+      active* artifact pointers). */
+  pendingFlowDraft: FlowDraft | null;
+  setPendingFlowDraft: (draft: FlowDraft | null) => void;
   savedMediaPlans: MediaPlan[];
   saveMediaPlan: (plan: MediaPlan) => void;
   addMediaPlanComment: (
@@ -137,6 +143,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [activeBrief, setActiveBrief] = useState<CompetitiveBrief | null>(null);
   const [activeOperator, setActiveOperator] = useState<OperatorPlan | null>(null);
   const [activeMediaPlan, setActiveMediaPlan] = useState<MediaPlan | null>(null);
+  const [pendingFlowDraft, setPendingFlowDraft] = useState<FlowDraft | null>(null);
   const [savedMediaPlans, setSavedMediaPlans] = useState<MediaPlan[]>([]);
   const [activeAudience, setActiveAudience] = useState<AudienceSegment | null>(null);
   const [savedAudiences, setSavedAudiences] = useState<AudienceSegment[]>([]);
@@ -795,6 +802,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setActiveOperator,
         activeMediaPlan,
         setActiveMediaPlan,
+        pendingFlowDraft,
+        setPendingFlowDraft,
         savedMediaPlans,
         saveMediaPlan,
         addMediaPlanComment,

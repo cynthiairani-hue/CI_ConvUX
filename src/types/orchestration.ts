@@ -36,3 +36,24 @@ export interface OrchestrationFlow {
   createdAt: string;
   lastModifiedAt: string;
 }
+
+/** A chat-generated flow before it has canvas coordinates. The AI composes
+    trigger/condition/actions from the flow catalog (never an action the
+    system can't perform); the canvas lays it out and wires the edges. */
+export interface FlowDraft {
+  name: string;
+  trigger: { title: string; detail: string };
+  condition: { title: string; detail: string } | null;
+  actions: { title: string; detail: string }[];
+}
+
+/** A user-saved flow template: any flow, curated into a reusable asset.
+    Node positions are stored relative to the flow's top-left corner. */
+export interface SavedFlowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  createdAt: string;
+}

@@ -7,7 +7,7 @@
    before the flow can activate — the agent loop, visible and enforced. */
 
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, Filter, Play, Pause, Sparkles, Trash2, Zap, type LucideIcon } from "lucide-react";
+import { BookmarkPlus, Check, Filter, Play, Pause, Sparkles, Trash2, Zap, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrchestrationFlow, FlowNode, FlowNodeKind, FlowStatus } from "@/types/orchestration";
 
@@ -82,6 +82,7 @@ export function FlowNodeCard({
   onPause,
   onDelete,
   onAsk,
+  onSaveTemplate,
 }: {
   flow: OrchestrationFlow;
   node: FlowNode;
@@ -92,6 +93,7 @@ export function FlowNodeCard({
   onPause: (flowId: string) => void;
   onDelete: (flowId: string) => void;
   onAsk: (flow: OrchestrationFlow) => void;
+  onSaveTemplate: (flow: OrchestrationFlow) => void;
 }) {
   const meta = NODE_META[node.kind];
   const Icon = meta.icon;
@@ -151,6 +153,14 @@ export function FlowNodeCard({
             title="Ask the AI about this flow"
           >
             <Sparkles className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onSaveTemplate(flow)}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Save this flow as a reusable template"
+          >
+            <BookmarkPlus className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"

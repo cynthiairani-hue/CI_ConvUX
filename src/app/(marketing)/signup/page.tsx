@@ -338,6 +338,11 @@ export default function SignupPage() {
 
     // Reset all demo state so each scenario loads clean — no leftovers.
     SEED_KEYS.forEach((k) => localStorage.removeItem(k));
+    // Canvas projects live under per-project keys ("fuseiq-canvas--<id>", …)
+    // plus a registry — clear by prefix so a fresh signup starts clean.
+    Object.keys(localStorage)
+      .filter((k) => k === "fuseiq-canvas-projects" || /^fuseiq-(canvas|flows|creatives)--/.test(k))
+      .forEach((k) => localStorage.removeItem(k));
     localStorage.setItem("fuseiq-user", JSON.stringify({ name: "Cynthia Irani", email: s.email }));
     localStorage.setItem("fuseiq-persona", s.persona);
     localStorage.setItem("fuseiq-demo-user-state", start === "net-new" ? "first-time" : "returning");

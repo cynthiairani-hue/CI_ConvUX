@@ -22,6 +22,7 @@ import {
   StickyNote as StickyNoteIcon,
   Frame,
   LayoutList,
+  ChevronLeft,
   Maximize2,
   Megaphone,
   Minus,
@@ -39,16 +40,17 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useCampaign } from "@/contexts/campaign-context";
 import { useAICompanion } from "@/contexts/ai-companion-context";
 import { cn } from "@/lib/utils";
-import { loadCanvas, persistCanvas, loadFlows, persistFlows, loadCreatives, persistCreatives } from "@/lib/storage";
+import { loadCanvas, persistCanvas, loadFlows, persistFlows, loadCreatives, persistCreatives, loadFlowTemplates, persistFlowTemplates, loadCanvasProjects, persistCanvasProjects } from "@/lib/storage";
 import type { CanvasFrame, CanvasFrameKind, CanvasViewport, MarketNode, ReviewBoardCard as ReviewBoardCardType } from "@/types/canvas";
 import { MARKETPLACE_SEGMENTS, marketplaceSegment, audienceForLine } from "@/data/marketplace";
 import { MarketNodeCard, MARKET_W, MARKET_H } from "@/components/canvas/market-node";
-import type { OrchestrationFlow } from "@/types/orchestration";
+import type { OrchestrationFlow, SavedFlowTemplate } from "@/types/orchestration";
 import type { AdTile } from "@/types/creative";
-import { FLOW_TEMPLATES, createFlowFromTemplate } from "@/data/flow-templates";
+import { FLOW_TEMPLATES, createFlowFromTemplate, createFlowFromDraft, draftExtent, flowToTemplate, createFlowFromSavedTemplate, templateExtent } from "@/data/flow-templates";
 import { buildCreativeReviewBoard } from "@/data/creative-templates";
 import { FlowWires, FlowNodeCard, NODE_W, NODE_EST_H } from "@/components/canvas/flow-layer";
 import { AdTileCard, TILE_W, tileEstHeight } from "@/components/canvas/creative-layer";
@@ -112,7 +114,7 @@ function findSpotIn(rects: Rect[], w: number, h: number, startX: number, startY:
   return { x, y };
 }
 
-export function InfiniteCanvas() {
+export function InfiniteCanvas({ projectId }: { projectId: string }) {
   const {
     savedStrategies, saveStrategy, activeStrategy, setActiveStrategy,
     savedMediaPlans, saveMediaPlan, activeMediaPlan, setActiveMediaPlan,
@@ -120,6 +122,7 @@ export function InfiniteCanvas() {
     savedNarratives, saveNarrative, activeNarrative, setActiveNarrative,
     savedBriefs, saveBrief, activeBrief, setActiveBrief,
     shareMediaPlanWithClient, showToast, hydrated,
+    pendingFlowDraft, setPendingFlowDraft,
   } = useCampaign();
   const { state, setState, setPendingContext } = useAICompanion();
 
@@ -141,7 +144,25 @@ export function InfiniteCanvas() {
   const [market, setMarket] = useState<MarketNode[]>([]);
   const [views, setViews] = useState<SavedView[]>([]);
   const [notes, setNotes] = useState<StickyNote[]>([]);
-  const [viewsOpen, setViewsOpen] = useState(false);
+  const [addTab, setAddTab] = useState<"add" | "views">("add");
+  const [projectName, setProjectName] = useState("Canvas");
+  const [renamingProject, setRenamingProject] = useState(false);
+  const [projectNameDraft, setProjectNameDraft] = useState("");
+
+  useEffect(() => {
+    if (!hydrated) return;
+    setProjectName(loadCanvasProjects().find((p) => p.id === projectId)?.name ?? "Canvas");
+  }, [hydrated, projectId]);
+
+  /* Rename from the canvas header — name your canvas whenever you save it. */
+  const submitProjectRename = useCallback(() => {
+    const name = projectNameDraft.trim();
+    if (name) {
+      persistCanvasProjects(loadCanvasProjects().map((p) => (p.id === projectId ? { ...p, name } : p)));
+      setProjectName(name);
+    }
+    setRenamingProject(false);
+  }, [projectNameDraft, projectId]);
   const [viewName, setViewName] = useState("");
   const { activePersona } = usePersona();
 
@@ -214,12 +235,18 @@ export function InfiniteCanvas() {
   /* ── Load / seed / persist ── */
 
   useEffect(() => {
-    if (!hydrated || loaded) return;
-    const stored = loadCanvas();
+    // !projectId guards stale HMR bundles rendering without the prop — a
+    // "--undefined" key must never be read, seeded, or persisted.
+    if (!hydrated || loaded || !projectId) return;
+    const stored = loadCanvas(projectId);
     if (stored) {
       setViewport(stored.viewport);
-      // Drop frames whose artifact was deleted since last visit.
-      setFrames(stored.frames.filter((f) => artifactName(f.kind, f.refId) !== null));
+      // Drop frames whose artifact was deleted since last visit — but ONLY
+      // when saved artifacts are actually in memory. If every array is empty
+      // (a hydration edge, or a mount racing a reseed), filtering would wipe
+      // the whole layout and the auto-persist would make it permanent.
+      const anySaved = savedStrategies.length + savedMediaPlans.length + savedAudiences.length + savedNarratives.length + savedBriefs.length > 0;
+      setFrames(anySaved ? stored.frames.filter((f) => artifactName(f.kind, f.refId) !== null) : stored.frames);
       setBoards(stored.boards ?? []);
       setMarket(stored.market ?? []);
       setViews(stored.views ?? []);
@@ -242,31 +269,45 @@ export function InfiniteCanvas() {
       }));
     }
     setLoaded(true);
-  }, [hydrated, loaded, artifactName, savedStrategies, savedMediaPlans, savedAudiences, savedNarratives, savedBriefs]);
+  }, [hydrated, loaded, projectId, artifactName, savedStrategies, savedMediaPlans, savedAudiences, savedNarratives, savedBriefs]);
 
   useEffect(() => {
-    if (loaded) persistCanvas({ viewport, frames, boards, market, views, notes });
-  }, [viewport, frames, boards, market, views, notes, loaded]);
+    if (loaded && projectId) persistCanvas(projectId, { viewport, frames, boards, market, views, notes });
+  }, [viewport, frames, boards, market, views, notes, loaded, projectId]);
 
   useEffect(() => {
-    if (!hydrated || flowsLoaded) return;
-    setFlows(loadFlows());
+    if (!hydrated || flowsLoaded || !projectId) return;
+    setFlows(loadFlows(projectId));
     setFlowsLoaded(true);
-  }, [hydrated, flowsLoaded]);
+  }, [hydrated, flowsLoaded, projectId]);
 
   useEffect(() => {
-    if (flowsLoaded) persistFlows(flows);
-  }, [flows, flowsLoaded]);
+    if (flowsLoaded && projectId) persistFlows(projectId, flows);
+  }, [flows, flowsLoaded, projectId]);
+
+  /* User-saved flow templates — curated from any flow, reusable via the + menu. */
+  const [flowTemplates, setFlowTemplates] = useState<SavedFlowTemplate[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
   useEffect(() => {
-    if (!hydrated || creativesLoaded) return;
-    setCreatives(loadCreatives());
+    if (!hydrated || templatesLoaded) return;
+    setFlowTemplates(loadFlowTemplates());
+    setTemplatesLoaded(true);
+  }, [hydrated, templatesLoaded]);
+
+  useEffect(() => {
+    if (templatesLoaded) persistFlowTemplates(flowTemplates);
+  }, [flowTemplates, templatesLoaded]);
+
+  useEffect(() => {
+    if (!hydrated || creativesLoaded || !projectId) return;
+    setCreatives(loadCreatives(projectId));
     setCreativesLoaded(true);
-  }, [hydrated, creativesLoaded]);
+  }, [hydrated, creativesLoaded, projectId]);
 
   useEffect(() => {
-    if (creativesLoaded) persistCreatives(creatives);
-  }, [creatives, creativesLoaded]);
+    if (creativesLoaded && projectId) persistCreatives(projectId, creatives);
+  }, [creatives, creativesLoaded, projectId]);
 
   /* ── Free-spot placement ──
      New content lands near the viewport center, but never on top of existing
@@ -460,6 +501,43 @@ export function InfiniteCanvas() {
     const spot = findFreeSpot(totalW, 440, c.x - totalW / 2, c.y - 200);
     setFlows((prev) => [...prev, createFlowFromTemplate(template, spot)]);
   }, [findFreeSpot, viewCenter]);
+
+  const addFlowFromSaved = useCallback((templateId: string) => {
+    const template = flowTemplates.find((t) => t.id === templateId);
+    if (!template) return;
+    const { w, h } = templateExtent(template);
+    const c = viewCenter();
+    const spot = findFreeSpot(w, h, c.x - w / 2, c.y - h / 2);
+    setFlows((prev) => [...prev, createFlowFromSavedTemplate(template, spot)]);
+  }, [flowTemplates, findFreeSpot, viewCenter]);
+
+  /* Curate any flow into a reusable template (dedupe names with a counter). */
+  const saveFlowAsTemplate = useCallback((flow: OrchestrationFlow) => {
+    setFlowTemplates((prev) => {
+      const t = flowToTemplate(flow);
+      const taken = new Set(prev.map((p) => p.name));
+      let name = t.name, n = 2;
+      while (taken.has(name)) name = `${t.name} (${n++})`;
+      return [...prev, { ...t, name }];
+    });
+    showToast("Saved to your templates — find it under + on the canvas");
+  }, [showToast]);
+
+  const deleteFlowTemplate = useCallback((templateId: string) => {
+    setFlowTemplates((prev) => prev.filter((t) => t.id !== templateId));
+  }, []);
+
+  /* Chat-generated flow drafts land here: lay out at a free spot near the
+     viewport center and clear the pending pointer (same contract as the
+     active-artifact capture below). */
+  useEffect(() => {
+    if (!flowsLoaded || !pendingFlowDraft) return;
+    const { w, h } = draftExtent(pendingFlowDraft);
+    const c = viewCenter();
+    const spot = findFreeSpot(w, h, c.x - w / 2, c.y - h / 2);
+    setFlows((prev) => [...prev, createFlowFromDraft(pendingFlowDraft, spot)]);
+    setPendingFlowDraft(null);
+  }, [flowsLoaded, pendingFlowDraft, setPendingFlowDraft, findFreeSpot, viewCenter]);
 
   const moveFlowNode = useCallback((flowId: string, nodeId: string, x: number, y: number) => {
     setFlows((prev) => prev.map((f) => {
@@ -889,66 +967,45 @@ export function InfiniteCanvas() {
     <div className="flex h-full min-h-0 w-full flex-col">
       {/* Page header — same bar as every artifact page: title left, actions right */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b bg-white px-6">
-        <h1 className="text-[14px] font-semibold text-foreground">Canvas</h1>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Link
+            href="/canvas"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="All canvases"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
+          {renamingProject ? (
+            <span className="flex min-w-0 items-center gap-1">
+              <input
+                autoFocus
+                value={projectNameDraft}
+                onChange={(e) => setProjectNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitProjectRename();
+                  if (e.key === "Escape") setRenamingProject(false);
+                }}
+                className="min-w-0 rounded-md border border-border px-2 py-0.5 text-[14px] font-semibold outline-none focus:border-foreground/40"
+              />
+              <button type="button" onClick={submitProjectRename} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-emerald-600 hover:bg-accent">
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button type="button" onClick={() => setRenamingProject(false)} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          ) : (
             <button
               type="button"
-              onClick={() => setViewsOpen((o) => !o)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors",
-                viewsOpen ? "border-foreground/30 bg-accent text-foreground" : "border-border text-foreground hover:bg-accent"
-              )}
+              onClick={() => { setProjectNameDraft(projectName); setRenamingProject(true); }}
+              className="min-w-0 truncate rounded-md px-1 text-[14px] font-semibold text-foreground transition-colors hover:bg-accent"
+              title="Rename this canvas"
             >
-              <Bookmark className="h-3.5 w-3.5" />
-              Views{views.length > 0 ? ` (${views.length})` : ""}
+              {projectName}
             </button>
-            {viewsOpen && (
-              <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-border bg-white py-1.5 shadow-lg">
-                <div className="px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Saved views
-                </div>
-                {views.length === 0 && (
-                  <p className="px-3.5 py-1 text-[12px] text-muted-foreground">No saved views yet.</p>
-                )}
-                {views.map((v) => (
-                  <div key={v.id} className="group flex items-center gap-1 px-1.5">
-                    <button
-                      type="button"
-                      onClick={() => { setViewport(v.viewport); setViewsOpen(false); }}
-                      className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-[13px] text-foreground transition-colors hover:bg-accent"
-                    >
-                      {v.name}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViews((prev) => prev.filter((x) => x.id !== v.id))}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
-                      title="Delete view"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                <div className="mt-1 flex items-center gap-1.5 border-t border-border px-3 pt-2 pb-1">
-                  <input
-                    value={viewName}
-                    onChange={(e) => setViewName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") saveCurrentView(); }}
-                    placeholder={`View ${views.length + 1}`}
-                    className="min-w-0 flex-1 rounded-lg border border-border px-2 py-1 text-[12px] outline-none focus:border-foreground/40"
-                  />
-                  <button
-                    type="button"
-                    onClick={saveCurrentView}
-                    className="shrink-0 rounded-lg bg-foreground px-2 py-1 text-[12px] font-medium text-background hover:bg-foreground/90"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setConfirmingClear(true)}
@@ -1116,6 +1173,7 @@ export function InfiniteCanvas() {
               onPause={pauseFlow}
               onDelete={setDeletingFlowId}
               onAsk={askAboutFlow}
+              onSaveTemplate={saveFlowAsTemplate}
             />
           ))
         )}
@@ -1209,6 +1267,68 @@ export function InfiniteCanvas() {
           </button>
           {addOpen && (
             <div className="absolute left-full top-0 z-50 ml-2 max-h-96 w-72 overflow-y-auto rounded-xl border border-border bg-white py-1.5 shadow-lg">
+              {/* Tabs: Add (templates, boards, data, artifacts) | Views (camera bookmarks) */}
+              <div className="mx-3 mb-1 flex gap-1 rounded-lg bg-muted p-0.5">
+                {(["add", "views"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setAddTab(tab)}
+                    className={cn(
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-md py-1 text-[12px] font-medium transition-colors",
+                      addTab === tab ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab === "add" ? <Plus className="h-3 w-3" /> : <Bookmark className="h-3 w-3" />}
+                    {tab === "add" ? "Add" : `Views${views.length > 0 ? ` (${views.length})` : ""}`}
+                  </button>
+                ))}
+              </div>
+              {addTab === "views" ? (
+                <>
+                  {views.length === 0 && (
+                    <p className="px-4 py-2 text-[12px] text-muted-foreground">
+                      No saved views yet — frame something, name it below, and jump back anytime.
+                    </p>
+                  )}
+                  {views.map((v) => (
+                    <div key={v.id} className="group flex items-center gap-1 px-2">
+                      <button
+                        type="button"
+                        onClick={() => { setViewport(v.viewport); setAddOpen(false); }}
+                        className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-[13px] text-foreground transition-colors hover:bg-accent"
+                      >
+                        {v.name}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViews((prev) => prev.filter((x) => x.id !== v.id))}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                        title="Delete view"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="mt-1 flex items-center gap-1.5 border-t border-border px-3 pt-2 pb-1">
+                    <input
+                      value={viewName}
+                      onChange={(e) => setViewName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveCurrentView(); }}
+                      placeholder={`View ${views.length + 1}`}
+                      className="min-w-0 flex-1 rounded-lg border border-border px-2 py-1 text-[12px] outline-none focus:border-foreground/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveCurrentView}
+                      className="shrink-0 rounded-lg bg-foreground px-2 py-1 text-[12px] font-medium text-background hover:bg-foreground/90"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </>
+              ) : (
+              <>
               <div className="px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Board templates
               </div>
@@ -1226,6 +1346,36 @@ export function InfiniteCanvas() {
                   </span>
                 </button>
               ))}
+              {flowTemplates.length > 0 && (
+                <>
+                  <div className="mt-1 border-t border-border pt-1.5 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Your templates
+                  </div>
+                  {flowTemplates.map((t) => (
+                    <div key={t.id} className="group flex items-center gap-1 pr-2">
+                      <button
+                        type="button"
+                        onClick={() => { addFlowFromSaved(t.id); setAddOpen(false); }}
+                        className="flex min-w-0 flex-1 items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-accent"
+                      >
+                        <Bookmark className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] text-foreground">{t.name}</span>
+                          <span className="block truncate text-[11px] text-muted-foreground">{t.description}</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteFlowTemplate(t.id)}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                        title="Delete template"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => { addCreativeBoard(); setAddOpen(false); }}
@@ -1290,6 +1440,8 @@ export function InfiniteCanvas() {
                     </button>
                   );
                 })
+              )}
+              </>
               )}
             </div>
           )}
